@@ -3,6 +3,14 @@ CheckMate is designed to be a pluggable code security analysis tool with feature
 
 1. Detects hard-coded secrets in code and configuration files
 
+## Installation
+Prebuilt binaries may be found for your operating system here: https://github.com/adedayo/checkmate/releases
+
+For macOS X, you could install via brew as follows:
+```bash
+brew tap adedayo/tap
+brew install checkmate
+``` 
 
 
 ## Finding Hard-coded Secrets

@@ -8,7 +8,7 @@ import (
 
 var (
 	//AppName is the application name
-	AppName        = "CheckMate"
+	AppName        = "checkmate"
 	sourceFileExts = "java,scala,groovy,jsp,do,jad,c,cc,cxx,cpp,cp,c++,bcc,php2,php,c--,hc,hpp,hxx,m,swift,h,cs,c#,vb,vba,vbs,aspx,py,pyt,rb,erb,lua,asmx,f,f95,ash,tcl,ml,pl,cbl"
 	//SourceFileExtensions extensions for source code
 	SourceFileExtensions = makeMap(sourceFileExts)
