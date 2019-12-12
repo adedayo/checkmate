@@ -24,7 +24,12 @@ func FindSecret(source io.Reader, matcher MatchProvider, shouldProvideSourceInDi
 			close(out)
 		}()
 		consumers := matcher.GetFinders()
-		common.RegisterDiagnosticsConsumer(collector, consumers...)
+
+		providers := []diagnostics.SecurityDiagnosticsProvider{}
+		for _, c := range consumers {
+			providers = append(providers, c.(diagnostics.SecurityDiagnosticsProvider))
+		}
+		common.RegisterDiagnosticsConsumer(collector, providers...)
 		sourceConsumers := []util.SourceConsumer{}
 		for _, c := range consumers {
 			sourceConsumers = append(sourceConsumers, c.(util.SourceConsumer))

@@ -89,6 +89,6 @@ func makeDiagnostic(source string, evidences [3]diagnostics.Evidence) diagnostic
 		Range: code.Range{
 			Start: code.Position{Line: 0, Character: 0},
 			End:   code.Position{Line: 0, Character: len(source)}},
-		Source:     "",
+		Source:     nil,
 		ProviderID: assignmentProviderID}
 }

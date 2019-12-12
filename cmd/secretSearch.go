@@ -33,10 +33,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 
-	"github.com/adedayo/checkmate/pkg/common"
 	"github.com/adedayo/checkmate/pkg/modules/secrets"
 	"github.com/spf13/cobra"
 )
@@ -59,54 +56,11 @@ func init() {
 }
 
 func search(cmd *cobra.Command, args []string) {
-	directoryOrFile := make(map[string]bool)
-	worklist := make(map[string]struct{})
-	for _, arg := range args {
-		path := filepath.Clean(arg)
-		if fileInfo, err := os.Stat(path); !os.IsNotExist(err) {
-			directoryOrFile[path] = fileInfo.IsDir()
+
+	for issue := range secrets.SearchSecretsOnPaths(args, showSource) {
+		if x, err := json.Marshal(issue); err == nil {
+			fmt.Printf("\n%s\n", x)
 		}
 	}
 
-	var nothing struct{}
-	//collect unique files to analyse
-	for file, isDir := range directoryOrFile {
-		if isDir {
-			for _, f := range getFiles(file) {
-				worklist[f] = nothing
-			}
-		} else {
-			worklist[file] = nothing
-		}
-	}
-
-	for file := range worklist {
-		processFile(file)
-	}
-
-}
-
-func processFile(path string) {
-	if f, err := os.Open(path); err == nil {
-		for issue := range secrets.FindSecret(f, secrets.NewJavaFinder(), showSource) {
-			issue.Location = &path
-			if x, err := json.Marshal(issue); err == nil {
-				fmt.Printf("\n%s\n", x)
-			}
-		}
-		f.Close()
-	}
-}
-
-func getFiles(dir string) (paths []string) {
-	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return filepath.SkipDir
-		}
-		if _, present := common.TextFileExtensions[filepath.Ext(path)]; present {
-			paths = append(paths, path)
-		}
-		return nil
-	})
-	return
 }

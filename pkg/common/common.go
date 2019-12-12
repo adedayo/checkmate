@@ -3,18 +3,37 @@ package common
 import (
 	"github.com/adedayo/checkmate/pkg/common/diagnostics"
 	"github.com/adedayo/checkmate/pkg/common/util"
+	"path/filepath"
 	"strings"
 )
 
-var (
-	//AppName is the application name
-	AppName        = "checkmate"
-	sourceFileExts = "java,scala,groovy,jsp,do,jad,c,cc,cxx,cpp,cp,c++,bcc,php2,php,c--,hc,hpp,hxx,m,swift,h,cs,c#,vb,vba,vbs,aspx,py,pyt,rb,erb,lua,asmx,f,f95,ash,tcl,ml,pl,cbl"
-	//SourceFileExtensions extensions for source code
-	SourceFileExtensions = makeMap(sourceFileExts)
-	//TextFileExtensions file name extensions for textual files
-	TextFileExtensions = makeMap("txt,xml,docx,xlsx,pptx,odt,fodt,ods,fods,odp,fodp,odb,js,json,yml,yaml,md,cnf,conf,config,sh,zsh,bash,cmd,sql,bat,pp,key,csr,crt,pem,csv,cf,pre,htm,html," + sourceFileExts)
-)
+//IsConfidentialFile indicates whether a file is potentially confidential based on its name or extension, with a narrative indicating
+//what sort of file it may be if it is potentially condidential
+func IsConfidentialFile(path string) (bool, string) {
+	// var narrative string
+	// var truth bool
+	baseName := filepath.Base(path)
+	if narrative, present := DangerousFileNames[baseName]; present {
+		return present, narrative
+	}
+	extension := filepath.Ext(path)
+
+	if narrative, present := CertsAndKeyStores[extension]; present {
+		return present, narrative
+
+	}
+
+	if narrative, present := DangerousExtensions[extension]; present {
+		return present, narrative
+
+	}
+	if narrative, present := FinancialAndAccountingExtensions[extension]; present {
+		return present, narrative
+
+	}
+
+	return false, ""
+}
 
 func makeMap(elements string) map[string]struct{} {
 	result := make(map[string]struct{})
@@ -31,8 +50,14 @@ type SourceToSecurityDiagnostics interface {
 	diagnostics.SecurityDiagnosticsProvider
 }
 
+//PathToSecurityDiagnostics is an interface that describes an object that can consume a file path or URI and generate security diagnostics
+type PathToSecurityDiagnostics interface {
+	util.PathConsumer
+	diagnostics.SecurityDiagnosticsProvider
+}
+
 //RegisterDiagnosticsConsumer registers a callback to consume diagnostics
-func RegisterDiagnosticsConsumer(callback func(d diagnostics.SecurityDiagnostic), providers ...SourceToSecurityDiagnostics) {
+func RegisterDiagnosticsConsumer(callback func(d diagnostics.SecurityDiagnostic), providers ...diagnostics.SecurityDiagnosticsProvider) {
 	consumer := c{
 		callback: callback,
 	}

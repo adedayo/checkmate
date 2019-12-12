@@ -2,6 +2,8 @@ package util
 
 import (
 	"io"
+	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"sync"
@@ -15,6 +17,47 @@ var (
 	reNL = regexp.MustCompile(`\n`)
 )
 
+//FindFiles recursively searches the directories and files contained in paths and returns a unique list of files
+func FindFiles(paths []string) (result []string) {
+
+	directoryOrFile := make(map[string]bool)
+	worklist := make(map[string]struct{})
+	for _, p := range paths {
+		path := filepath.Clean(p)
+		if fileInfo, err := os.Stat(path); !os.IsNotExist(err) {
+			directoryOrFile[path] = fileInfo.IsDir()
+		}
+	}
+
+	var nothing struct{}
+	//collect unique files to analyse
+	for file, isDir := range directoryOrFile {
+		if isDir {
+			for _, f := range getFiles(file) {
+				worklist[f] = nothing
+			}
+		} else {
+			worklist[file] = nothing
+		}
+	}
+
+	for path := range worklist {
+		result = append(result, path)
+	}
+
+	return
+}
+func getFiles(dir string) (paths []string) {
+	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return filepath.SkipDir
+		}
+		paths = append(paths, path)
+		return nil
+	})
+	return
+}
+
 //SourceMultiplexer interface defines a source reader that can be multiplexed to multiple consumers. It provides
 //additional utility such as mapping a source index to the line and character, i.e. the `code.Position` in the source
 type SourceMultiplexer interface {
@@ -22,9 +65,41 @@ type SourceMultiplexer interface {
 	SetSourceAndConsumers(source *io.Reader, provideSourceInDiagnostics bool, consumers ...SourceConsumer)
 }
 
+//PathMultiplexer interface defines an aggregator of analysers that can consume filesystem paths and URIs and process them
+type PathMultiplexer interface {
+	SetPathConsumers(consumers ...PathConsumer)
+	ConsumePath(path string)
+}
+
+type defaultPathMultiplexer struct {
+	consumers []PathConsumer
+}
+
+func (dpm *defaultPathMultiplexer) SetPathConsumers(consumers ...PathConsumer) {
+	dpm.consumers = consumers
+}
+
+func (dpm *defaultPathMultiplexer) ConsumePath(path string) {
+	for _, c := range dpm.consumers {
+		c.Consume(path)
+	}
+}
+
 //PositionProvider provides a "global" view of code location, given an arbitrary character index.
 type PositionProvider interface {
 	GetPosition(index int) code.Position
+}
+
+//PathConsumer is a sink for paths and URIs
+type PathConsumer interface {
+	Consume(path string)
+}
+
+//NewPathMultiplexer creates a choreographer that orchestrates the consumption of paths by consumers
+func NewPathMultiplexer(consumers ...PathConsumer) PathMultiplexer {
+	dpm := defaultPathMultiplexer{}
+	dpm.SetPathConsumers(consumers...)
+	return &dpm
 }
 
 //SourceConsumer is a sink for streaming source
