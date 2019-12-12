@@ -46,12 +46,19 @@ var cfgFile string
 var rootCmd = &cobra.Command{
 	Use:   common.AppName,
 	Short: fmt.Sprintf("%s provides security analysis for your software and configuration files associated with the software", common.AppName),
-	Long:  fmt.Sprintf("%s provides security analysis for your software and configuration files associated with the software", common.AppName),
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
-func Execute() {
+func Execute(version string) {
+	rootCmd.Version = version
+	rootCmd.Long = fmt.Sprintf(`%s provides security analysis for your software and configuration files associated with the software
+	
+	Version: %s
+
+	Author: Adedayo Adetoye (Dayo) <https://github.com/adedayo>
+	`, common.AppName, version)
+
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)

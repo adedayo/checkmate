@@ -31,7 +31,10 @@ POSSIBILITY OF SUCH DAMAGE.
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/adedayo/checkmate/pkg/api"
+	"github.com/adedayo/checkmate/pkg/common"
 	"github.com/spf13/cobra"
 )
 
@@ -43,6 +46,12 @@ var apiCmd = &cobra.Command{
 	Short: "Expose code security analysis as an API",
 	Long:  `Expose code security analysis as an API`,
 	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Printf(`Running %s as an API service on port %d
+		
+Version: %s
+
+Author: Adedayo Adetoye (Dayo) <https://github.com/adedayo>
+		`, common.AppName, port, rootCmd.Version)
 		api.ServeAPI(port)
 	},
 }

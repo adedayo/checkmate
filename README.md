@@ -1,3 +1,7 @@
+[![Go Report Card](https://goreportcard.com/badge/github.com/adedayo/checkmate)](https://goreportcard.com/report/github.com/adedayo/checkmate)
+![GitHub release](https://img.shields.io/github/release/adedayo/checkmate.svg)
+[![GitHub license](https://img.shields.io/github/license/adedayo/checkmate.svg)](https://github.com/adedayo/checkmate/blob/master/LICENSE)
+
 # CheckMate Code Security Analysis
 CheckMate is designed to be a pluggable code security analysis tool with features to be added over time. Currently it supports
 
