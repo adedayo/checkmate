@@ -3,16 +3,27 @@ package common
 import (
 	"github.com/adedayo/checkmate/pkg/common/diagnostics"
 	"github.com/adedayo/checkmate/pkg/common/util"
+	"strings"
 )
 
 var (
 	//AppName is the application name
-	AppName = "CheckMate"
+	AppName        = "CheckMate"
+	sourceFileExts = "java,scala,groovy,jsp,do,jad,c,cc,cxx,cpp,cp,c++,bcc,php2,php,c--,hc,hpp,hxx,m,swift,h,cs,c#,vb,vba,vbs,aspx,py,pyt,rb,erb,lua,asmx,f,f95,ash,tcl,ml,pl,cbl"
 	//SourceFileExtensions extensions for source code
-	SourceFileExtensions = "java,scala,groovy,jsp,do,jad,c,cc,cxx,cpp,cp,c++,bcc,php2,php,c--,hc,hpp,hxx,m,swift,h,cs,c#,vb,vba,vbs,aspx,py,pyt,rb,erb,lua,asmx,f,f95,ash,tcl,ml,pl,cbl"
+	SourceFileExtensions = makeMap(sourceFileExts)
 	//TextFileExtensions file name extensions for textual files
-	TextFileExtensions = "txt,xml,docx,xlsx,pptx,odt,fodt,ods,fods,odp,fodp,odb,js,json,yml,yaml,md,cnf,conf,config,sh,zsh,bash,cmd,sql,bat,pp,key,csr,crt,pem,csv,cf,pre,htm,html," + SourceFileExtensions
+	TextFileExtensions = makeMap("txt,xml,docx,xlsx,pptx,odt,fodt,ods,fods,odp,fodp,odb,js,json,yml,yaml,md,cnf,conf,config,sh,zsh,bash,cmd,sql,bat,pp,key,csr,crt,pem,csv,cf,pre,htm,html," + sourceFileExts)
 )
+
+func makeMap(elements string) map[string]struct{} {
+	result := make(map[string]struct{})
+	var nothing struct{}
+	for _, s := range strings.Split(elements, ",") {
+		result["."+s] = nothing
+	}
+	return result
+}
 
 //SourceToSecurityDiagnostics is an interface that describes an object that can consume source and generate security diagnostics
 type SourceToSecurityDiagnostics interface {
@@ -52,7 +63,6 @@ type simpleDiagnosticAggregator struct {
 func (sda *simpleDiagnosticAggregator) AddDiagnostic(diagnostic diagnostics.SecurityDiagnostic) {
 	sda.diagnostics = append(sda.diagnostics, diagnostic)
 }
-
 
 func (sda *simpleDiagnosticAggregator) Aggregate() (agg []diagnostics.SecurityDiagnostic) {
 	excluded := make(map[int]bool)

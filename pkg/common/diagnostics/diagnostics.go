@@ -12,8 +12,10 @@ type SecurityDiagnostic struct {
 	Justification Justification
 	Range         code.Range
 	//Source code evidence optionally provided
-	Source     string `json:"Source,omitempty"`
-	ProviderID string //used for identifying the source of the diagnostics
+	Source *string `json:"source,omitempty"`
+	//Location is an optional value that could contain filepath or URI of resource that this diagnostic applies to
+	Location   *string `json:"location,omitempty"`
+	ProviderID string  //used for identifying the source of the diagnostics
 }
 
 //Confidence reflects the degree of confidence that we have in an assessment

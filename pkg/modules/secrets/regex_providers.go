@@ -290,7 +290,7 @@ func (sa *assignmentFinder) Consume(startIndex int, source string) {
 				}
 				if sa.provideSource {
 					s := source[start:end]
-					diagnostic.Source = s
+					diagnostic.Source = &s
 				}
 				sa.Broadcast(diagnostic)
 			}
@@ -339,7 +339,7 @@ func (sf *secretStringFinder) Consume(startIndex int, source string) {
 				}
 				if sf.provideSource {
 					s := source[start:end]
-					diagnostic.Source = s
+					diagnostic.Source = &s
 				}
 				sf.Broadcast(diagnostic)
 			}

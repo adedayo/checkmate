@@ -31,15 +31,18 @@ POSSIBILITY OF SUCH DAMAGE.
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/adedayo/checkmate/pkg/common"
+	"github.com/adedayo/checkmate/pkg/modules/secrets"
 	"github.com/spf13/cobra"
 )
 
 var (
-	paths bool
+	showSource bool
 )
 
 // secretSearchCmd represents the secretSearch command
@@ -52,14 +55,12 @@ var secretSearchCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(secretSearchCmd)
-	// secretSearchCmd.Flags().IntVarP(&port, "port", "p", 8080, "Port on which to serve the API service")
-	secretSearchCmd.Flags().BoolVarP(&paths, "paths", "p", false, "Indicate that the arguments are paths and search recursively for possible secrets in files contained all subdirectories of the paths")
+	secretSearchCmd.Flags().BoolVarP(&showSource, "source", "s", false, "Provide source code evidence in the diagnostic results")
 }
 
 func search(cmd *cobra.Command, args []string) {
-
-	fmt.Printf("Got paths %#v, %t\n", args, paths)
 	directoryOrFile := make(map[string]bool)
+	worklist := make(map[string]struct{})
 	for _, arg := range args {
 		path := filepath.Clean(arg)
 		if fileInfo, err := os.Stat(path); !os.IsNotExist(err) {
@@ -67,19 +68,46 @@ func search(cmd *cobra.Command, args []string) {
 		}
 	}
 
+	var nothing struct{}
+	//collect unique files to analyse
 	for file, isDir := range directoryOrFile {
 		if isDir {
-			println(file)
+			for _, f := range getFiles(file) {
+				println("Adding ", f)
+				worklist[f] = nothing
+			}
 		} else {
-
+			worklist[file] = nothing
 		}
-
 	}
-	// if file, err := os.Open("/Users/aadetoye/softdev/opensrc/java/static-analysis-test-code/src/main/java/com/github/adedayo/test/SecretsInCode.java"); err == nil {
-	// 	shouldProvideSourceInDiagnostics := true
-	// 	for issue := range secrets.FindSecret(file, secrets.NewJavaFinder(), shouldProvideSourceInDiagnostics) {
-	// 		fmt.Printf("\nFound issue %+v, %s\n", issue, issue.Source)
-	// 	}
-	// 	file.Close()
-	// }
+
+	for file := range worklist {
+		processFile(file)
+	}
+
+}
+
+func processFile(path string) {
+	if f, err := os.Open(path); err == nil {
+		for issue := range secrets.FindSecret(f, secrets.NewJavaFinder(), showSource) {
+			issue.Location = &path
+			if x, err := json.Marshal(issue); err == nil {
+				fmt.Printf("\n%s\n", x)
+			}
+		}
+		f.Close()
+	}
+}
+
+func getFiles(dir string) (paths []string) {
+	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return filepath.SkipDir
+		}
+		if _, present := common.TextFileExtensions[filepath.Ext(path)]; present {
+			paths = append(paths, path)
+		}
+		return nil
+	})
+	return
 }
