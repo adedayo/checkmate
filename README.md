@@ -104,13 +104,11 @@ This returns a result (formatted for presentation) as follows:
 ```
 
 The _/api/findsecrets_ endpoint accepts a POST request with a JSON payload of the form 
-```yaml
+```jsonc
 {
     "source" : "<string data to scan>",
-    //a hint to help with parsing the text in source
-    "source_type": ".yaml",
-    //an optional flag to indicate whether source is base64-encoded 
-    "base64" : true 
+    "source_type": ".yaml", //a hint to help with parsing the text in source
+    "base64" : true //an optional flag to indicate whether source is base64-encoded 
 }
 ```
 
