@@ -73,7 +73,6 @@ func search(cmd *cobra.Command, args []string) {
 	for file, isDir := range directoryOrFile {
 		if isDir {
 			for _, f := range getFiles(file) {
-				println("Adding ", f)
 				worklist[f] = nothing
 			}
 		} else {

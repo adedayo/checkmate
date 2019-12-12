@@ -35,7 +35,7 @@ var (
 	space                = regexp.MustCompile(`\s`)
 	special              = regexp.MustCompile(`["!\#$%&'()*+,-./:;<=>?@[\]^_{|}` + "`]")
 	minSecretLength      = 8
-	longStrings          = regexp.MustCompile(fmt.Sprintf(`(%s{%d,})`, quotedString, minSecretLength))
+	longStrings          = regexp.MustCompile(fmt.Sprintf(`((?:%s){%d,})`, quotedString, minSecretLength))
 	secretStrings        = regexp.MustCompile(fmt.Sprintf(`(%s%s(?i:%s)%s%s)`, quote, notQuote, setupSecretStringsIndicators(), notQuote, quote))
 	//e.g <x> pasword123 </x>
 	secretTagValues = regexp.MustCompile(fmt.Sprintf(`>\s*((?i:%s[^<]*))<`, setupSecretStringsIndicators()))
