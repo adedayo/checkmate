@@ -104,12 +104,17 @@ This returns a result (formatted for presentation) as follows:
 ```
 
 The _/api/findsecrets_ endpoint accepts a POST request with a JSON payload of the form 
-```json
+```yaml
 {
     "source" : "<string data to scan>",
-    "source_type": ".yaml", //a hint to help with parsing the text in source
-    "base64" : true //an optional flag to indicate whether source is base64-encoded 
+    //a hint to help with parsing the text in source
+    "source_type": ".yaml",
+    //an optional flag to indicate whether source is base64-encoded 
+    "base64" : true 
 }
 ```
 
 ### Running _CheckMate_ as a command-line tool
+```bash
+checkmate secretSearch <paths to directories and files to scan>
+```
