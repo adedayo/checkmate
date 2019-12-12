@@ -1,7 +1,6 @@
 package secrets
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -78,31 +77,8 @@ func (pathBSF pathBasedSecretFinder) Consume(path string) {
 			for issue := range FindSecret(f, GetFinderForFileType(ext), pathBSF.showSource) {
 				issue.Location = &path
 				pathBSF.Broadcast(issue)
-				if x, err := json.Marshal(issue); err == nil {
-					fmt.Printf("\n%s\n", x)
-				}
 			}
 			f.Close()
 		}
-	}
-	if confidential, why := common.IsConfidentialFile(path); confidential {
-		why = fmt.Sprintf("Warning! You may be sharing confidential (%s) data with your code", why)
-		issue := diagnostics.SecurityDiagnostic{
-			Location:   &path,
-			ProviderID: confidentialFilesProviderID,
-			Justification: diagnostics.Justification{
-				Headline: diagnostics.Evidence{
-					Description: why,
-					Confidence:  diagnostics.Medium,
-				},
-				Reasons: []diagnostics.Evidence{
-					diagnostics.Evidence{
-						Description: why,
-						Confidence:  diagnostics.Medium,
-					},
-				},
-			},
-		}
-		pathBSF.Broadcast(issue)
 	}
 }
