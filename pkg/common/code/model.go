@@ -4,14 +4,14 @@ package code
 type Position struct {
 
 	//Line position in a document (zero-based).
-	Line int
+	Line int `json:"line"`
 
 	//Character offset on a line in a document (zero-based). Assuming that the line is
 	//represented as a string, the `character` value represents the gap between the
 	//`character` and `character + 1`.
 	//If the character value is greater than the line length it defaults back to the
 	//line length.
-	Character int
+	Character int `json:"character"`
 }
 
 //LessOrEqual returns whether `thisPosition` is chronologically "before" `thatPosition`
@@ -21,8 +21,8 @@ func (thisPos Position) LessOrEqual(thatPos Position) bool {
 
 //Range in a text document expressed as (zero-based) start and end positions. A range is comparable to a selection in an editor. Therefore the end position is exclusive. If you want to specify a range that contains a line including the line ending character(s) then use an end position denoting the start of the next line.
 type Range struct {
-	Start Position
-	End   Position
+	Start Position `json:"start"`
+	End   Position `json:"end"`
 }
 
 //Contains checks whether `thisRange` completely overlaps `thatRange` i.e. `thatRange` = `thisRange` intersect `thatRange`
