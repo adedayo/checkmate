@@ -1,10 +1,11 @@
 package common
 
 import (
-	"github.com/adedayo/checkmate/pkg/common/diagnostics"
-	"github.com/adedayo/checkmate/pkg/common/util"
 	"path/filepath"
 	"strings"
+
+	"github.com/adedayo/checkmate/pkg/common/diagnostics"
+	"github.com/adedayo/checkmate/pkg/common/util"
 )
 
 //IsConfidentialFile indicates whether a file is potentially confidential based on its name or extension, with a narrative indicating
@@ -27,7 +28,7 @@ func IsConfidentialFile(path string) (bool, string) {
 		return present, narrative
 
 	}
-	if narrative, present := FinancialAndAccountingExtensions[extension]; present {
+	if narrative, present := FinancialAndAccountingExtensions[extension]; present && !excludeName(baseName) {
 		return present, narrative
 
 	}
@@ -35,9 +36,38 @@ func IsConfidentialFile(path string) (bool, string) {
 	return false, ""
 }
 
-func makeMap(elements string) map[string]struct{} {
-	result := make(map[string]struct{})
-	var nothing struct{}
+func excludeName(basname string) bool {
+	switch basname {
+	case "README", "CHANGELOG":
+		return true
+	}
+	return false
+}
+
+func appendMaps(maps ...map[string]string) map[string]string {
+	result := make(map[string]string)
+	for _, m := range maps {
+		for k := range m {
+			if v, present := result[k]; present {
+				data := []string{}
+				if strings.TrimSpace(m[k]) != "" {
+					data = append(data, m[k])
+				}
+				if strings.TrimSpace(v) != "" {
+					data = append(data, v)
+				}
+				result[k] = strings.Join(data, " or ")
+			} else {
+				result[k] = m[k]
+			}
+		}
+	}
+	return result
+}
+
+func makeMap(elements string) map[string]string {
+	result := make(map[string]string)
+	var nothing string
 	for _, s := range strings.Split(elements, ",") {
 		result["."+s] = nothing
 	}

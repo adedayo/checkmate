@@ -80,7 +80,7 @@ This returns a result (formatted for presentation) as follows:
             }
         },
         "Source": "pwd = \"N!,.aQBd/538:uy7Tx#(jUe?t6ret!\"",
-        "ProviderID": "Secret_Assignment"
+        "ProviderID": "SecretAssignment"
     },
     {
         "Justification": {
@@ -110,7 +110,7 @@ This returns a result (formatted for presentation) as follows:
             }
         },
         "Source": "passphrase = \"This is a secret passphrase. No one will find out\"",
-        "ProviderID": "Secret_Assignment"
+        "ProviderID": "SecretAssignment"
     }
 ]
 ```

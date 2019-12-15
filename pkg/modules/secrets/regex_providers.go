@@ -26,25 +26,25 @@ var (
 	descNotSecret                  = "Value does not appear to be a secret"
 	unusualPasswordStartCharacters = `<>&^%?#({|/`
 
-	assignmentProviderID       = "Secret_Assignment"
-	confAssignmentProviderID   = "Conf_Secret_Assignment"
-	cppAssignmentProviderID    = "CPP_Secret_Assignment"
-	longTagValueProviderID     = "Long_Tag_Value_Secret_Assignment"
-	secretTagProviderID        = "Common_Secret_Tag_Value"
-	jsonAssignmentProviderID   = "JSON_Secret_Assignment"
-	yamlAssignmentProviderID   = "YAML_Secret_Assignment"
-	arrowAssignmentProviderID  = "Arrow_Secret_Assignment"
-	defineAssignmentProviderID = "Define_Secret_Assignment"
-	tagAssignmentProviderID    = "Tag_Secret_Assignment"
+	assignmentProviderID       = "SecretAssignment"
+	confAssignmentProviderID   = "ConfSecretAssignment"
+	cppAssignmentProviderID    = "CPPSecretAssignment"
+	longTagValueProviderID     = "LongTagValueSecretAssignment"
+	secretTagProviderID        = "CommonSecretTagValue"
+	jsonAssignmentProviderID   = "JSONSecretAssignment"
+	yamlAssignmentProviderID   = "YAMLSecretAssignment"
+	arrowAssignmentProviderID  = "ArrowSecretAssignment"
+	defineAssignmentProviderID = "DefineSecretAssignment"
+	tagAssignmentProviderID    = "TagSecretAssignment"
 
-	longStringProviderID   = "Long_String"
-	secretStringProviderID = "Secret_String"
+	longStringProviderID   = "LongString"
+	secretStringProviderID = "SecretString"
 )
 
 //GetFinderForFileType returns the appropriate MatchProvider based on the file type hint
 func GetFinderForFileType(fileType string) MatchProvider {
 	switch strings.ToLower(fileType) {
-	case ".java", ".scala", ".kt":
+	case ".java", ".scala", ".kt", ".go":
 		return NewJavaFinder()
 	case ".c", ".cpp", ".cc", ".c++", ".h++", ".hh", ".hpp":
 		return NewCPPSecretsFinders()
