@@ -11,7 +11,7 @@ var (
 	quote                   = `(?:["'` + "`])"
 	notQuote                = `(?:[^'"` + "`]*)"
 	quotedString            = /** standard quote */ `(?s:"(?:[^"\\]|\\.)*")` /** tick */ + `|(?s:'(?:[^'\\]|\\.)*')` + /** backtick */ "|(?s:`(?:[^`\\\\]|\\\\.)*`)"
-	secretVarIndicator      = `(?i:secret|private|sensitive|confidential|c(?:y|i)pher|crypt|signature|nonce|credential|key|token|salt|auth(?:[^o][^r])?|pass(?:[^e][^d])?(?:word|phrase)?|ps?wd)`
+	secretVarIndicator      = `(?i:secret|private|sensitive|confidential|c(?:y|i)pher|crypt|signature|nonce|credential|key|token|salt|auth(?:[^o]|o[^r])+|pass(?:[^e]|e[^ds])+(?:word|phrase)?|ps?wd)`
 	secretVar               = fmt.Sprintf(`(%s*?%s%s*?)`, javaVar, secretVarIndicator, javaVar)
 	secretAssignment        = regexp.MustCompile(fmt.Sprintf(`%s\s*(?::[^=]+)?\s*[+]?!?==?\s*(%s)`, secretVar, quotedString))
 	confAssignment          = regexp.MustCompile(fmt.Sprintf(`%s\s*[+]?!?=?\s*(%s)`, secretVar, quotedString))
