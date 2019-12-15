@@ -13,32 +13,29 @@ import (
 func IsConfidentialFile(path string) (bool, string) {
 	// var narrative string
 	// var truth bool
-	baseName := filepath.Base(path)
+	extension := filepath.Ext(path)
+	baseName := strings.TrimSuffix(filepath.Base(path), extension)
 	if narrative, present := DangerousFileNames[baseName]; present {
 		return present, narrative
 	}
-	extension := filepath.Ext(path)
 
 	if narrative, present := CertsAndKeyStores[extension]; present {
 		return present, narrative
-
 	}
 
 	if narrative, present := DangerousExtensions[extension]; present {
 		return present, narrative
-
 	}
 	if narrative, present := FinancialAndAccountingExtensions[extension]; present && !excludeName(baseName) {
 		return present, narrative
-
 	}
 
 	return false, ""
 }
 
 func excludeName(basname string) bool {
-	switch basname {
-	case "README", "CHANGELOG":
+	switch strings.ToLower(basname) {
+	case "readme", "changelog":
 		return true
 	}
 	return false
