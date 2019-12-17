@@ -235,7 +235,6 @@ func (lk *LineKeeper) appendEOLs(eols []int) {
 }
 
 //GetPositionFromCharacterIndex returns the `code.Position` given the index of the character in the file
-//TODO: review this algorithm
 func (lk *LineKeeper) GetPositionFromCharacterIndex(pos int) code.Position {
 	//lk.EOLLocations are sorted
 	lk.lock.Lock()
@@ -244,15 +243,15 @@ func (lk *LineKeeper) GetPositionFromCharacterIndex(pos int) code.Position {
 		end := len(lk.EOLLocations) - 1
 		if pos > lk.EOLLocations[end] {
 			return code.Position{
-				Line:      end,
+				Line:      end + 1,
 				Character: pos - lk.EOLLocations[end],
 			}
 		}
 		for i, eol := range lk.EOLLocations {
 			if eol > pos {
-				if i > 1 {
+				if i > 0 {
 					return code.Position{
-						Line:      i - 1,
+						Line:      i,
 						Character: pos - lk.EOLLocations[i-1],
 					}
 				}

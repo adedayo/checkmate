@@ -286,12 +286,16 @@ func (sa *assignmentFinder) Consume(startIndex int, source string) {
 					},
 					Range: code.Range{
 						Start: sa.lineKeeper.GetPositionFromCharacterIndex(startIndex + start),
-						End:   sa.lineKeeper.GetPositionFromCharacterIndex(startIndex + end),
+						End:   sa.lineKeeper.GetPositionFromCharacterIndex(startIndex + end - 1),
 					},
 					ProviderID: sa.providerID,
 				}
 				if diagnostic.Justification.Reasons[1].Confidence != diagnostics.Low {
 					diagnostic.Justification.Headline.Confidence = diagnostics.High
+				}
+				if diagnostic.Justification.Reasons[1].Description == descNotSecret &&
+					diagnostic.Justification.Headline.Confidence > diagnostics.Medium {
+					diagnostic.Justification.Headline.Confidence = diagnostics.Medium
 				}
 				if sa.provideSource {
 					s := source[start:end]
@@ -335,7 +339,7 @@ func (sf *secretStringFinder) Consume(startIndex int, source string) {
 					},
 					Range: code.Range{
 						Start: sf.lineKeeper.GetPositionFromCharacterIndex(startIndex + start),
-						End:   sf.lineKeeper.GetPositionFromCharacterIndex(startIndex + end),
+						End:   sf.lineKeeper.GetPositionFromCharacterIndex(startIndex + end - 1),
 					},
 					ProviderID: sf.providerID,
 				}
