@@ -40,7 +40,10 @@ import (
 	"github.com/spf13/viper"
 )
 
-var cfgFile string
+var (
+	cfgFile    string
+	appVersion = "0.0.0"
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -51,7 +54,7 @@ var rootCmd = &cobra.Command{
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute(version string) {
-	rootCmd.Version = version
+	appVersion = version
 	rootCmd.Long = fmt.Sprintf(`%s provides security analysis for your software and configuration files associated with the software
 	
 	Version: %s

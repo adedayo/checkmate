@@ -9,12 +9,12 @@ import (
 	"sync"
 
 	"github.com/adedayo/checkmate/pkg/common/code"
+	"github.com/adedayo/checkmate/pkg/common/diagnostics"
 )
 
 var (
 	dataChunkSize = 4096 //read in source data 4k-bytes chunks
-	// lineKeeperKey lkKey = 0
-	reNL = regexp.MustCompile(`\n`)
+	reNL          = regexp.MustCompile(`\n`)
 )
 
 //FindFiles recursively searches the directories and files contained in paths and returns a unique list of files
@@ -93,6 +93,7 @@ type PositionProvider interface {
 //PathConsumer is a sink for paths and URIs
 type PathConsumer interface {
 	Consume(path string)
+	diagnostics.WhitelistProvider
 }
 
 //NewPathMultiplexer creates a choreographer that orchestrates the consumption of paths by consumers
@@ -234,6 +235,7 @@ func (lk *LineKeeper) appendEOLs(eols []int) {
 }
 
 //GetPositionFromCharacterIndex returns the `code.Position` given the index of the character in the file
+//TODO: review this algorithm
 func (lk *LineKeeper) GetPositionFromCharacterIndex(pos int) code.Position {
 	//lk.EOLLocations are sorted
 	lk.lock.Lock()

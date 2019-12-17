@@ -26,6 +26,7 @@ func IsConfidentialFile(path string) (bool, string) {
 	if narrative, present := DangerousExtensions[extension]; present {
 		return present, narrative
 	}
+
 	if narrative, present := FinancialAndAccountingExtensions[extension]; present && !excludeName(baseName) {
 		return present, narrative
 	}

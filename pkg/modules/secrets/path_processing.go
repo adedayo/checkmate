@@ -7,10 +7,12 @@ import (
 	"regexp"
 	"strings"
 
+	// "github.com/adedayo/checkmate/pkg/common"
 	"github.com/adedayo/checkmate/pkg/common"
 	"github.com/adedayo/checkmate/pkg/common/diagnostics"
 	gitutils "github.com/adedayo/checkmate/pkg/common/git"
 	"github.com/adedayo/checkmate/pkg/common/util"
+	// "github.com/adedayo/checkmate/pkg/common/util"
 )
 
 var (
@@ -19,7 +21,7 @@ var (
 )
 
 //SearchSecretsOnPaths searches for secrets on indicated paths
-func SearchSecretsOnPaths(paths []string, showSource bool) chan diagnostics.SecurityDiagnostic {
+func SearchSecretsOnPaths(paths []string, showSource bool, wl diagnostics.DefaultWhitelistProvider) chan diagnostics.SecurityDiagnostic {
 	out := make(chan diagnostics.SecurityDiagnostic)
 	repos, local := determineAndCloneRepositories(paths)
 	paths = local
@@ -41,7 +43,12 @@ func SearchSecretsOnPaths(paths []string, showSource bool) chan diagnostics.Secu
 		}
 		out <- diagnostic
 	}
-	consumers := []util.PathConsumer{&confidentialFilesFinder{}, &pathBasedSecretFinder{showSource: showSource}}
+	consumers := []util.PathConsumer{
+		&confidentialFilesFinder{
+			DefaultWhitelistProvider: wl,
+		},
+		&pathBasedSecretFinder{showSource: showSource, DefaultWhitelistProvider: wl},
+	}
 	providers := []diagnostics.SecurityDiagnosticsProvider{}
 	for _, c := range consumers {
 		providers = append(providers, c.(diagnostics.SecurityDiagnosticsProvider))
@@ -84,9 +91,13 @@ func determineAndCloneRepositories(paths []string) (map[string]string, []string)
 
 type confidentialFilesFinder struct {
 	diagnostics.DefaultSecurityDiagnosticsProvider
+	diagnostics.DefaultWhitelistProvider
 }
 
 func (cff confidentialFilesFinder) Consume(path string) {
+	if cff.ShouldWhitelistPath(path) {
+		return
+	}
 	if confidential, why := common.IsConfidentialFile(path); confidential {
 		why = fmt.Sprintf("Warning! You may be sharing confidential (%s) data with your code", why)
 		issue := diagnostics.SecurityDiagnostic{
@@ -111,10 +122,14 @@ func (cff confidentialFilesFinder) Consume(path string) {
 
 type pathBasedSecretFinder struct {
 	diagnostics.DefaultSecurityDiagnosticsProvider
+	diagnostics.DefaultWhitelistProvider
 	showSource bool
 }
 
 func (pathBSF pathBasedSecretFinder) Consume(path string) {
+	if pathBSF.ShouldWhitelistPath(path) {
+		return
+	}
 	ext := filepath.Ext(path)
 	if _, present := common.TextFileExtensions[ext]; present {
 		if f, err := os.Open(path); err == nil {

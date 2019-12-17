@@ -33,13 +33,19 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"log"
 
+	"github.com/adedayo/checkmate/pkg/common"
+	"github.com/adedayo/checkmate/pkg/common/diagnostics"
 	"github.com/adedayo/checkmate/pkg/modules/secrets"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 var (
 	showSource bool
+	whitelist  string
 )
 
 // secretSearchCmd represents the secretSearch command
@@ -53,11 +59,24 @@ var secretSearchCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(secretSearchCmd)
 	secretSearchCmd.Flags().BoolVarP(&showSource, "source", "s", false, "Provide source code evidence in the diagnostic results")
+	secretSearchCmd.Flags().StringVarP(&whitelist, "whitelist", "w", "", "Use provided whitelist yaml configuration")
 }
 
 func search(cmd *cobra.Command, args []string) {
-
-	for issue := range secrets.SearchSecretsOnPaths(args, showSource) {
+	fmt.Printf("Starting %s %s (https://github.com/adedayo/checkmate)\n", common.AppName, appVersion)
+	var wl diagnostics.DefaultWhitelistProvider
+	if whitelist != "" {
+		data, err := ioutil.ReadFile(whitelist)
+		if err != nil {
+			log.Printf("Warning: %s. Continuing with no whitelist", err.Error())
+		} else {
+			if err := yaml.Unmarshal(data, &wl); err != nil {
+				log.Printf("Warning: %s. Continuing with no whitelist", err.Error())
+			}
+		}
+		wl.CompileRegExs()
+	}
+	for issue := range secrets.SearchSecretsOnPaths(args, showSource, wl) {
 		if x, err := json.Marshal(issue); err == nil {
 			fmt.Printf("\n%s\n", x)
 		}

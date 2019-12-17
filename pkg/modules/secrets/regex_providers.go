@@ -88,6 +88,7 @@ func NewJavaFinder() MatchProvider {
 
 //MatchProvider provides regular expressions and other facilities for locating secrets in source data
 type MatchProvider interface {
+	// common.WhitelistProvider
 	GetFinders() []common.SourceToSecurityDiagnostics
 }
 
@@ -131,6 +132,10 @@ type defaultMatchProvider struct {
 
 func (dmp defaultMatchProvider) GetFinders() []common.SourceToSecurityDiagnostics {
 	return dmp.finders
+}
+
+func (dmp defaultMatchProvider) ShouldWhitelist(pathContext, value string) bool {
+	return false
 }
 
 //NewConfigurationSecretsFinder is a `MatchProvider` for finding secrets in configuration `.conf` files
