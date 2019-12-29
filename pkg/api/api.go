@@ -33,7 +33,6 @@ func findSecrets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	finder := secrets.GetFinderForFileType(data.SourceType)
 	if data.Base64 {
 		b, err := base64.StdEncoding.DecodeString(data.Source)
 		if err != nil {
@@ -43,6 +42,7 @@ func findSecrets(w http.ResponseWriter, r *http.Request) {
 		data.Source = string(b)
 	}
 
+	finder := secrets.GetFinderForFileType(data.SourceType)
 	diagnostics := []diagnostics.SecurityDiagnostic{}
 	for diagnostic := range secrets.FindSecret(strings.NewReader(data.Source), finder, true) {
 		diagnostics = append(diagnostics, diagnostic)

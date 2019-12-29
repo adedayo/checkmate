@@ -285,7 +285,7 @@ func (sa *assignmentFinder) Consume(startIndex int, source string) {
 							evidence},
 					},
 					Range: code.Range{
-						Start: sa.lineKeeper.GetPositionFromCharacterIndex(startIndex + start),
+						Start: sa.lineKeeper.GetPositionFromCharacterIndex(startIndex + start - 1),
 						End:   sa.lineKeeper.GetPositionFromCharacterIndex(startIndex + end - 1),
 					},
 					ProviderID: sa.providerID,
@@ -338,7 +338,7 @@ func (sf *secretStringFinder) Consume(startIndex int, source string) {
 							evidence},
 					},
 					Range: code.Range{
-						Start: sf.lineKeeper.GetPositionFromCharacterIndex(startIndex + start),
+						Start: sf.lineKeeper.GetPositionFromCharacterIndex(startIndex + start - 1),
 						End:   sf.lineKeeper.GetPositionFromCharacterIndex(startIndex + end - 1),
 					},
 					ProviderID: sf.providerID,
