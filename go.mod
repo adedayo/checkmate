@@ -3,7 +3,7 @@ module github.com/adedayo/checkmate
 go 1.13
 
 require (
-	github.com/adedayo/go-lsp v0.0.4
+	github.com/adedayo/go-lsp v0.0.5
 	github.com/gorilla/mux v1.7.3
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/spf13/cobra v0.0.5
@@ -12,4 +12,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20191120175047-4206685974f2
 )
 
-replace github.com/adedayo/go-lsp v0.0.4 => ../go-lsp
+// replace github.com/adedayo/go-lsp v0.0.5 => ../go-lsp
