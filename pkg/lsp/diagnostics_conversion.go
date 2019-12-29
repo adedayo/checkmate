@@ -1,6 +1,9 @@
 package lsp
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/adedayo/checkmate/pkg/common"
 	"github.com/adedayo/checkmate/pkg/common/code"
 	"github.com/adedayo/checkmate/pkg/common/diagnostics"
@@ -8,13 +11,24 @@ import (
 	"github.com/adedayo/go-lsp/pkg/lsp"
 )
 
+var (
+	source = fmt.Sprintf("\n%s ", common.AppDisplayName)
+)
+
 func convert(in diagnostics.SecurityDiagnostic) lsp.Diagnostic {
-	source := common.AppName
+
+	reasons := []string{fmt.Sprintf("Problem: %s. Confidence Level: %s.",
+		in.Justification.Headline.Description,
+		in.Justification.Headline.Confidence.String()),
+		"Analysis:"}
+	for i, reason := range in.Justification.Reasons {
+		reasons = append(reasons, fmt.Sprintf("\t %d. %s. %s confidence.", i+1, reason.Description, reason.Confidence.String()))
+	}
 	out := lsp.Diagnostic{
 		Range:    copyCode(in.Range),
 		Severity: convertConfidence(in.Justification.Headline.Confidence),
 		Code:     &lsp.DiagnosticCode{StringID: in.Justification.Headline.Description},
-		Message:  in.Justification.Headline.Description,
+		Message:  strings.Join(reasons, "\n"),
 		Source:   &source,
 	}
 	return out

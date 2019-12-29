@@ -3,6 +3,8 @@ package common
 var (
 	//AppName is the application name
 	AppName = "checkmate"
+	//AppDisplayName is the application name used for display purposes
+	AppDisplayName = "CheckMate"
 	sourceFileExts = "java,scala,groovy,jsp,do,jad,c,cc,cxx,cpp,cp,c++,bcc,php2,php,c--,hc,hpp,hxx,m,swift,h,cs,c#,vb,vba,vbs,aspx,py,pyt,rb,erb,lua,asmx,f,f95,ash,tcl,ml,pl,cbl,go"
 	//SourceFileExtensions extensions for source code
 	//see https://fileinfo.com/filetypes/developer-all
