@@ -17,6 +17,7 @@ import (
 	"github.com/adedayo/checkmate/pkg/common/diagnostics"
 	report "github.com/adedayo/checkmate/pkg/reports/model"
 	"github.com/wcharczuk/go-chart"
+	"github.com/wcharczuk/go-chart/drawing"
 )
 
 var (
@@ -35,7 +36,27 @@ var (
 		"translateConfidence": translateConfidence,
 	}
 
-	rgbaFix = regexp.MustCompile(`rgba\((\d+,\d+,\d+),1.0\)`)
+	rgbaFix   = regexp.MustCompile(`rgba\((\d+,\d+,\d+),1.0\)`)
+	highStyle = chart.Style{
+		FillColor:   drawing.ColorRed,
+		StrokeColor: drawing.ColorRed,
+		StrokeWidth: 0,
+	}
+	medStyle = chart.Style{
+		FillColor:   drawing.ColorFromHex("ffbf00"), //Amber
+		StrokeColor: drawing.ColorFromHex("ffbf00"),
+		StrokeWidth: 0,
+	}
+	lowStyle = chart.Style{
+		FillColor:   drawing.ColorGreen,
+		StrokeColor: drawing.ColorGreen,
+		StrokeWidth: 0,
+	}
+	infoStyle = chart.Style{
+		FillColor:   drawing.ColorBlue,
+		StrokeColor: drawing.ColorBlue,
+		StrokeWidth: 0,
+	}
 )
 
 //GenerateReport x
@@ -44,48 +65,11 @@ func GenerateReport(paths []string, issues ...diagnostics.SecurityDiagnostic) (r
 	if err != nil {
 		return reportPath, fmt.Errorf("%s executable file not found in your $PATH. Install it and ensure that it is in your $PATH", asciidocExec)
 	}
+	model, err := computeMetrics(paths, issues)
 
-	graph := chart.DonutChart{
-		Width:  512,
-		Height: 512,
-		Values: []chart.Value{
-			{Value: 5, Label: "Blue"},
-			{Value: 5, Label: "Green"},
-			{Value: 4, Label: "Gray"},
-			{Value: 4, Label: "Orange"},
-			{Value: 3, Label: "Deep Blue"},
-			{Value: 3, Label: "test"},
-		},
-	}
-
-	buffer := bytes.NewBuffer([]byte{})
-	_ = graph.Render(chart.SVG, buffer)
-
-	cc := buffer.String()
-	ccFix := rgbaFix.ReplaceAllString(cc, "rgb($1)")
-
-	println("Before: ", cc)
-	println("After: ", ccFix)
-
-	data, err := generateAssets(ccFix)
-	
 	if err != nil {
-		return reportPath, fmt.Errorf("Problem generating assets: %s", err.Error())
+		return reportPath, err
 	}
-	// is := []diagnostics.SecurityDiagnostic{}
-	model := report.ReportModel{
-		Logo:        data.checkMateLogo,
-		SALLogo:     data.salLogo,
-		Grade:       "A+",
-		Chart:       data.charts[0],
-		HighCount:   0,
-		MediumCount: 0,
-		LowCount:    0,
-		FileCount:   len(paths),
-		Issues:      issues,
-		TimeStamp:   time.Now().UTC().Format(time.RFC1123),
-	}
-
 	t, err := template.New("").Funcs(funcMap).Parse(assets.Report)
 	if err != nil {
 		return reportPath, err
@@ -108,7 +92,73 @@ func GenerateReport(paths []string, issues ...diagnostics.SecurityDiagnostic) (r
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return reportPath, fmt.Errorf("%s%s", string(out), err.Error())
 	}
+	cleanAssets(model, aDoc)
 	return
+}
+
+func computeMetrics(paths []string, issues []diagnostics.SecurityDiagnostic) (report.ReportModel, error) {
+
+	model := report.ReportModel{
+		Grade:       "A+",
+		HighCount:   0,
+		MediumCount: 0,
+		LowCount:    0,
+		FileCount:   len(paths),
+		Issues:      issues,
+		TimeStamp:   time.Now().UTC().Format(time.RFC1123),
+	}
+
+	for _, issue := range issues {
+		switch issue.Justification.Headline.Confidence {
+		case diagnostics.High:
+			model.HighCount++
+		case diagnostics.Medium:
+			model.MediumCount++
+		case diagnostics.Low:
+			model.LowCount++
+		default:
+			model.InformationalCount++
+
+		}
+	}
+
+	graph := chart.BarChart{
+		Width:  512,
+		Height: 512,
+		Title:  "Issues Found",
+		Bars: []chart.Value{
+			{Value: float64(model.HighCount), Style: highStyle, Label: "High"},
+			{Value: float64(model.MediumCount), Style: medStyle, Label: "Medium"},
+			{Value: float64(model.LowCount), Style: lowStyle, Label: "Low"},
+			{Value: float64(model.InformationalCount), Style: infoStyle, Label: "Informational"},
+		},
+	}
+
+	buffer := bytes.NewBuffer([]byte{})
+	_ = graph.Render(chart.SVG, buffer)
+
+	data, err := generateAssets(fixSVGColour(buffer.String()))
+
+	if err != nil {
+		return report.ReportModel{}, fmt.Errorf("Problem generating assets: %s", err.Error())
+	}
+
+	model.Logo = data.checkMateLogo
+	model.SALLogo = data.salLogo
+	model.Chart = data.charts[0]
+
+	return model, nil
+}
+
+func cleanAssets(assets report.ReportModel, aDoc string) {
+	_ = os.Remove(assets.Logo)
+	_ = os.Remove(assets.SALLogo)
+	_ = os.Remove(assets.Chart)
+	_ = os.Remove(aDoc)
+}
+
+func fixSVGColour(svg string) string {
+	return rgbaFix.ReplaceAllString(svg, "rgb($1)")
 }
 
 type assetFiles struct {
