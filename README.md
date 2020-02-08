@@ -5,7 +5,7 @@
 # CheckMate Code Security Analysis
 CheckMate is designed to be a pluggable code security analysis tool with features to be added over time. Currently it supports
 
-1. Detects hard-coded secrets in code and configuration files
+1. Detecting hard-coded secrets in code and configuration files
 
 ## Installation
 Prebuilt binaries may be found for your operating system here: https://github.com/adedayo/checkmate/releases

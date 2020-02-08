@@ -58,7 +58,8 @@ func (ss *SecurityServer) initWorkspace(req *jsonrpc2.Request) {
 
 func (ss *SecurityServer) analyseWorkspace() {
 	params := make(map[string][]lsp.Diagnostic)
-	for diagnostic := range secrets.SearchSecretsOnPaths(ss.workspacePaths, false, diagnostics.DefaultWhitelistProvider{}) {
+	issues, paths := secrets.SearchSecretsOnPaths(ss.workspacePaths, false, diagnostics.DefaultWhitelistProvider{})
+	for diagnostic := range issues {
 		if issues, exist := params[*diagnostic.Location]; exist {
 			issues = append(issues, convert(diagnostic))
 			params[*diagnostic.Location] = issues
@@ -66,6 +67,7 @@ func (ss *SecurityServer) analyseWorkspace() {
 			params[*diagnostic.Location] = []lsp.Diagnostic{convert(diagnostic)}
 		}
 	}
+	<-paths
 
 	for loc := range params {
 		parameter := lsp.PublishDiagnosticsParams{

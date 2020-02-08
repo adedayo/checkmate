@@ -31,7 +31,6 @@ POSSIBILITY OF SUCH DAMAGE.
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -39,6 +38,7 @@ import (
 	"github.com/adedayo/checkmate/pkg/common"
 	"github.com/adedayo/checkmate/pkg/common/diagnostics"
 	"github.com/adedayo/checkmate/pkg/modules/secrets"
+	"github.com/adedayo/checkmate/pkg/reports/asciidoc"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -76,10 +76,24 @@ func search(cmd *cobra.Command, args []string) {
 		}
 		wl.CompileRegExs()
 	}
-	for issue := range secrets.SearchSecretsOnPaths(args, showSource, wl) {
-		if x, err := json.Marshal(issue); err == nil {
-			fmt.Printf("\n%s\n", x)
-		}
+
+	issues := []diagnostics.SecurityDiagnostic{}
+	issueChannel, paths := secrets.SearchSecretsOnPaths(args, showSource, wl)
+
+	for issue := range issueChannel {
+		issues = append(issues, issue)
+		// if x, err := json.Marshal(issue); err == nil {
+		// 	// fmt.Printf("\n%s\n", x)
+		// }
 	}
+	files := <-paths
+	// fmt.Printf("\n,Files: %#v\n", files)
+
+	path, err := asciidoc.GenerateReport(files, issues...)
+	if err != nil {
+		println("Error: ", err.Error())
+		return
+	}
+	println("Report generated at ", path)
 
 }

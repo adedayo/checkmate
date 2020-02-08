@@ -21,13 +21,15 @@ var (
 )
 
 //SearchSecretsOnPaths searches for secrets on indicated paths
-func SearchSecretsOnPaths(paths []string, showSource bool, wl diagnostics.DefaultWhitelistProvider) chan diagnostics.SecurityDiagnostic {
+func SearchSecretsOnPaths(paths []string, showSource bool, wl diagnostics.DefaultWhitelistProvider) (chan diagnostics.SecurityDiagnostic, chan []string) {
 	out := make(chan diagnostics.SecurityDiagnostic)
+	pathsOut := make(chan []string)
 	repos, local := determineAndCloneRepositories(paths)
 	paths = local
 	for _, path := range repos {
 		paths = append(paths, path)
 	}
+	//reverse local paths to git URL
 	repoMapper := make(map[string]string)
 	for repo, loc := range repos {
 		repoMapper[loc] = repo
@@ -58,20 +60,26 @@ func SearchSecretsOnPaths(paths []string, showSource bool, wl diagnostics.Defaul
 	mux := util.NewPathMultiplexer(consumers...)
 
 	go func() {
+		allFiles := []string{}
 		defer func() {
 			for _, r := range repos {
 				os.RemoveAll(r)
 			}
 			close(out)
+			pathsOut <- allFiles
+			close(pathsOut)
 		}()
-		for _, path := range util.FindFiles(paths) {
+		allFiles = util.FindFiles(paths)
+		for _, path := range allFiles {
 			mux.ConsumePath(path)
 		}
 	}()
 
-	return out
+	return out, pathsOut
 }
 
+//determineAndCloneRepositories returns local paths after cloning git URLs. A map of git URL to the local map is the first argument
+//and the second argument are non-git local paths
 func determineAndCloneRepositories(paths []string) (map[string]string, []string) {
 	repoMap := make(map[string]string)
 	local := []string{}

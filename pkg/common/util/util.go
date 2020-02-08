@@ -52,7 +52,9 @@ func getFiles(dir string) (paths []string) {
 		if err != nil {
 			return filepath.SkipDir
 		}
-		paths = append(paths, path)
+		if !info.IsDir() {
+			paths = append(paths, path)
+		}
 		return nil
 	})
 	return

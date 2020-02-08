@@ -3,7 +3,6 @@ package diagnostics
 import (
 	"encoding/json"
 	"fmt"
-
 	"github.com/adedayo/checkmate/pkg/common/code"
 )
 
