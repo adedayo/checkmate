@@ -126,6 +126,14 @@ func computeMetrics(paths []string, issues []diagnostics.SecurityDiagnostic) (re
 		Width:  512,
 		Height: 512,
 		Title:  "Issues Found",
+		YAxis: chart.YAxis{
+			ValueFormatter: func(v interface{}) string {
+				if x, ok := v.(float64); ok {
+					return fmt.Sprintf("%d", int64(x))
+				}
+				return fmt.Sprintf("%v", v)
+			},
+		},
 		Bars: []chart.Value{
 			{Value: float64(model.HighCount), Style: highStyle, Label: "High"},
 			{Value: float64(model.MediumCount), Style: medStyle, Label: "Medium"},
