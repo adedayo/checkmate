@@ -77,3 +77,127 @@ const SALLogo = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
   </g>
 </svg>
 `
+
+//Grade2 is the icon for indicating grade with two characters e.g. A+, use as format string passing the colour and grade text
+const Grade2 = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:osb="http://www.openswatchbook.org/uri/2009/osb"
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   id="svg8"
+   version="1.1"
+   viewBox="0 0 210 297"
+   height="297mm"
+   width="210mm">
+  <defs
+     id="defs2">
+    <linearGradient
+       osb:paint="solid"
+       id="linearGradient2320">
+      <stop
+         id="stop2318"
+         offset="0"
+         style="stop-color:#666666;stop-opacity:1;" />
+    </linearGradient>
+  </defs>
+  <metadata
+     id="metadata5">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     id="layer1">
+    <g
+       id="g2331">
+      <path
+         style="opacity:1;fill:%s;fill-opacity:1;stroke:none;stroke-width:3.70416665;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         id="path10"
+         d="M 164.04167,210.82143 5.9051789,221.65043 -82.541253,90.114711 -12.851195,-52.250007 145.2853,-63.079004 233.73173,68.456716 Z"
+         transform="matrix(0.7243404,0.45781996,-0.48661928,0.68147215,87.397799,59.688804)" />
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:139.60112px;line-height:1.25;font-family:Arial;-inkscape-font-specification:'Arial Bold';letter-spacing:-13.22916698px;word-spacing:0px;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.72708911"
+         x="21.600693"
+         y="200.0873"
+         id="text2326"
+         transform="scale(1.0030336,0.99697558)"><tspan
+           id="tspan2324"
+           x="21.600693"
+           y="200.0873"
+           style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:139.60112px;font-family:Arial;-inkscape-font-specification:'Arial Bold';letter-spacing:-13.22916698px;fill:#ffffff;stroke-width:0.72708911">%s</tspan></text>
+    </g>
+  </g>
+</svg>
+`
+
+//Grade is the icon for indicating grade with one character e.g. A, use as format string passing the colour and grade text
+const Grade = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   xmlns:osb="http://www.openswatchbook.org/uri/2009/osb"
+   xmlns:dc="http://purl.org/dc/elements/1.1/"
+   xmlns:cc="http://creativecommons.org/ns#"
+   xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+   xmlns:svg="http://www.w3.org/2000/svg"
+   xmlns="http://www.w3.org/2000/svg"
+   id="svg8"
+   version="1.1"
+   viewBox="0 0 210 297"
+   height="297mm"
+   width="210mm">
+  <defs
+     id="defs2">
+    <linearGradient
+       osb:paint="solid"
+       id="linearGradient2320">
+      <stop
+         id="stop2318"
+         offset="0"
+         style="stop-color:#666666;stop-opacity:1;" />
+    </linearGradient>
+  </defs>
+  <metadata
+     id="metadata5">
+    <rdf:RDF>
+      <cc:Work
+         rdf:about="">
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type
+           rdf:resource="http://purl.org/dc/dcmitype/StillImage" />
+        <dc:title></dc:title>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+  <g
+     id="layer1">
+    <g
+       id="g2355">
+      <path
+         style="opacity:1;fill:%s;fill-opacity:1;stroke:none;stroke-width:3.70416665;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1"
+         id="path10"
+         d="M 164.04167,210.82143 5.9051789,221.65043 -82.541253,90.114711 -12.851195,-52.250007 145.2853,-63.079004 233.73173,68.456716 Z"
+         transform="matrix(0.7243404,0.45781996,-0.48661928,0.68147215,87.397799,59.688804)" />
+      <text
+         xml:space="preserve"
+         style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:139.60112px;line-height:1.25;font-family:Arial;-inkscape-font-specification:'Arial Bold';letter-spacing:-13.22916698px;word-spacing:0px;fill:#ffffff;fill-opacity:1;stroke:none;stroke-width:0.72708911"
+         x="53.12421"
+         y="198.5708"
+         id="text2326"
+         transform="scale(1.0030336,0.99697558)"><tspan
+           id="tspan2324"
+           x="53.12421"
+           y="198.5708"
+           style="font-style:normal;font-variant:normal;font-weight:bold;font-stretch:normal;font-size:139.60112px;font-family:Arial;-inkscape-font-specification:'Arial Bold';letter-spacing:-13.22916698px;fill:#ffffff;stroke-width:0.72708911">%s</tspan></text>
+    </g>
+  </g>
+</svg>
+`

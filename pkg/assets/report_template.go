@@ -18,7 +18,9 @@ var Report = `:title-page:
 This is a report of the security audit of your codebase completed at {{ .TimeStamp }}
 
 
-Your code security rating is {{ .Grade }}
+image::{{ .Grade }}[top=25%, align=center, pdfwidth=4.0in]
+
+Your code security rating is A+
 
 
 image::{{ .Chart }}[top=25%, align=center, pdfwidth=4.0in]

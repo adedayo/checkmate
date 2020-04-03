@@ -99,7 +99,7 @@ func GenerateReport(paths []string, issues ...diagnostics.SecurityDiagnostic) (r
 func computeMetrics(paths []string, issues []diagnostics.SecurityDiagnostic) (report.ReportModel, error) {
 
 	model := report.ReportModel{
-		Grade:       "A+",
+		// Grade:       "A+",
 		HighCount:   0,
 		MediumCount: 0,
 		LowCount:    0,
@@ -145,12 +145,13 @@ func computeMetrics(paths []string, issues []diagnostics.SecurityDiagnostic) (re
 	buffer := bytes.NewBuffer([]byte{})
 	_ = graph.Render(chart.SVG, buffer)
 
-	data, err := generateAssets(fixSVGColour(buffer.String()))
+	data, err := generateAssets("d", fixSVGColour(buffer.String()))
 
 	if err != nil {
 		return report.ReportModel{}, fmt.Errorf("Problem generating assets: %s", err.Error())
 	}
 
+	model.Grade = data.grade
 	model.Logo = data.checkMateLogo
 	model.SALLogo = data.salLogo
 	model.Chart = data.charts[0]
@@ -170,18 +171,34 @@ func fixSVGColour(svg string) string {
 }
 
 type assetFiles struct {
-	checkMateLogo, salLogo string
-	charts                 []string
+	checkMateLogo, salLogo, grade string
+	charts                        []string
 }
 
-func generateAssets(charts ...string) (assetFiles, error) {
+func generateAssets(grade string, charts ...string) (assetFiles, error) {
 	files := []string{}
 	cleanUp := func() {
 		for _, file := range files {
 			os.Remove(file)
 		}
 	}
+
 	var axs assetFiles
+	var gradeIcon string
+	grade = strings.ToUpper(strings.TrimSpace(grade))
+	if len(grade) == 1 {
+		gradeIcon = fmt.Sprintf(assets.Grade, colourGrade(grade), grade)
+	} else {
+		gradeIcon = fmt.Sprintf(assets.Grade2, colourGrade(grade), grade)
+	}
+	grade, err := generateFile([]byte(gradeIcon), "sal_grade.*.svg")
+	files = append(files, grade)
+	if err != nil {
+		cleanUp()
+		return axs, err
+	}
+	axs.grade = grade
+
 	logo, err := generateFile([]byte(assets.Logo), "checkmate_logo.*.svg")
 	files = append(files, logo)
 	if err != nil {
@@ -210,6 +227,17 @@ func generateAssets(charts ...string) (assetFiles, error) {
 
 	return axs, nil
 
+}
+
+func colourGrade(grade string) string {
+	switch grade {
+	case "A", "A+":
+		return "green"
+	case "B", "B+", "C":
+		return "gold"
+	default:
+		return "red"
+	}
 }
 
 func generateFile(data []byte, nameGlob string) (fileName string, err error) {
