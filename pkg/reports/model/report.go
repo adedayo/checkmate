@@ -1,7 +1,7 @@
 package report
 
 import (
-	"github.com/adedayo/checkmate/pkg/common/diagnostics"
+	"github.com/adedayo/checkmate-core/pkg/diagnostics"
 )
 
 type ReportModel struct {

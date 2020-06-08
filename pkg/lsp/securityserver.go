@@ -7,8 +7,9 @@ import (
 	"path"
 	"strings"
 
-	"github.com/adedayo/checkmate/pkg/common/diagnostics"
-	"github.com/adedayo/checkmate/pkg/modules/secrets"
+	core "github.com/adedayo/checkmate-core/pkg/diagnostics"
+	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
+
 	"github.com/adedayo/go-lsp/pkg/code"
 	"github.com/adedayo/go-lsp/pkg/jsonrpc2"
 	"github.com/adedayo/go-lsp/pkg/lsp"
@@ -58,7 +59,7 @@ func (ss *SecurityServer) initWorkspace(req *jsonrpc2.Request) {
 
 func (ss *SecurityServer) analyseWorkspace() {
 	params := make(map[string][]lsp.Diagnostic)
-	issues, paths := secrets.SearchSecretsOnPaths(ss.workspacePaths, false, diagnostics.DefaultWhitelistProvider{})
+	issues, paths := secrets.SearchSecretsOnPaths(ss.workspacePaths, false, core.MakeEmptyWhitelists())
 	for diagnostic := range issues {
 		if issues, exist := params[*diagnostic.Location]; exist {
 			issues = append(issues, convert(diagnostic))

@@ -32,9 +32,10 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/adedayo/checkmate/pkg/common"
-	"github.com/spf13/cobra"
 	"os"
+
+	common "github.com/adedayo/checkmate-core/pkg"
+	"github.com/spf13/cobra"
 
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/viper"

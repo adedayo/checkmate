@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/adedayo/checkmate/pkg/common"
-	"github.com/adedayo/checkmate/pkg/common/diagnostics"
-	"github.com/adedayo/checkmate/pkg/modules/secrets"
+	common "github.com/adedayo/checkmate-core/pkg"
+	"github.com/adedayo/checkmate-core/pkg/diagnostics"
+	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
 	"github.com/gorilla/mux"
 )
 

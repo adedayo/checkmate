@@ -33,8 +33,8 @@ package cmd
 import (
 	"fmt"
 
+	common "github.com/adedayo/checkmate-core/pkg"
 	"github.com/adedayo/checkmate/pkg/api"
-	"github.com/adedayo/checkmate/pkg/common"
 	"github.com/spf13/cobra"
 )
 

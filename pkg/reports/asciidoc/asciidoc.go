@@ -13,8 +13,8 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/adedayo/checkmate-core/pkg/diagnostics"
 	"github.com/adedayo/checkmate/pkg/assets"
-	"github.com/adedayo/checkmate/pkg/common/diagnostics"
 	report "github.com/adedayo/checkmate/pkg/reports/model"
 	"github.com/wcharczuk/go-chart"
 	"github.com/wcharczuk/go-chart/drawing"

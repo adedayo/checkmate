@@ -31,21 +31,22 @@ POSSIBILITY OF SUCH DAMAGE.
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 
-	"github.com/adedayo/checkmate/pkg/common"
-	"github.com/adedayo/checkmate/pkg/common/diagnostics"
-	"github.com/adedayo/checkmate/pkg/modules/secrets"
+	common "github.com/adedayo/checkmate-core/pkg"
+	"github.com/adedayo/checkmate-core/pkg/diagnostics"
+	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
 	"github.com/adedayo/checkmate/pkg/reports/asciidoc"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
 
 var (
-	showSource bool
-	whitelist  string
+	showSource, asJSON bool
+	whitelist          string
 )
 
 // secretSearchCmd represents the secretSearch command
@@ -60,23 +61,30 @@ func init() {
 	rootCmd.AddCommand(secretSearchCmd)
 	secretSearchCmd.Flags().BoolVarP(&showSource, "source", "s", false, "Provide source code evidence in the diagnostic results")
 	secretSearchCmd.Flags().StringVarP(&whitelist, "whitelist", "w", "", "Use provided whitelist yaml configuration")
+	secretSearchCmd.Flags().BoolVar(&asJSON, "json", false, "Generate JSON output")
 }
 
 func search(cmd *cobra.Command, args []string) {
-	fmt.Printf("Starting %s %s (https://github.com/adedayo/checkmate)\n", common.AppName, appVersion)
-	var wl diagnostics.DefaultWhitelistProvider
+	if !asJSON {
+		fmt.Printf("Starting %s %s (https://github.com/adedayo/checkmate)\n", common.AppName, appVersion)
+	}
+	var wld diagnostics.WhitelistDefinition
 	if whitelist != "" {
 		data, err := ioutil.ReadFile(whitelist)
 		if err != nil {
 			log.Printf("Warning: %s. Continuing with no whitelist", err.Error())
 		} else {
-			if err := yaml.Unmarshal(data, &wl); err != nil {
+			if err := yaml.Unmarshal(data, &wld); err != nil {
 				log.Printf("Warning: %s. Continuing with no whitelist", err.Error())
 			}
 		}
-		wl.CompileRegExs()
 	}
-
+	var wl diagnostics.WhitelistProvider
+	if w, err := diagnostics.CompileWhitelists(&wld); err != nil {
+		log.Printf("Warning: %s. Continuing with no whitelist", err.Error())
+	} else {
+		wl = w
+	}
 	issues := []diagnostics.SecurityDiagnostic{}
 	issueChannel, paths := secrets.SearchSecretsOnPaths(args, showSource, wl)
 
@@ -89,11 +97,19 @@ func search(cmd *cobra.Command, args []string) {
 	files := <-paths
 	// fmt.Printf("\n,Files: %#v\n", files)
 
-	path, err := asciidoc.GenerateReport(files, issues...)
-	if err != nil {
-		println("Error: ", err.Error())
-		return
+	if asJSON {
+		if x, err := json.MarshalIndent(issues, "", " "); err == nil {
+			fmt.Printf("%s", x)
+		} else {
+			log.Printf("Marshall Error: %s", err.Error())
+			fmt.Print("[]")
+		}
+	} else {
+		path, err := asciidoc.GenerateReport(files, issues...)
+		if err != nil {
+			println("Error: ", err.Error())
+			return
+		}
+		println("Report generated at ", path)
 	}
-	println("Report generated at ", path)
-
 }
