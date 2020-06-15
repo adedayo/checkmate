@@ -36,6 +36,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"path/filepath"
 
 	common "github.com/adedayo/checkmate-core/pkg"
 	"github.com/adedayo/checkmate-core/pkg/diagnostics"
@@ -77,6 +78,11 @@ func search(cmd *cobra.Command, args []string) {
 		} else {
 			if err := yaml.Unmarshal(data, &wld); err != nil {
 				log.Printf("Warning: %s. Continuing with no whitelist", err.Error())
+			} else {
+				//Successfully loaded whitelist. Add whitelist file to the whitelist
+				if wlPath, err := filepath.Abs(whitelist); err == nil {
+					wld.PathExclusionRegExs = append(wld.PathExclusionRegExs, wlPath)
+				}
 			}
 		}
 	}
@@ -100,7 +106,7 @@ func search(cmd *cobra.Command, args []string) {
 
 	if asJSON {
 		if x, err := json.MarshalIndent(issues, "", " "); err == nil {
-			fmt.Printf("%s", x)
+			fmt.Printf("%s\n", x)
 		} else {
 			log.Printf("Marshall Error: %s", err.Error())
 			fmt.Print("[]")

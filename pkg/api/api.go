@@ -42,7 +42,7 @@ func findSecrets(w http.ResponseWriter, r *http.Request) {
 		data.Source = string(b)
 	}
 
-	finder := secrets.GetFinderForFileType(data.SourceType)
+	finder := secrets.GetFinderForFileType(data.SourceType, diagnostics.MakeEmptyWhitelists())
 	diagnostics := []diagnostics.SecurityDiagnostic{}
 	for diagnostic := range secrets.FindSecret(strings.NewReader(data.Source), finder, true) {
 		diagnostics = append(diagnostics, diagnostic)

@@ -32,14 +32,19 @@ POSSIBILITY OF SUCH DAMAGE.
 */
 
 import (
+	"io/ioutil"
+	"log"
 	"os"
 
+	"github.com/adedayo/checkmate-core/pkg/diagnostics"
 	"github.com/adedayo/checkmate/pkg/lsp"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 var (
 	allowedOrigins = []string{}
+	lspWhitelist   string
 )
 
 const (
@@ -53,11 +58,29 @@ var lspServeCmd = &cobra.Command{
 	Short: "Drive code security analysis using the Language Server Protocol",
 	Long:  `Drive code security analysis using the Language Server Protocol`,
 	Run: func(cmd *cobra.Command, args []string) {
-		server := lsp.NewSecurityServer()
+		var wld diagnostics.WhitelistDefinition
+		if lspWhitelist != "" {
+			data, err := ioutil.ReadFile(lspWhitelist)
+			if err != nil {
+				log.Printf("Warning: %s. Continuing with no whitelist", err.Error())
+			} else {
+				if err := yaml.Unmarshal(data, &wld); err != nil {
+					log.Printf("Warning: %s. Continuing with no whitelist", err.Error())
+				}
+			}
+		}
+		var wl diagnostics.WhitelistProvider
+		if w, err := diagnostics.CompileWhitelists(&wld); err != nil {
+			log.Printf("Warning: %s. Continuing with no whitelist", err.Error())
+		} else {
+			wl = w
+		}
+		server := lsp.NewSecurityServer(wl)
 		server.Start(os.Stdin, os.Stdout)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(lspServeCmd)
+	lspServeCmd.Flags().StringVarP(&lspWhitelist, "whitelist", "w", "", "Use provided whitelist yaml configuration")
 }
