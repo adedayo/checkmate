@@ -25,6 +25,8 @@ github.com/adedayo/checkmate-plugin v0.0.3 h1:1TbZPlH5nQZT5KxGCecrvfiGU9PYaiPqEh
 github.com/adedayo/checkmate-plugin v0.0.3/go.mod h1:Oth4UaMylC6dYBai5akdNL35ly2ZSIjpuZBJP2oAjjI=
 github.com/adedayo/checkmate-plugin v0.0.4 h1:O20xP4jvPSj1v+t7E5tk0OL+UtoHs/2wz+QVqaLFDfg=
 github.com/adedayo/checkmate-plugin v0.0.4/go.mod h1:LdNJXTjlf+lfXK6b0/1FJKRK9AE6OQScptrUZ9G8D8Q=
+github.com/adedayo/checkmate-plugin v0.0.5 h1:RfoX9p1PdSOaq0C0J2DhqcBQyf7oaeK6P51y/A1LNCc=
+github.com/adedayo/checkmate-plugin v0.0.5/go.mod h1:LdNJXTjlf+lfXK6b0/1FJKRK9AE6OQScptrUZ9G8D8Q=
 github.com/adedayo/go-lsp v0.0.6 h1:s5OXzh20GmX49fhXuXz4eADPX2FYLcO0KiaWIwlCMxs=
 github.com/adedayo/go-lsp v0.0.6/go.mod h1:HChVu9hkvNvc2SQY3pmTr3/kPFCMO+dBPJlrRL4TAHw=
 github.com/alcortesm/tgz v0.0.0-20161220082320-9c5fe88206d7 h1:uSoVVbwJiQipAclBbw+8quDsfcvFjOpI5iCf4p/cqCs=
