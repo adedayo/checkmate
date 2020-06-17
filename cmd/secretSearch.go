@@ -48,7 +48,7 @@ import (
 
 var (
 	showSource, asJSON bool
-	whitelist          string
+	exclusion          string
 )
 
 // secretSearchCmd represents the secretSearch command
@@ -62,7 +62,7 @@ var secretSearchCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(secretSearchCmd)
 	secretSearchCmd.Flags().BoolVarP(&showSource, "source", "s", false, "Provide source code evidence in the diagnostic results")
-	secretSearchCmd.Flags().StringVarP(&whitelist, "whitelist", "w", "", "Use provided whitelist yaml configuration")
+	secretSearchCmd.Flags().StringVarP(&exclusion, "exclusion", "e", "", "Use provided exclusion yaml configuration")
 	secretSearchCmd.Flags().BoolVar(&asJSON, "json", false, "Generate JSON output")
 }
 
@@ -70,25 +70,25 @@ func search(cmd *cobra.Command, args []string) {
 	if !asJSON {
 		fmt.Printf("Starting %s %s (https://github.com/adedayo/checkmate)\n", common.AppName, appVersion)
 	}
-	var wld diagnostics.WhitelistDefinition
-	if whitelist != "" {
-		data, err := ioutil.ReadFile(whitelist)
+	var wld diagnostics.ExcludeDefinition
+	if exclusion != "" {
+		data, err := ioutil.ReadFile(exclusion)
 		if err != nil {
-			log.Printf("Warning: %s. Continuing with no whitelist", err.Error())
+			log.Printf("Warning: %s. Continuing with no exclusion", err.Error())
 		} else {
 			if err := yaml.Unmarshal(data, &wld); err != nil {
-				log.Printf("Warning: %s. Continuing with no whitelist", err.Error())
+				log.Printf("Warning: %s. Continuing with no exclusion", err.Error())
 			} else {
-				//Successfully loaded whitelist. Add whitelist file to the whitelist
-				if wlPath, err := filepath.Abs(whitelist); err == nil {
+				//Successfully loaded exclusion. Add exclusion file to the exclusion
+				if wlPath, err := filepath.Abs(exclusion); err == nil {
 					wld.PathExclusionRegExs = append(wld.PathExclusionRegExs, wlPath)
 				}
 			}
 		}
 	}
-	var wl diagnostics.WhitelistProvider
-	if w, err := diagnostics.CompileWhitelists(&wld); err != nil {
-		log.Printf("Warning: %s. Continuing with no whitelist", err.Error())
+	var wl diagnostics.ExclusionProvider
+	if w, err := diagnostics.CompileExcludes(&wld); err != nil {
+		log.Printf("Warning: %s. Continuing with no exclusion", err.Error())
 	} else {
 		wl = w
 	}

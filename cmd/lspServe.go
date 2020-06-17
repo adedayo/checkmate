@@ -44,7 +44,7 @@ import (
 
 var (
 	allowedOrigins = []string{}
-	lspWhitelist   string
+	lspExclusions  string
 )
 
 const (
@@ -58,20 +58,20 @@ var lspServeCmd = &cobra.Command{
 	Short: "Drive code security analysis using the Language Server Protocol",
 	Long:  `Drive code security analysis using the Language Server Protocol`,
 	Run: func(cmd *cobra.Command, args []string) {
-		var wld diagnostics.WhitelistDefinition
-		if lspWhitelist != "" {
-			data, err := ioutil.ReadFile(lspWhitelist)
+		var wld diagnostics.ExcludeDefinition
+		if lspExclusions != "" {
+			data, err := ioutil.ReadFile(lspExclusions)
 			if err != nil {
-				log.Printf("Warning: %s. Continuing with no whitelist", err.Error())
+				log.Printf("Warning: %s. Continuing with no exclusion", err.Error())
 			} else {
 				if err := yaml.Unmarshal(data, &wld); err != nil {
-					log.Printf("Warning: %s. Continuing with no whitelist", err.Error())
+					log.Printf("Warning: %s. Continuing with no exclusion", err.Error())
 				}
 			}
 		}
-		var wl diagnostics.WhitelistProvider
-		if w, err := diagnostics.CompileWhitelists(&wld); err != nil {
-			log.Printf("Warning: %s. Continuing with no whitelist", err.Error())
+		var wl diagnostics.ExclusionProvider
+		if w, err := diagnostics.CompileExcludes(&wld); err != nil {
+			log.Printf("Warning: %s. Continuing with no exclusion", err.Error())
 		} else {
 			wl = w
 		}
@@ -82,5 +82,5 @@ var lspServeCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(lspServeCmd)
-	lspServeCmd.Flags().StringVarP(&lspWhitelist, "whitelist", "w", "", "Use provided whitelist yaml configuration")
+	lspServeCmd.Flags().StringVarP(&lspExclusions, "exclusion", "w", "", "Use provided exclusion yaml configuration")
 }

@@ -16,9 +16,9 @@ import (
 )
 
 //NewSecurityServer provides a properly initialized instance of the CheckMate LSP driver
-func NewSecurityServer(whitelistProvider core.WhitelistProvider) lsp.Server {
+func NewSecurityServer(exclusionProvider core.ExclusionProvider) lsp.Server {
 	server := &SecurityServer{
-		WhitelistProvider: whitelistProvider,
+		ExclusionProvider: exclusionProvider,
 	}
 	server.DefaultServer.Init(server)
 	return server
@@ -26,7 +26,7 @@ func NewSecurityServer(whitelistProvider core.WhitelistProvider) lsp.Server {
 
 //SecurityServer is an LSP driver for CheckMate security analysis
 type SecurityServer struct {
-	core.WhitelistProvider
+	core.ExclusionProvider
 	lsp.DefaultServer
 	workspacePaths []string
 }
@@ -62,7 +62,7 @@ func (ss *SecurityServer) initWorkspace(req *jsonrpc2.Request) {
 
 func (ss *SecurityServer) analyseWorkspace() {
 	params := make(map[string][]lsp.Diagnostic)
-	issues, paths := secrets.SearchSecretsOnPaths(ss.workspacePaths, false, core.MakeEmptyWhitelists())
+	issues, paths := secrets.SearchSecretsOnPaths(ss.workspacePaths, false, core.MakeEmptyExcludes())
 	for diagnostic := range issues {
 		if issues, exist := params[*diagnostic.Location]; exist {
 			issues = append(issues, convert(diagnostic))
@@ -87,7 +87,7 @@ func (ss *SecurityServer) didOpen(req *jsonrpc2.Request) {
 	if err := json.Unmarshal([]byte(*req.Params), &params); err == nil {
 		text := params.TextDocument.Text
 		sourceType := path.Ext(string(params.TextDocument.URI))
-		finder := secrets.GetFinderForFileType(sourceType, ss.WhitelistProvider)
+		finder := secrets.GetFinderForFileType(sourceType, ss.ExclusionProvider)
 		issues := []lsp.Diagnostic{}
 		for diagnostic := range secrets.FindSecret(strings.NewReader(text), finder, false) {
 			issues = append(issues, convert(diagnostic))
@@ -107,7 +107,7 @@ func (ss *SecurityServer) didChange(req *jsonrpc2.Request) {
 		if length := len(params.ContentChanges); length > 0 {
 			text := params.ContentChanges[length-1].Text
 			sourceType := path.Ext(string(params.TextDocument.URI))
-			finder := secrets.GetFinderForFileType(sourceType, ss.WhitelistProvider)
+			finder := secrets.GetFinderForFileType(sourceType, ss.ExclusionProvider)
 			issues := []lsp.Diagnostic{}
 			for diagnostic := range secrets.FindSecret(strings.NewReader(text), finder, false) {
 				issues = append(issues, convert(diagnostic))
