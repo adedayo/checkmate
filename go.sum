@@ -23,6 +23,8 @@ github.com/adedayo/checkmate-core v0.0.4 h1:zz2fS79xILJ30j/imD8Elm25uh6jL9l8U/4G
 github.com/adedayo/checkmate-core v0.0.4/go.mod h1:LwTjWIkp+VTcScsIRXTP9V/OJ/gPJFK3thPpQLOHi0c=
 github.com/adedayo/checkmate-core v0.0.5 h1:9fSBwmtoA4YIQRa7jKgzsNH8s8h8wudOKpHm13Hgqqo=
 github.com/adedayo/checkmate-core v0.0.5/go.mod h1:LwTjWIkp+VTcScsIRXTP9V/OJ/gPJFK3thPpQLOHi0c=
+github.com/adedayo/checkmate-core v0.0.6 h1:KslizgFumHRe2h3AlKaJDBiCQIxF/keyPK4N0RT6eNE=
+github.com/adedayo/checkmate-core v0.0.6/go.mod h1:LwTjWIkp+VTcScsIRXTP9V/OJ/gPJFK3thPpQLOHi0c=
 github.com/adedayo/checkmate-plugin v0.0.3 h1:1TbZPlH5nQZT5KxGCecrvfiGU9PYaiPqEhQIvB13eb0=
 github.com/adedayo/checkmate-plugin v0.0.3/go.mod h1:Oth4UaMylC6dYBai5akdNL35ly2ZSIjpuZBJP2oAjjI=
 github.com/adedayo/checkmate-plugin v0.0.4 h1:O20xP4jvPSj1v+t7E5tk0OL+UtoHs/2wz+QVqaLFDfg=
@@ -321,6 +323,8 @@ golang.org/x/image v0.0.0-20200430140353-33d19683fad8 h1:6WW6V3x1P/jokJBpRQYUJnM
 golang.org/x/image v0.0.0-20200430140353-33d19683fad8/go.mod h1:FeLwcggjj3mMvU+oOTbSwawSJRM1uh48EjtB4UJZlP0=
 golang.org/x/image v0.0.0-20200609002522-3f4726a040e8 h1:c33/sRasKxMl6r30uyDkOgyIlZKMSQE/SSI/eDtrmBY=
 golang.org/x/image v0.0.0-20200609002522-3f4726a040e8/go.mod h1:FeLwcggjj3mMvU+oOTbSwawSJRM1uh48EjtB4UJZlP0=
+golang.org/x/image v0.0.0-20200618115811-c13761719519 h1:1e2ufUJNM3lCHEY5jIgac/7UTjd6cgJNdatjPdFWf34=
+golang.org/x/image v0.0.0-20200618115811-c13761719519/go.mod h1:FeLwcggjj3mMvU+oOTbSwawSJRM1uh48EjtB4UJZlP0=
 golang.org/x/lint v0.0.0-20181026193005-c67002cb31c3/go.mod h1:UVdnD1Gm6xHRNCYTkRU2/jEulfH38KcIWyp/GAMgvoE=
 golang.org/x/lint v0.0.0-20190227174305-5b3e6a55c961/go.mod h1:wehouNa3lNwaWXcvxsM5YxQ5yQlVC4a0KAMCusXpPoU=
 golang.org/x/lint v0.0.0-20190301231843-5614ed5bae6f/go.mod h1:UVdnD1Gm6xHRNCYTkRU2/jEulfH38KcIWyp/GAMgvoE=
@@ -478,6 +482,8 @@ gopkg.in/yaml.v3 v3.0.0-20200506231410-2ff61e1afc86 h1:OfFoIUYv/me30yv7XlMy4F9RJ
 gopkg.in/yaml.v3 v3.0.0-20200506231410-2ff61e1afc86/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
 gopkg.in/yaml.v3 v3.0.0-20200605160147-a5ece683394c h1:grhR+C34yXImVGp7EzNk+DTIk+323eIUWOmEevy6bDo=
 gopkg.in/yaml.v3 v3.0.0-20200605160147-a5ece683394c/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
+gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776 h1:tQIYjPdBoyREyB9XMu+nnTclpTYkz2zFM+lzLJFO4gQ=
+gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776/go.mod h1:K4uyk7z7BCEPqu6E+C64Yfv1cQ7kz7rIZviUmN+EgEM=
 honnef.co/go/tools v0.0.0-20190102054323-c2f93a96b099/go.mod h1:rf3lG4BRIbNafJWhAfAdb/ePZxsR/4RtNHQocxwk9r4=
 honnef.co/go/tools v0.0.0-20190106161140-3f1c8253044a/go.mod h1:rf3lG4BRIbNafJWhAfAdb/ePZxsR/4RtNHQocxwk9r4=
 honnef.co/go/tools v0.0.0-20190418001031-e561f6794a2a/go.mod h1:rf3lG4BRIbNafJWhAfAdb/ePZxsR/4RtNHQocxwk9r4=

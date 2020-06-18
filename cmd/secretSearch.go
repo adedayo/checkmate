@@ -49,6 +49,7 @@ import (
 var (
 	showSource, asJSON bool
 	exclusion          string
+	sensitiveFiles     bool
 )
 
 // secretSearchCmd represents the secretSearch command
@@ -64,12 +65,25 @@ func init() {
 	secretSearchCmd.Flags().BoolVarP(&showSource, "source", "s", false, "Provide source code evidence in the diagnostic results")
 	secretSearchCmd.Flags().StringVarP(&exclusion, "exclusion", "e", "", "Use provided exclusion yaml configuration")
 	secretSearchCmd.Flags().BoolVar(&asJSON, "json", false, "Generate JSON output")
+	secretSearchCmd.Flags().BoolVar(&sensitiveFiles, "sensitive-files", false, "list all registered sensitive files and their description")
 }
 
 func search(cmd *cobra.Command, args []string) {
-	if !asJSON {
+	if !(asJSON || sensitiveFiles) {
 		fmt.Printf("Starting %s %s (https://github.com/adedayo/checkmate)\n", common.AppName, appVersion)
 	}
+
+	if sensitiveFiles {
+		println("Sensitive files")
+		if x, err := json.MarshalIndent(common.GetSensitiveFilesDescriptors(), "", " "); err == nil {
+			fmt.Printf("%s\n", x)
+		} else {
+			log.Printf("Marshall Error: %s", err.Error())
+			fmt.Print("[]")
+		}
+		return
+	}
+
 	var wld diagnostics.ExcludeDefinition
 	if exclusion != "" {
 		data, err := ioutil.ReadFile(exclusion)
