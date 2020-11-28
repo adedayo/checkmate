@@ -8,7 +8,7 @@ CheckMate is designed to be a pluggable code security analysis tool with feature
 1. Detecting hard-coded secrets in code and configuration files
 
 ## Installation
-Prebuilt binaries may be found for your operating system here: https://github.com/adedayo/checkmate/releases
+Pre-built binaries may be found for your operating system here: https://github.com/adedayo/checkmate/releases
 
 For macOS X, you could install via brew as follows:
 ```bash
@@ -22,10 +22,15 @@ Secrets such as passwords, encryption keys and other security tokens should neve
 
 _CheckMate_ could be used/embedded in the following ways at the moment:
 
-* As a *standalone API service* that could receive the textual content of a piece of data to check for secrets returning a JSON response containing all results that look suspiciously like secrets, along with justification of why it may be a secret and a confidence level of that determination
 * As a *command-line tool* providing file paths and directories to scan for secrets. This is great for searching local file system for secrets
-* As a Language Server Protocol (LSP) backend, using the LSP protocol to drive the analysis in LSP compatible text editors such as Visual Studio Code or Atom.
+* As a *standalone API service* that could receive the textual content of a piece of data to check for secrets returning a JSON response containing all results that look suspiciously like secrets, along with justification of why it may be a secret and a confidence level of that determination
+* As a Language Server Protocol (LSP) back-end, using the LSP protocol to drive the analysis in LSP compatible text editors such as Visual Studio Code or Atom.
 
+
+### Running _CheckMate_ as a command-line tool
+```bash
+checkmate secretSearch <paths to directories and files to scan>
+```
 
 ### Running _CheckMate_ as an API Service
 
