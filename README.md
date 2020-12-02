@@ -5,7 +5,7 @@
 # CheckMate Code Security Analysis
 CheckMate is designed to be a pluggable code security analysis tool with features to be added over time. Currently it supports
 
-1. Detecting hard-coded secrets in code and configuration files
+1. Detecting hard-coded secrets in code, configuration, logs and other textual files
 
 ## Installation
 Pre-built binaries may be found for your operating system here: https://github.com/adedayo/checkmate/releases
@@ -18,7 +18,7 @@ brew install checkmate
 
 
 ## Finding Hard-coded Secrets
-Secrets such as passwords, encryption keys and other security tokens should never be embedded in the clear in code or configuration files. The secrets-finding feature of _CheckMate_ packs in a bunch of clever heuristics for determining whether a piece of string in a file is a secret. The heuristics include entropy of the string, the structural context such as variable names and properties the string is assigned to in different file types such as YAML, XML and other configuration file formats as well as source code such as Java, C/C++, C#, Ruby, Scala etc.
+Secrets such as passwords, encryption keys and other security tokens should never be embedded in the clear in code, logs or configuration files. The secrets-finding feature of _CheckMate_ packs in a bunch of clever heuristics for determining whether a piece of string in a file is a secret. The heuristics include entropy of the string, the structural context such as variable names and properties the string is assigned to in different file types such as YAML, XML and other configuration file formats as well as source code such as Java, C/C++, C#, Ruby, Scala etc.
 
 _CheckMate_ could be used/embedded in the following ways at the moment:
 
