@@ -5,10 +5,10 @@
 # CheckMate Code Security Analysis
 CheckMate is designed to be a pluggable code security analysis tool with features to be added over time. Currently it supports
 
-1. Detecting hard-coded secrets in code and configuration files
+1. Detecting hard-coded secrets in code, configuration, logs and other textual files
 
 ## Installation
-Prebuilt binaries may be found for your operating system here: https://github.com/adedayo/checkmate/releases
+Pre-built binaries may be found for your operating system here: https://github.com/adedayo/checkmate/releases
 
 For macOS X, you could install via brew as follows:
 ```bash
@@ -18,14 +18,19 @@ brew install checkmate
 
 
 ## Finding Hard-coded Secrets
-Secrets such as passwords, encryption keys and other security tokens should never be embedded in the clear in code or configuration files. The secrets-finding feature of _CheckMate_ packs in a bunch of clever heuristics for determining whether a piece of string in a file is a secret. The heuristics include entropy of the string, the structural context such as variable names and properties the string is assigned to in different file types such as YAML, XML and other configuration file formats as well as source code such as Java, C/C++, C#, Ruby, Scala etc.
+Secrets such as passwords, encryption keys and other security tokens should never be embedded in the clear in code, logs or configuration files. The secrets-finding feature of _CheckMate_ packs in a bunch of clever heuristics for determining whether a piece of string in a file is a secret. The heuristics include entropy of the string, the structural context such as variable names and properties the string is assigned to in different file types such as YAML, XML and other configuration file formats as well as source code such as Java, C/C++, C#, Ruby, Scala etc.
 
 _CheckMate_ could be used/embedded in the following ways at the moment:
 
-* As a *standalone API service* that could receive the textual content of a piece of data to check for secrets returning a JSON response containing all results that look suspiciously like secrets, along with justification of why it may be a secret and a confidence level of that determination
 * As a *command-line tool* providing file paths and directories to scan for secrets. This is great for searching local file system for secrets
-* As a Language Server Protocol (LSP) backend, using the LSP protocol to drive the analysis in LSP compatible text editors such as Visual Studio Code or Atom.
+* As a *standalone API service* that could receive the textual content of a piece of data to check for secrets returning a JSON response containing all results that look suspiciously like secrets, along with justification of why it may be a secret and a confidence level of that determination
+* As a Language Server Protocol (LSP) back-end, using the LSP protocol to drive the analysis in LSP compatible text editors such as Visual Studio Code or Atom.
 
+
+### Running _CheckMate_ as a command-line tool
+```bash
+checkmate secretSearch <paths to directories and files to scan>
+```
 
 ### Running _CheckMate_ as an API Service
 
