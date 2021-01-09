@@ -128,7 +128,7 @@ func search(cmd *cobra.Command, args []string) {
 	} else {
 		path, err := asciidoc.GenerateReport(files, issues...)
 		if err != nil {
-			println("Error: ", err.Error())
+			fmt.Printf("\nError: %s%s\n", err.Error(), path)
 			return
 		}
 		println("Report generated at ", path)

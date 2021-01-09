@@ -2,6 +2,7 @@ package asciidoc
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -59,11 +60,18 @@ var (
 	}
 )
 
-//GenerateReport x
+//GenerateReport generates PDF report using asciidoc-pdf, if not found, returns the JSON-formatted results in the reportPath
 func GenerateReport(paths []string, issues ...diagnostics.SecurityDiagnostic) (reportPath string, err error) {
 	asciidocPath, err := exec.LookPath(asciidocExec)
 	if err != nil {
-		return reportPath, fmt.Errorf("%s executable file not found in your $PATH. Install it and ensure that it is in your $PATH", asciidocExec)
+		issuesJSON, e := json.MarshalIndent(issues, "", " ")
+		error2 := ""
+		if e != nil {
+			error2 = fmt.Sprintf("\n%s", e.Error())
+		} else {
+			reportPath = fmt.Sprintf("\n\nPrinting JSON instead\n\n%s", string(issuesJSON))
+		}
+		return reportPath, fmt.Errorf("%s executable file not found in your $PATH. Install it and ensure that it is in your $PATH%s", asciidocExec, error2)
 	}
 	model, err := computeMetrics(paths, issues)
 
