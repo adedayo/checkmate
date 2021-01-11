@@ -6,8 +6,6 @@ require (
 	github.com/adedayo/checkmate-core v0.0.6
 	github.com/adedayo/checkmate-plugin v0.0.6
 	github.com/adedayo/go-lsp v0.0.6
-	github.com/blend/go-sdk v2.0.0+incompatible // indirect
-	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/gorilla/mux v1.7.4
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/spf13/cobra v1.0.0
