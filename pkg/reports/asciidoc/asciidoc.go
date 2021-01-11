@@ -17,8 +17,8 @@ import (
 	"github.com/adedayo/checkmate-core/pkg/diagnostics"
 	"github.com/adedayo/checkmate/pkg/assets"
 	report "github.com/adedayo/checkmate/pkg/reports/model"
-	"github.com/wcharczuk/go-chart"
-	"github.com/wcharczuk/go-chart/drawing"
+	"github.com/wcharczuk/go-chart/v2"
+	"github.com/wcharczuk/go-chart/v2/drawing"
 )
 
 var (
@@ -48,14 +48,20 @@ var (
 		StrokeColor: drawing.ColorFromHex("ffbf00"),
 		StrokeWidth: 0,
 	}
-	lowStyle = chart.Style{
+	infoStyle = chart.Style{
 		FillColor:   drawing.ColorGreen,
 		StrokeColor: drawing.ColorGreen,
 		StrokeWidth: 0,
 	}
-	infoStyle = chart.Style{
+	lowStyle = chart.Style{
 		FillColor:   drawing.ColorBlue,
 		StrokeColor: drawing.ColorBlue,
+		StrokeWidth: 0,
+		FontColor:   drawing.ColorWhite,
+	}
+	invisibleStyle = chart.Style{
+		FillColor:   drawing.ColorWhite,
+		StrokeColor: drawing.ColorWhite,
 		StrokeWidth: 0,
 	}
 )
@@ -107,7 +113,6 @@ func GenerateReport(paths []string, issues ...diagnostics.SecurityDiagnostic) (r
 func computeMetrics(paths []string, issues []diagnostics.SecurityDiagnostic) (report.ReportModel, error) {
 
 	model := report.ReportModel{
-		// Grade:       "A+",
 		HighCount:   0,
 		MediumCount: 0,
 		LowCount:    0,
@@ -130,36 +135,108 @@ func computeMetrics(paths []string, issues []diagnostics.SecurityDiagnostic) (re
 		}
 	}
 
-	graph := chart.BarChart{
-		Width:  512,
-		Height: 512,
-		Title:  "Issues Found",
-		YAxis: chart.YAxis{
-			ValueFormatter: func(v interface{}) string {
-				if x, ok := v.(float64); ok {
-					return fmt.Sprintf("%d", int64(x))
-				}
-				return fmt.Sprintf("%v", v)
-			},
+	barWidth := 20
+	issueCount := float64(model.HighCount + model.MediumCount + model.LowCount + model.InformationalCount)
+	highPercent := 0.0
+	mediumPercent := 0.0
+	lowPercent := 0.0
+	infoPercent := 0.0
+	if issueCount > 0 {
+		highPercent = 100.0 * float64(model.HighCount) / issueCount
+		mediumPercent = 100.0 * float64(model.MediumCount) / issueCount
+		lowPercent = 100.0 * float64(model.LowCount) / issueCount
+		infoPercent = 100.0 * float64(model.InformationalCount) / issueCount
+	}
+
+	graph := chart.StackedBarChart{
+		Width:        512,
+		Height:       512,
+		BarSpacing:   15,
+		IsHorizontal: true,
+		// Background: chart.Style{
+		// 	Padding: chart.Box{
+		// 		Top: 40,
+		// 	},
+		// },
+		YAxis: chart.Style{
+			TextHorizontalAlign: chart.TextHorizontalAlignRight,
 		},
-		Bars: []chart.Value{
-			{Value: float64(model.HighCount), Style: highStyle, Label: "High"},
-			{Value: float64(model.MediumCount), Style: medStyle, Label: "Medium"},
-			{Value: float64(model.LowCount), Style: lowStyle, Label: "Low"},
-			{Value: float64(model.InformationalCount), Style: infoStyle, Label: "Informational"},
+		XAxis: chart.Shown(),
+		Bars: []chart.StackedBar{
+			{
+				Name:  "High",
+				Width: barWidth,
+				Values: []chart.Value{
+					{
+						Value: 100.0 - highPercent,
+						Style: invisibleStyle,
+					},
+					{
+						Value: highPercent,
+						Label: fmt.Sprintf("%d", model.HighCount),
+						Style: highStyle,
+					},
+				},
+			},
+			{
+				Name:  "Medium",
+				Width: barWidth,
+				Values: []chart.Value{
+					{
+						Value: 100.0 - mediumPercent,
+						Style: invisibleStyle,
+					},
+					{
+						Value: mediumPercent,
+						Label: fmt.Sprintf("%d", model.MediumCount),
+						Style: medStyle,
+					},
+				},
+			},
+			{
+				Name:  "Low",
+				Width: barWidth,
+				Values: []chart.Value{
+					{
+						Value: 100.0 - lowPercent,
+						Style: invisibleStyle,
+					},
+					{
+						Value: lowPercent,
+						Label: fmt.Sprintf("%d", model.LowCount),
+						Style: lowStyle,
+					},
+				},
+			},
+			{
+				Name:  "Informational",
+				Width: barWidth,
+				Values: []chart.Value{
+					{
+						Value: 100.0 - infoPercent,
+						Style: invisibleStyle,
+					},
+					{
+						Value: infoPercent,
+						Label: fmt.Sprintf("%d", model.InformationalCount),
+						Style: infoStyle,
+					},
+				},
+			},
 		},
 	}
 
 	buffer := bytes.NewBuffer([]byte{})
 	_ = graph.Render(chart.SVG, buffer)
-
-	data, err := generateAssets("d", fixSVGColour(buffer.String()))
+	grade := calculateGrade(highPercent, lowPercent, mediumPercent, infoPercent)
+	data, err := generateAssets(grade, fixSVGColour(buffer.String()))
 
 	if err != nil {
 		return report.ReportModel{}, fmt.Errorf("Problem generating assets: %s", err.Error())
 	}
 
-	model.Grade = data.grade
+	model.Grade = grade
+	model.GradeLogo = data.grade
 	model.Logo = data.checkMateLogo
 	model.SALLogo = data.salLogo
 	model.Chart = data.charts[0]
@@ -172,6 +249,36 @@ func cleanAssets(assets report.ReportModel, aDoc string) {
 	_ = os.Remove(assets.SALLogo)
 	_ = os.Remove(assets.Chart)
 	_ = os.Remove(aDoc)
+}
+
+//Some rough and dirty grading
+func calculateGrade(high, med, low, info float64) string {
+	grade := "A+"
+
+	if high == 0.0 && med == 0.0 && low == 0.0 && info == 0.0 {
+		return grade
+	}
+
+	if high == 0.0 && med == 0.0 && low == 0.0 && info > 0.0 {
+		return "A"
+	}
+
+	if high == 0.0 && med == 0.0 && low > 0.0 {
+		return "B"
+	}
+
+	if high == 0.0 && med > 0 {
+		return "C"
+	}
+
+	if high > 0.0 {
+
+		if high > 20.0 {
+			return "F"
+		}
+		return "D"
+	}
+	return grade
 }
 
 func fixSVGColour(svg string) string {

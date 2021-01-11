@@ -8,6 +8,7 @@ type ReportModel struct {
 	Logo                                                   string
 	SALLogo                                                string
 	Grade                                                  string
+	GradeLogo                                              string
 	Chart                                                  string
 	HighCount, MediumCount, LowCount, InformationalCount   int
 	FileCount, SkippedCount, IssuesPerType, AveragePerFile int

@@ -17,13 +17,23 @@ var Report = `:title-page:
 == Executive Summary
 This is a report of the security audit of your codebase completed at {{ .TimeStamp }}
 
+[cols="2a,5a",frame=none,grid=none]
+|===
 
-image::{{ .Grade }}[top=25%, align=center, pdfwidth=4.0in]
+^|[cols="1",frame=none,grid=none]
+!===
+^!Overall Security Grade
+a!image::{{ .GradeLogo }}[align=center, pdfwidth=40%]
+!===
 
-Your code security rating is A+
+^|[cols="1",frame=none,grid=none]
+!===
+^!Issues Found
+a!image::{{ .Chart }}[align=center, pdfwidth=100%]
+!===
 
+|===
 
-image::{{ .Chart }}[top=25%, align=center, pdfwidth=4.0in]
 
 
 
