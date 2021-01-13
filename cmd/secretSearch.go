@@ -47,9 +47,9 @@ import (
 )
 
 var (
-	showSource, asJSON bool
-	exclusion          string
-	sensitiveFiles     bool
+	showSource, asJSON, runningCommentary bool
+	exclusion                             string
+	sensitiveFiles                        bool
 )
 
 // secretSearchCmd represents the secretSearch command
@@ -66,6 +66,7 @@ func init() {
 	secretSearchCmd.Flags().StringVarP(&exclusion, "exclusion", "e", "", "Use provided exclusion yaml configuration")
 	secretSearchCmd.Flags().BoolVar(&asJSON, "json", false, "Generate JSON output")
 	secretSearchCmd.Flags().BoolVar(&sensitiveFiles, "sensitive-files", false, "list all registered sensitive files and their description")
+	secretSearchCmd.Flags().BoolVar(&runningCommentary, "running-commentary", false, "Generate a running commentary of results. Useful for analysis of large input data")
 }
 
 func search(cmd *cobra.Command, args []string) {
@@ -111,9 +112,11 @@ func search(cmd *cobra.Command, args []string) {
 
 	for issue := range issueChannel {
 		issues = append(issues, issue)
-		// if x, err := json.Marshal(issue); err == nil {
-		// 	// fmt.Printf("\n%s\n", x)
-		// }
+		if runningCommentary {
+			if x, err := json.MarshalIndent(issue, "", " "); err == nil {
+				fmt.Printf("\n%s\n", x)
+			}
+		}
 	}
 	files := <-paths
 	// fmt.Printf("\n,Files: %#v\n", files)

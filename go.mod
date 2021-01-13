@@ -5,7 +5,7 @@ go 1.14
 require (
 	github.com/adedayo/checkmate-core v0.0.6
 	github.com/adedayo/checkmate-plugin v0.0.6
-	github.com/adedayo/go-lsp v0.0.6
+	github.com/adedayo/go-lsp v0.0.8
 	github.com/gorilla/mux v1.7.4
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/spf13/cobra v1.0.0

@@ -4,13 +4,10 @@ import (
 	"encoding/json"
 	"net/url"
 	"os"
-	"path"
-	"strings"
 
 	core "github.com/adedayo/checkmate-core/pkg/diagnostics"
 	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
 
-	"github.com/adedayo/go-lsp/pkg/code"
 	"github.com/adedayo/go-lsp/pkg/jsonrpc2"
 	"github.com/adedayo/go-lsp/pkg/lsp"
 )
@@ -73,53 +70,53 @@ func (ss *SecurityServer) analyseWorkspace() {
 	}
 	<-paths
 
-	for loc := range params {
-		parameter := lsp.PublishDiagnosticsParams{
-			URI:         code.DocumentURI(loc),
-			Diagnostics: params[loc],
-		}
-		ss.SendNotification("textDocument/publishDiagnostics", parameter)
-	}
+	// for loc := range params {
+	// 	parameter := lsp.PublishDiagnosticsParams{
+	// 		URI:         code.DocumentURI(loc),
+	// 		Diagnostics: params[loc],
+	// 	}
+	// ss.SendNotification("textDocument/publishDiagnostics", parameter)
+	// }
 }
 
 func (ss *SecurityServer) didOpen(req *jsonrpc2.Request) {
-	var params lsp.DidOpenTextDocumentParams
-	if err := json.Unmarshal([]byte(*req.Params), &params); err == nil {
-		text := params.TextDocument.Text
-		sourceType := path.Ext(string(params.TextDocument.URI))
-		finder := secrets.GetFinderForFileType(sourceType, ss.ExclusionProvider)
-		issues := []lsp.Diagnostic{}
-		for diagnostic := range secrets.FindSecret(strings.NewReader(text), finder, false) {
-			issues = append(issues, convert(diagnostic))
-		}
+	// var params lsp.DidOpenTextDocumentParams
+	// if err := json.Unmarshal([]byte(*req.Params), &params); err == nil {
+	// 	text := params.TextDocument.Text
+	// 	sourceType := path.Ext(string(params.TextDocument.URI))
+	// 	finder := secrets.GetFinderForFileType(sourceType, ss.ExclusionProvider)
+	// 	issues := []lsp.Diagnostic{}
+	// 	for diagnostic := range secrets.FindSecret(strings.NewReader(text), finder, false) {
+	// 		issues = append(issues, convert(diagnostic))
+	// 	}
 
-		parameter := lsp.PublishDiagnosticsParams{
-			URI:         params.TextDocument.URI,
-			Diagnostics: issues,
-		}
-		ss.SendNotification("textDocument/publishDiagnostics", parameter)
-	}
+	// 	parameter := lsp.PublishDiagnosticsParams{
+	// 		URI:         params.TextDocument.URI,
+	// 		Diagnostics: issues,
+	// 	}
+	// 	ss.SendNotification("textDocument/publishDiagnostics", parameter)
+	// }
 }
 
 func (ss *SecurityServer) didChange(req *jsonrpc2.Request) {
-	var params lsp.DidChangeTextDocumentParams
-	if err := json.Unmarshal([]byte(*req.Params), &params); err == nil {
-		if length := len(params.ContentChanges); length > 0 {
-			text := params.ContentChanges[length-1].Text
-			sourceType := path.Ext(string(params.TextDocument.URI))
-			finder := secrets.GetFinderForFileType(sourceType, ss.ExclusionProvider)
-			issues := []lsp.Diagnostic{}
-			for diagnostic := range secrets.FindSecret(strings.NewReader(text), finder, false) {
-				issues = append(issues, convert(diagnostic))
-			}
+	// var params lsp.DidChangeTextDocumentParams
+	// if err := json.Unmarshal([]byte(*req.Params), &params); err == nil {
+	// 	if length := len(params.ContentChanges); length > 0 {
+	// 		text := params.ContentChanges[length-1].Text
+	// 		sourceType := path.Ext(string(params.TextDocument.URI))
+	// 		finder := secrets.GetFinderForFileType(sourceType, ss.ExclusionProvider)
+	// 		issues := []lsp.Diagnostic{}
+	// 		for diagnostic := range secrets.FindSecret(strings.NewReader(text), finder, false) {
+	// 			issues = append(issues, convert(diagnostic))
+	// 		}
 
-			parameter := lsp.PublishDiagnosticsParams{
-				URI:         params.TextDocument.URI,
-				Diagnostics: issues,
-			}
-			ss.SendNotification("textDocument/publishDiagnostics", parameter)
-		}
+	// 		parameter := lsp.PublishDiagnosticsParams{
+	// 			URI:         params.TextDocument.URI,
+	// 			Diagnostics: issues,
+	// 		}
+	// 		ss.SendNotification("textDocument/publishDiagnostics", parameter)
+	// 	}
 
-	}
+	// }
 
 }
