@@ -47,11 +47,12 @@ Usage:
   checkmate secretSearch [flags]
 
 Flags:
-  -e, --exclusion string   Use provided exclusion yaml configuration
-  -h, --help               help for secretSearch
-      --json               Generate JSON output
-      --sensitive-files    list all registered sensitive files and their description
-  -s, --source             Provide source code evidence in the diagnostic results
+  -e, --exclusion string     Use provided exclusion yaml configuration
+  -h, --help                 help for secretSearch
+      --json                 Generate JSON output
+      --running-commentary   Generate a running commentary of results. Useful for analysis of large input data
+      --sensitive-files      list all registered sensitive files and their description
+  -s, --source               Provide source code evidence in the diagnostic results
 
 Global Flags:
       --config string   config file (default is $HOME/.checkmate.yaml)
