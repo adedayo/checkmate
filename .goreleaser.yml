@@ -10,6 +10,11 @@ builds:
       - windows
     goarch:
       - amd64
+      - arm64
+      - arm
+    goarm:
+      - 7
+      - 6
 archives:
   - id: darwin
     replacements:
@@ -28,9 +33,15 @@ changelog:
 before:
   hooks:
     - go mod download
-brews:
-  - github:
-      owner: adedayo
-      name: homebrew-tap
-    homepage: "https://github.com/adedayo/checkmate"
-    description: "CheckMate is a pluggable code security analysis tool."
+brews: 
+  - 
+   tap:
+    owner: adedayo
+    name: homebrew-tap
+   commit_author:
+    name: "Dayo Adetoye"
+    email: dayo.dev@gmail.com
+   caveats: "To get help running CheckMate please run: checkmate --help "
+   homepage: "https://github.com/adedayo/checkmate"
+   description: "CheckMate is a code security analysis tool."
+   license: "BSD-3-Clause"
