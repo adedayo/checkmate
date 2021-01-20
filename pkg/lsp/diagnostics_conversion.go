@@ -36,10 +36,10 @@ func convert(in diagnostics.SecurityDiagnostic) lsp.Diagnostic {
 
 func copyCode(in code.Range) lspCode.Range {
 	out := lspCode.Range{}
-	out.Start.Line = in.Start.Line
-	out.Start.Character = in.Start.Character
-	out.End.Line = in.End.Line
-	out.End.Character = in.End.Character
+	out.Start.Line = int64(in.Start.Line)
+	out.Start.Character = int64(in.Start.Character)
+	out.End.Line = int64(in.End.Line)
+	out.End.Character = int64(in.End.Character)
 
 	return out
 }

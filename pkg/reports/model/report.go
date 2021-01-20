@@ -4,7 +4,8 @@ import (
 	"github.com/adedayo/checkmate-core/pkg/diagnostics"
 )
 
-type ReportModel struct {
+// Model models the generated report
+type Model struct {
 	Logo                                                   string
 	SALLogo                                                string
 	Grade                                                  string
@@ -14,4 +15,5 @@ type ReportModel struct {
 	FileCount, SkippedCount, IssuesPerType, AveragePerFile int
 	Issues                                                 []diagnostics.SecurityDiagnostic
 	TimeStamp                                              string
+	ShowSource                                             bool
 }

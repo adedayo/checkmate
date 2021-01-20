@@ -49,7 +49,7 @@ import (
 var (
 	showSource, asJSON, runningCommentary bool
 	exclusion                             string
-	sensitiveFiles                        bool
+	sensitiveFiles, sensitiveFilesOnly    bool
 )
 
 // secretSearchCmd represents the secretSearch command
@@ -62,10 +62,11 @@ var secretSearchCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(secretSearchCmd)
-	secretSearchCmd.Flags().BoolVarP(&showSource, "source", "s", false, "Provide source code evidence in the diagnostic results")
+	secretSearchCmd.Flags().BoolVarP(&showSource, "source", "s", true, "Provide source code evidence in the diagnostic results")
 	secretSearchCmd.Flags().StringVarP(&exclusion, "exclusion", "e", "", "Use provided exclusion yaml configuration")
 	secretSearchCmd.Flags().BoolVar(&asJSON, "json", false, "Generate JSON output")
-	secretSearchCmd.Flags().BoolVar(&sensitiveFiles, "sensitive-files", false, "list all registered sensitive files and their description")
+	secretSearchCmd.Flags().BoolVar(&sensitiveFiles, "sensitive-files", false, "List all registered sensitive files and their description")
+	secretSearchCmd.Flags().BoolVar(&sensitiveFilesOnly, "sensitive-files-only", false, "Only search for sensitive files (e.g. certificates, key stores etc.)")
 	secretSearchCmd.Flags().BoolVar(&runningCommentary, "running-commentary", false, "Generate a running commentary of results. Useful for analysis of large input data")
 }
 
@@ -108,7 +109,12 @@ func search(cmd *cobra.Command, args []string) {
 		wl = w
 	}
 	issues := []diagnostics.SecurityDiagnostic{}
-	issueChannel, paths := secrets.SearchSecretsOnPaths(args, showSource, wl)
+	options := secrets.SecretSearchOptions{
+		ShowSource:            showSource,
+		ConfidentialFilesOnly: sensitiveFilesOnly,
+		Exclusions:            wl,
+	}
+	issueChannel, paths := secrets.SearchSecretsOnPaths(args, options)
 
 	for issue := range issueChannel {
 		issues = append(issues, issue)
@@ -129,7 +135,7 @@ func search(cmd *cobra.Command, args []string) {
 			fmt.Print("[]")
 		}
 	} else {
-		path, err := asciidoc.GenerateReport(files, issues...)
+		path, err := asciidoc.GenerateReport(options, files, issues...)
 		if err != nil {
 			fmt.Printf("\nError: %s%s\n", err.Error(), path)
 			return

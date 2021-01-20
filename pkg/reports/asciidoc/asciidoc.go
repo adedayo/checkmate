@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/adedayo/checkmate-core/pkg/diagnostics"
+	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
 	"github.com/adedayo/checkmate/pkg/assets"
 	report "github.com/adedayo/checkmate/pkg/reports/model"
 	"github.com/wcharczuk/go-chart/v2"
@@ -67,7 +68,7 @@ var (
 )
 
 //GenerateReport generates PDF report using asciidoc-pdf, if not found, returns the JSON-formatted results in the reportPath
-func GenerateReport(paths []string, issues ...diagnostics.SecurityDiagnostic) (reportPath string, err error) {
+func GenerateReport(options secrets.SecretSearchOptions, paths []string, issues ...diagnostics.SecurityDiagnostic) (reportPath string, err error) {
 	asciidocPath, err := exec.LookPath(asciidocExec)
 	if err != nil {
 		issuesJSON, e := json.MarshalIndent(issues, "", " ")
@@ -80,7 +81,7 @@ func GenerateReport(paths []string, issues ...diagnostics.SecurityDiagnostic) (r
 		return reportPath, fmt.Errorf("%s executable file not found in your $PATH. Install it and ensure that it is in your $PATH%s", asciidocExec, error2)
 	}
 	model, err := computeMetrics(paths, issues)
-
+	model.ShowSource = options.ShowSource
 	if err != nil {
 		return reportPath, err
 	}
@@ -110,9 +111,9 @@ func GenerateReport(paths []string, issues ...diagnostics.SecurityDiagnostic) (r
 	return
 }
 
-func computeMetrics(paths []string, issues []diagnostics.SecurityDiagnostic) (report.ReportModel, error) {
+func computeMetrics(paths []string, issues []diagnostics.SecurityDiagnostic) (report.Model, error) {
 
-	model := report.ReportModel{
+	model := report.Model{
 		HighCount:   0,
 		MediumCount: 0,
 		LowCount:    0,
@@ -232,7 +233,7 @@ func computeMetrics(paths []string, issues []diagnostics.SecurityDiagnostic) (re
 	data, err := generateAssets(grade, fixSVGColour(buffer.String()))
 
 	if err != nil {
-		return report.ReportModel{}, fmt.Errorf("Problem generating assets: %s", err.Error())
+		return report.Model{}, fmt.Errorf("Problem generating assets: %s", err.Error())
 	}
 
 	model.Grade = grade
@@ -244,7 +245,7 @@ func computeMetrics(paths []string, issues []diagnostics.SecurityDiagnostic) (re
 	return model, nil
 }
 
-func cleanAssets(assets report.ReportModel, aDoc string) {
+func cleanAssets(assets report.Model, aDoc string) {
 	_ = os.Remove(assets.Logo)
 	_ = os.Remove(assets.SALLogo)
 	_ = os.Remove(assets.Chart)

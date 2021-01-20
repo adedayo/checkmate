@@ -58,36 +58,37 @@ The following is a summary of metrics calculated during the security audit of yo
 == Issue Details
 
 
-{{ range $index, $issue := .Issues }}
-{{ template "ISSUE" $issue }}
+{{ template "ISSUE" . }}
 
-
-{{ end }}
 
 
 {{ define "ISSUE" }}
 
+{{ $showSource := .ShowSource}}
+{{ range $index, $issue := .Issues }}
 
-*Problem {counter:seq}*. {{ .Justification.Headline.Description }}, *Confidence*: {{ .Justification.Headline.Confidence }} 
+
+*Problem {counter:seq}*. {{ $issue.Justification.Headline.Description }}, *Confidence*: {{ $issue.Justification.Headline.Confidence }} 
 
 
 *Source code evidence*:
 
-*File*: {{ .Location }}
-[source,{{ computeLanguage .Location }}]
+*File*: {{ $issue.Location }}
+{{ if $showSource }}
+[source,{{ computeLanguage $issue.Location }}]
 ----
-{{ .Source }}
+{{ $issue.Source }}
 ----
-*Found at*: Line {{ .Range.Start.Line }}, Char {{ .Range.Start.Character }} *=>* Line {{ .Range.End.Line }}, Char {{ .Range.End.Character }}. *Found by*: {{ .ProviderID }}.
+{{ end }}
+*Found at*: Line {{ $issue.Range.Start.Line }}, Char {{ $issue.Range.Start.Character }} *=>* Line {{ $issue.Range.End.Line }}, Char {{ $issue.Range.End.Character }}. *Found by*: {{ $issue.ProviderID }}.
 
 
 *Analysis*
-{{ range $index, $evidence := .Justification.Reasons }}
+{{ range $index, $evidence := $issue.Justification.Reasons }}
 {{ translateConfidence $evidence.Confidence }} {{ $evidence.Description }} *Confidence* {{ $evidence.Confidence }}
 {{ end }}
 
 ---
 {{ end }}
-
-
+{{ end }}
 `

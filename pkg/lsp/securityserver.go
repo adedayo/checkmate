@@ -59,7 +59,7 @@ func (ss *SecurityServer) initWorkspace(req *jsonrpc2.Request) {
 
 func (ss *SecurityServer) analyseWorkspace() {
 	params := make(map[string][]lsp.Diagnostic)
-	issues, paths := secrets.SearchSecretsOnPaths(ss.workspacePaths, false, core.MakeEmptyExcludes())
+	issues, paths := secrets.SearchSecretsOnPaths(ss.workspacePaths, secrets.SecretSearchOptions{Exclusions: core.MakeEmptyExcludes()})
 	for diagnostic := range issues {
 		if issues, exist := params[*diagnostic.Location]; exist {
 			issues = append(issues, convert(diagnostic))

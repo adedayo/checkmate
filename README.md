@@ -34,7 +34,7 @@ _CheckMate_ could be used/embedded in the following ways at the moment:
 ### Running _CheckMate_ as a command-line tool
 
 ```bash
-checkmate secretSearch --source <paths to directories and files to scan>
+checkmate secretSearch <paths to directories and files to scan>
 ```
 
 The command line options may be obtained from the "help menu". For example:
@@ -47,18 +47,19 @@ Usage:
   checkmate secretSearch [flags]
 
 Flags:
-  -e, --exclusion string     Use provided exclusion yaml configuration
-  -h, --help                 help for secretSearch
-      --json                 Generate JSON output
-      --running-commentary   Generate a running commentary of results. Useful for analysis of large input data
-      --sensitive-files      list all registered sensitive files and their description
-  -s, --source               Provide source code evidence in the diagnostic results
+  -e, --exclusion string       Use provided exclusion yaml configuration
+  -h, --help                   help for secretSearch
+      --json                   Generate JSON output
+      --running-commentary     Generate a running commentary of results. Useful for analysis of large input data
+      --sensitive-files        List all registered sensitive files and their description
+      --sensitive-files-only   Only search for sensitive files (e.g. certificates, key stores etc.)
+  -s, --source                 Provide source code evidence in the diagnostic results (default true)
 
 Global Flags:
       --config string   config file (default is $HOME/.checkmate.yaml)
 ```
 
-The _secretSearch_ command will generate a nice-looking PDF report by default, using asciidoctor-pdf, so it needs to be installed and should be on your system _$PATH_. Details for installing the free asciidoctor-pdf tool is here: [Asciidoctor PDF documentation](https://asciidoctor.org/docs/asciidoctor-pdf/). If _CheckMate_ could not find asciidoctor-pdf, it will generate a JSON output of your scan result instead, just as if you ran _secretSearch_ with a _--json_ command-line option.
+The _secretSearch_ command will generate a nice-looking PDF report by default, using asciidoctor-pdf, so it needs to be installed and should be on your system _$PATH_. Details for installing the free asciidoctor-pdf tool is here: [Asciidoctor PDF documentation](https://asciidoctor.org/docs/asciidoctor-pdf/). If _CheckMate_ could not find asciidoctor-pdf, _it will generate a JSON output of your scan result instead_, just as if you ran _secretSearch_ with a _--json_ command-line option.
 
 A sample PDF report may be found here: [bad-code-audit.pdf](bad-code-audit.pdf)
 
