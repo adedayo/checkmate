@@ -47,6 +47,7 @@ Usage:
   checkmate secretSearch [flags]
 
 Flags:
+      --calculate-checksums    Calculate checksums of secrets (default true)
   -e, --exclusion string       Use provided exclusion yaml configuration
   -h, --help                   help for secretSearch
       --json                   Generate JSON output
