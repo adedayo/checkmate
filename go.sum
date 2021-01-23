@@ -26,10 +26,14 @@ github.com/adedayo/checkmate-core v0.0.7 h1:vkh1chvs5DuIi+qoD+4QQSRKjusfmoRyPKhv
 github.com/adedayo/checkmate-core v0.0.7/go.mod h1:LwTjWIkp+VTcScsIRXTP9V/OJ/gPJFK3thPpQLOHi0c=
 github.com/adedayo/checkmate-core v0.0.9 h1:xPyB4AUbn9b1URKlHDR9pe3kmb6H8H/83hcs1xZ3yGU=
 github.com/adedayo/checkmate-core v0.0.9/go.mod h1:m0KinTEEt5rUMDtOsFCXCy5wGnZy1iWsN4axIv9DAk4=
+github.com/adedayo/checkmate-core v0.1.0 h1:VA6EvtU93npTYzKmkbJZpLb5VmZbEMr30E+3s65eKjc=
+github.com/adedayo/checkmate-core v0.1.0/go.mod h1:m0KinTEEt5rUMDtOsFCXCy5wGnZy1iWsN4axIv9DAk4=
 github.com/adedayo/checkmate-plugin v0.0.6 h1:e1VmRVzNjETA8rRaZTMuJMvSZ0XY+krQ+RenrbkU3fI=
 github.com/adedayo/checkmate-plugin v0.0.6/go.mod h1:qT35OFM56gmpUfRp6YNaxk4L64yDxilw8U6r5XxWTbo=
 github.com/adedayo/checkmate-plugin v0.0.9 h1:9POaMa87VJ47mdKL3GBjEXcQuQh3yTDLUeSFuH28SRo=
 github.com/adedayo/checkmate-plugin v0.0.9/go.mod h1:32GcwxQluNKYCa8qu8Z7oODolei+JHyi9Eft/ffpHTY=
+github.com/adedayo/checkmate-plugin v0.1.0 h1:oq0LKTFxD7Yktn9BzYkgmD2zEAECNk1WbK9sJv034Vo=
+github.com/adedayo/checkmate-plugin v0.1.0/go.mod h1:h6on27W4RA9B4NZNJCfOGa5FrCuETt2Fszjp70MXkrk=
 github.com/adedayo/go-lsp v0.0.8 h1:IeZYtD35qhJgJSDTzXwu2Swhed9dVt9WbhRPcZ9lytU=
 github.com/adedayo/go-lsp v0.0.8/go.mod h1:WffoYSvtuVjjYcxJeU8dPpIBGTI6dAXjAL5vqb4OLcg=
 github.com/adedayo/go-lsp v0.0.9 h1:4B73UpTRRpvrZAV6Y7tGzYhljeXBDyJATXGgTSN77n0=

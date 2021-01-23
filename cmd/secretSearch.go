@@ -50,6 +50,7 @@ var (
 	showSource, asJSON, runningCommentary bool
 	exclusion                             string
 	sensitiveFiles, sensitiveFilesOnly    bool
+	calculateChecksum                     bool
 )
 
 // secretSearchCmd represents the secretSearch command
@@ -63,6 +64,7 @@ var secretSearchCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(secretSearchCmd)
 	secretSearchCmd.Flags().BoolVarP(&showSource, "source", "s", true, "Provide source code evidence in the diagnostic results")
+	secretSearchCmd.Flags().BoolVar(&calculateChecksum, "calculate-checksums", true, "Calculate checksums of secrets")
 	secretSearchCmd.Flags().StringVarP(&exclusion, "exclusion", "e", "", "Use provided exclusion yaml configuration")
 	secretSearchCmd.Flags().BoolVar(&asJSON, "json", false, "Generate JSON output")
 	secretSearchCmd.Flags().BoolVar(&sensitiveFiles, "sensitive-files", false, "List all registered sensitive files and their description")
@@ -111,6 +113,7 @@ func search(cmd *cobra.Command, args []string) {
 	issues := []diagnostics.SecurityDiagnostic{}
 	options := secrets.SecretSearchOptions{
 		ShowSource:            showSource,
+		CalculateChecksum:     calculateChecksum,
 		ConfidentialFilesOnly: sensitiveFilesOnly,
 		Exclusions:            wl,
 	}
