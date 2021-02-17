@@ -36,6 +36,7 @@ var (
 	funcMap = template.FuncMap{
 		"computeLanguage":     computeLanguage,
 		"translateConfidence": translateConfidence,
+		"increment":           increment,
 	}
 
 	rgbaFix   = regexp.MustCompile(`rgba\((\d+,\d+,\d+),1.0\)`)
@@ -114,15 +115,26 @@ func GenerateReport(options secrets.SecretSearchOptions, paths []string, issues 
 func computeMetrics(paths []string, issues []diagnostics.SecurityDiagnostic) (report.Model, error) {
 
 	model := report.Model{
-		HighCount:   0,
-		MediumCount: 0,
-		LowCount:    0,
-		FileCount:   len(paths),
-		Issues:      issues,
-		TimeStamp:   time.Now().UTC().Format(time.RFC1123),
+		HighCount:      0,
+		MediumCount:    0,
+		LowCount:       0,
+		FileCount:      len(paths),
+		Issues:         issues,
+		TimeStamp:      time.Now().UTC().Format(time.RFC1123),
+		AveragePerFile: float32(len(issues)) / float32(len(paths)),
 	}
 
+	sameSha := make(map[string][]diagnostics.SecurityDiagnostic)
+
 	for _, issue := range issues {
+		if issue.SHA256 != nil {
+			sha := *issue.SHA256
+			if _, present := sameSha[sha]; present {
+				sameSha[sha] = append(sameSha[sha], issue)
+			} else {
+				sameSha[sha] = []diagnostics.SecurityDiagnostic{issue}
+			}
+		}
 		switch issue.Justification.Headline.Confidence {
 		case diagnostics.High:
 			model.HighCount++
@@ -135,6 +147,20 @@ func computeMetrics(paths []string, issues []diagnostics.SecurityDiagnostic) (re
 
 		}
 	}
+
+	model.ReusedSecrets = sameSha
+
+	count := 0
+	numberOfReuse := 0
+	for hash := range model.ReusedSecrets {
+		cc := len(model.ReusedSecrets[hash])
+		if cc > 1 {
+			count++
+			numberOfReuse += cc
+		}
+	}
+	model.ReusedSecretsCount = count
+	model.NumberOfSecretsReuse = numberOfReuse
 
 	barWidth := 20
 	issueCount := float64(model.HighCount + model.MediumCount + model.LowCount + model.InformationalCount)
@@ -397,6 +423,10 @@ func computeLanguage(file string) string {
 	default:
 		return strings.TrimPrefix(ext, ".")
 	}
+}
+
+func increment(i int64) int64 {
+	return i + 1
 }
 
 func translateConfidence(conf diagnostics.Confidence) string {

@@ -49,7 +49,8 @@ The following is a summary of metrics calculated during the security audit of yo
 | Total number of Low Issues| {{ .LowCount }}
 | Total number of Informational Issues| {{ .InformationalCount }}
 | No of files processed | {{ .FileCount }}
-| Issues per file type | {{ .IssuesPerType }}
+| No of Reused Secrets | {{ .ReusedSecretsCount }}
+| No Instances of Secret Reuse | {{ .NumberOfSecretsReuse }}
 | Average number of issues per file | {{ .AveragePerFile }}
 |===
 
@@ -75,13 +76,17 @@ The following is a summary of metrics calculated during the security audit of yo
 
 *File*: {{ $issue.Location }}
 {{ if $showSource }}
+{{ if $issue.Source }}
 [source,{{ computeLanguage $issue.Location }}]
 ----
 {{ $issue.Source }}
 ----
 {{ end }}
-*Found at*: Line {{ $issue.Range.Start.Line }}, Char {{ $issue.Range.Start.Character }} *=>* Line {{ $issue.Range.End.Line }}, Char {{ $issue.Range.End.Character }}. *Found by*: {{ $issue.ProviderID }}.
-
+{{ end }}
+*Found at*: Line {{ increment $issue.Range.Start.Line }}, Char {{ increment $issue.Range.Start.Character }} *=>* Line {{ increment $issue.Range.End.Line }}, Char {{ increment $issue.Range.End.Character }}. *Found by*: {{ $issue.ProviderID }}.
+{{ if $issue.SHA256 }}
+*SHA256*: {{ $issue.SHA256 }}
+{{ end }}
 
 *Analysis*
 {{ range $index, $evidence := $issue.Justification.Reasons }}

@@ -110,7 +110,7 @@ func search(cmd *cobra.Command, args []string) {
 	} else {
 		wl = w
 	}
-	issues := []diagnostics.SecurityDiagnostic{}
+	aggregator := common.MakeSimpleAggregator()
 	options := secrets.SecretSearchOptions{
 		ShowSource:            showSource,
 		CalculateChecksum:     calculateChecksum,
@@ -120,7 +120,7 @@ func search(cmd *cobra.Command, args []string) {
 	issueChannel, paths := secrets.SearchSecretsOnPaths(args, options)
 
 	for issue := range issueChannel {
-		issues = append(issues, issue)
+		aggregator.AddDiagnostic(issue)
 		if runningCommentary {
 			if x, err := json.MarshalIndent(issue, "", " "); err == nil {
 				fmt.Printf("\n%s\n", x)
@@ -128,6 +128,7 @@ func search(cmd *cobra.Command, args []string) {
 		}
 	}
 	files := <-paths
+	issues := aggregator.Aggregate()
 	// fmt.Printf("\n,Files: %#v\n", files)
 
 	if asJSON {
