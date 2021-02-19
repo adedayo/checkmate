@@ -37,6 +37,7 @@ var (
 		"computeLanguage":     computeLanguage,
 		"translateConfidence": translateConfidence,
 		"increment":           increment,
+		"deref":               deref,
 	}
 
 	rgbaFix   = regexp.MustCompile(`rgba\((\d+,\d+,\d+),1.0\)`)
@@ -427,6 +428,10 @@ func computeLanguage(file string) string {
 
 func increment(i int64) int64 {
 	return i + 1
+}
+
+func deref(s *string) string {
+	return *s
 }
 
 func translateConfidence(conf diagnostics.Confidence) string {

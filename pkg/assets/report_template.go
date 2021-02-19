@@ -65,7 +65,8 @@ The following is a summary of metrics calculated during the security audit of yo
 
 {{ define "ISSUE" }}
 
-{{ $showSource := .ShowSource}}
+{{ $showSource := .ShowSource }}
+{{ $reusedSecrets := .ReusedSecrets }}
 {{ range $index, $issue := .Issues }}
 
 
@@ -84,8 +85,12 @@ The following is a summary of metrics calculated during the security audit of yo
 {{ end }}
 {{ end }}
 *Found at*: Line {{ increment $issue.Range.Start.Line }}, Char {{ increment $issue.Range.Start.Character }} *=>* Line {{ increment $issue.Range.End.Line }}, Char {{ increment $issue.Range.End.Character }}. *Found by*: {{ $issue.ProviderID }}.
-{{ if $issue.SHA256 }}
-*SHA256*: {{ $issue.SHA256 }}
+{{- if $issue.SHA256 -}}
+{{- $sha := deref $issue.SHA256 }}
+
+*SHA256*: {{ $sha }}
+
+*No of times secret (re)used*: {{ len (index $reusedSecrets $sha) }}
 {{ end }}
 
 *Analysis*

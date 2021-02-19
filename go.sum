@@ -17,8 +17,8 @@ github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
 github.com/adedayo/checkmate-core v0.1.1 h1:i15i0ToijoqN6HFaEXtwZaX9wx26Tnib94NlTRMXQxg=
 github.com/adedayo/checkmate-core v0.1.1/go.mod h1:m0KinTEEt5rUMDtOsFCXCy5wGnZy1iWsN4axIv9DAk4=
-github.com/adedayo/checkmate-plugin v0.1.1 h1:cx2pgwGSD1EtkYJRuSwE/Vr0GW1bIA4uZeT3OnBoFfY=
-github.com/adedayo/checkmate-plugin v0.1.1/go.mod h1:b8/y8YTbTFu9l1zvGf1BJuwuAIayYVHpXeLyOe4UiYQ=
+github.com/adedayo/checkmate-plugin v0.1.2 h1:+i8VfwdFygBzlfTxj9L86YSnceBd7U5h4YB5K5KMaOE=
+github.com/adedayo/checkmate-plugin v0.1.2/go.mod h1:b8/y8YTbTFu9l1zvGf1BJuwuAIayYVHpXeLyOe4UiYQ=
 github.com/adedayo/go-lsp v0.0.9 h1:4B73UpTRRpvrZAV6Y7tGzYhljeXBDyJATXGgTSN77n0=
 github.com/adedayo/go-lsp v0.0.9/go.mod h1:WffoYSvtuVjjYcxJeU8dPpIBGTI6dAXjAL5vqb4OLcg=
 github.com/alcortesm/tgz v0.0.0-20161220082320-9c5fe88206d7 h1:uSoVVbwJiQipAclBbw+8quDsfcvFjOpI5iCf4p/cqCs=
