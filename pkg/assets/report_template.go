@@ -35,8 +35,6 @@ a!image::{{ .Chart }}[align=center, pdfwidth=100%]
 |===
 
 
-
-
 === Metrics about your codebase
 The following is a summary of metrics calculated during the security audit of your codebase:
 
@@ -71,7 +69,6 @@ The following is a summary of metrics calculated during the security audit of yo
 
 
 *Problem {counter:seq}*. {{ $issue.Justification.Headline.Description }}, *Confidence*: {{ $issue.Justification.Headline.Confidence }} 
-
 
 *Source code evidence*:
 

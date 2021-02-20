@@ -47,10 +47,10 @@ import (
 )
 
 var (
-	showSource, asJSON, runningCommentary bool
-	exclusion                             string
-	sensitiveFiles, sensitiveFilesOnly    bool
-	calculateChecksum                     bool
+	showSource, asJSON, runningCommentary     bool
+	exclusion                                 string
+	sensitiveFiles, sensitiveFilesOnly        bool
+	calculateChecksum, verbose, reportIgnored bool
 )
 
 // secretSearchCmd represents the secretSearch command
@@ -70,6 +70,8 @@ func init() {
 	secretSearchCmd.Flags().BoolVar(&sensitiveFiles, "sensitive-files", false, "List all registered sensitive files and their description")
 	secretSearchCmd.Flags().BoolVar(&sensitiveFilesOnly, "sensitive-files-only", false, "Only search for sensitive files (e.g. certificates, key stores etc.)")
 	secretSearchCmd.Flags().BoolVar(&runningCommentary, "running-commentary", false, "Generate a running commentary of results. Useful for analysis of large input data")
+	secretSearchCmd.Flags().BoolVar(&verbose, "verbose", false, "Generate verbose output such as current file being scanned as well as report about ignored files")
+	secretSearchCmd.Flags().BoolVar(&reportIgnored, "report-ignored", false, "Include ignored files and values in the reports")
 }
 
 func search(cmd *cobra.Command, args []string) {
@@ -114,6 +116,8 @@ func search(cmd *cobra.Command, args []string) {
 	options := secrets.SecretSearchOptions{
 		ShowSource:            showSource,
 		CalculateChecksum:     calculateChecksum,
+		Verbose:               verbose,
+		ReportIgnored:         reportIgnored,
 		ConfidentialFilesOnly: sensitiveFilesOnly,
 		Exclusions:            wl,
 	}
@@ -144,6 +148,6 @@ func search(cmd *cobra.Command, args []string) {
 			fmt.Printf("\nError: %s%s\n", err.Error(), path)
 			return
 		}
-		println("Report generated at ", path)
+		fmt.Printf("Report generated at %s\n", path)
 	}
 }
