@@ -51,10 +51,12 @@ Flags:
   -e, --exclusion string       Use provided exclusion yaml configuration
   -h, --help                   help for secretSearch
       --json                   Generate JSON output
+      --report-ignored         Include ignored files and values in the reports
       --running-commentary     Generate a running commentary of results. Useful for analysis of large input data
       --sensitive-files        List all registered sensitive files and their description
       --sensitive-files-only   Only search for sensitive files (e.g. certificates, key stores etc.)
   -s, --source                 Provide source code evidence in the diagnostic results (default true)
+      --verbose                Generate verbose output such as current file being scanned as well as report about ignored files
 
 Global Flags:
       --config string   config file (default is $HOME/.checkmate.yaml)
