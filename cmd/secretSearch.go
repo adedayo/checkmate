@@ -51,6 +51,7 @@ var (
 	exclusion                                 string
 	sensitiveFiles, sensitiveFilesOnly        bool
 	calculateChecksum, verbose, reportIgnored bool
+	generateSampleExclusion                   bool
 )
 
 // secretSearchCmd represents the secretSearch command
@@ -72,11 +73,17 @@ func init() {
 	secretSearchCmd.Flags().BoolVar(&runningCommentary, "running-commentary", false, "Generate a running commentary of results. Useful for analysis of large input data")
 	secretSearchCmd.Flags().BoolVar(&verbose, "verbose", false, "Generate verbose output such as current file being scanned as well as report about ignored files")
 	secretSearchCmd.Flags().BoolVar(&reportIgnored, "report-ignored", false, "Include ignored files and values in the reports")
+	secretSearchCmd.Flags().BoolVar(&generateSampleExclusion, "sample-exclusion", false, " Generates a sample exclusion YAML file content with descriptions")
 }
 
 func search(cmd *cobra.Command, args []string) {
-	if !(asJSON || sensitiveFiles) {
+	if !(asJSON || sensitiveFiles || generateSampleExclusion) {
 		fmt.Printf("Starting %s %s (https://github.com/adedayo/checkmate)\n", common.AppName, appVersion)
+	}
+
+	if generateSampleExclusion {
+		fmt.Printf(diagnostics.GenerateSampleExclusion())
+		return
 	}
 
 	if sensitiveFiles {

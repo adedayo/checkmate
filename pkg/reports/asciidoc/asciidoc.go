@@ -115,6 +115,10 @@ func GenerateReport(options secrets.SecretSearchOptions, paths []string, issues 
 
 func computeMetrics(paths []string, issues []diagnostics.SecurityDiagnostic) (report.Model, error) {
 
+	var average float32
+	if len(paths) > 0 {
+		average = float32(len(issues)) / float32(len(paths))
+	}
 	model := report.Model{
 		HighCount:      0,
 		MediumCount:    0,
@@ -122,7 +126,7 @@ func computeMetrics(paths []string, issues []diagnostics.SecurityDiagnostic) (re
 		FileCount:      len(paths),
 		Issues:         issues,
 		TimeStamp:      time.Now().UTC().Format(time.RFC1123),
-		AveragePerFile: float32(len(issues)) / float32(len(paths)),
+		AveragePerFile: average,
 	}
 
 	sameSha := make(map[string][]diagnostics.SecurityDiagnostic)
