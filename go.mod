@@ -3,8 +3,8 @@ module github.com/adedayo/checkmate
 go 1.15
 
 require (
-	github.com/adedayo/checkmate-core v0.1.3
-	github.com/adedayo/checkmate-plugin v0.1.9
+	github.com/adedayo/checkmate-core v0.1.4
+	github.com/adedayo/checkmate-plugin v0.2.0
 	github.com/adedayo/go-lsp v0.0.9
 	github.com/gorilla/mux v1.8.0
 	github.com/mitchellh/go-homedir v1.1.0
@@ -16,6 +16,6 @@ require (
 
 // replace github.com/adedayo/go-lsp v0.0.9 => ../go-lsp
 
-// replace github.com/adedayo/checkmate-core v0.1.3 => ../checkmate-core
+// replace github.com/adedayo/checkmate-core v0.1.4 => ../checkmate-core
 
-// replace github.com/adedayo/checkmate-plugin v0.1.9 => ../checkmate-plugin
+// replace github.com/adedayo/checkmate-plugin v0.2.0 => ../checkmate-plugin

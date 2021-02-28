@@ -51,7 +51,7 @@ var (
 	exclusion                                 string
 	sensitiveFiles, sensitiveFilesOnly        bool
 	calculateChecksum, verbose, reportIgnored bool
-	generateSampleExclusion                   bool
+	generateSampleExclusion, skipTestFiles    bool
 )
 
 // secretSearchCmd represents the secretSearch command
@@ -73,7 +73,8 @@ func init() {
 	secretSearchCmd.Flags().BoolVar(&runningCommentary, "running-commentary", false, "Generate a running commentary of results. Useful for analysis of large input data")
 	secretSearchCmd.Flags().BoolVar(&verbose, "verbose", false, "Generate verbose output such as current file being scanned as well as report about ignored files")
 	secretSearchCmd.Flags().BoolVar(&reportIgnored, "report-ignored", false, "Include ignored files and values in the reports")
-	secretSearchCmd.Flags().BoolVar(&generateSampleExclusion, "sample-exclusion", false, " Generates a sample exclusion YAML file content with descriptions")
+	secretSearchCmd.Flags().BoolVar(&generateSampleExclusion, "sample-exclusion", false, "Generates a sample exclusion YAML file content with descriptions")
+	secretSearchCmd.Flags().BoolVar(&skipTestFiles, "exclude-tests", false, "Skip test files during scan")
 }
 
 func search(cmd *cobra.Command, args []string) {
@@ -97,27 +98,28 @@ func search(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	var wld diagnostics.ExcludeDefinition
+	var excludeDefinitions diagnostics.ExcludeDefinition = secrets.MakeCommonExclusions()
+
 	if exclusion != "" {
 		data, err := ioutil.ReadFile(exclusion)
 		if err != nil {
 			log.Printf("Warning: %s. Continuing with no exclusion", err.Error())
 		} else {
-			if err := yaml.Unmarshal(data, &wld); err != nil {
+			if err := yaml.Unmarshal(data, &excludeDefinitions); err != nil {
 				log.Printf("Warning: %s. Continuing with no exclusion", err.Error())
 			} else {
 				//Successfully loaded exclusion. Add exclusion file to the exclusion
 				if wlPath, err := filepath.Abs(exclusion); err == nil {
-					wld.PathExclusionRegExs = append(wld.PathExclusionRegExs, wlPath)
+					excludeDefinitions.PathExclusionRegExs = append(excludeDefinitions.PathExclusionRegExs, wlPath)
 				}
 			}
 		}
 	}
-	var wl diagnostics.ExclusionProvider
-	if w, err := diagnostics.CompileExcludes(&wld); err != nil {
+	var exclusionProvider diagnostics.ExclusionProvider
+	if excludeProvider, err := diagnostics.CompileExcludes(&excludeDefinitions); err != nil {
 		log.Printf("Warning: %s. Continuing with no exclusion", err.Error())
 	} else {
-		wl = w
+		exclusionProvider = excludeProvider
 	}
 	aggregator := common.MakeSimpleAggregator()
 	options := secrets.SecretSearchOptions{
@@ -126,7 +128,8 @@ func search(cmd *cobra.Command, args []string) {
 		Verbose:               verbose,
 		ReportIgnored:         reportIgnored,
 		ConfidentialFilesOnly: sensitiveFilesOnly,
-		Exclusions:            wl,
+		Exclusions:            exclusionProvider,
+		ExcludeTestFiles:      skipTestFiles,
 	}
 	issueChannel, paths := secrets.SearchSecretsOnPaths(args, options)
 

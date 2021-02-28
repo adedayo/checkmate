@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"path"
@@ -106,6 +107,7 @@ func GenerateReport(options secrets.SecretSearchOptions, paths []string, issues 
 
 	cmd := exec.Command(asciidocPath, aDoc)
 	reportPath = strings.Replace(aDoc, ".adoc", ".pdf", -1)
+	log.Printf("Generating report at %s\n", reportPath)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return reportPath, fmt.Errorf("%s%s", string(out), err.Error())
 	}
