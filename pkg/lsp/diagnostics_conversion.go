@@ -15,7 +15,7 @@ var (
 	source = fmt.Sprintf("\n%s ", common.AppDisplayName)
 )
 
-func convert(in diagnostics.SecurityDiagnostic) lsp.Diagnostic {
+func convert(in *diagnostics.SecurityDiagnostic) lsp.Diagnostic {
 
 	reasons := []string{fmt.Sprintf("Problem: %s. Confidence Level: %s.",
 		in.Justification.Headline.Description,

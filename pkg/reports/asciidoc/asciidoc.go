@@ -71,7 +71,7 @@ var (
 )
 
 //GenerateReport generates PDF report using asciidoc-pdf, if not found, returns the JSON-formatted results in the reportPath
-func GenerateReport(options secrets.SecretSearchOptions, paths []string, issues ...diagnostics.SecurityDiagnostic) (reportPath string, err error) {
+func GenerateReport(options secrets.SecretSearchOptions, paths []string, issues ...*diagnostics.SecurityDiagnostic) (reportPath string, err error) {
 	asciidocPath, err := exec.LookPath(asciidocExec)
 	if err != nil {
 		issuesJSON, e := json.MarshalIndent(issues, "", " ")
@@ -83,8 +83,7 @@ func GenerateReport(options secrets.SecretSearchOptions, paths []string, issues 
 		}
 		return reportPath, fmt.Errorf("%s executable file not found in your $PATH. Install it and ensure that it is in your $PATH%s", asciidocExec, error2)
 	}
-	model, err := computeMetrics(paths, issues)
-	model.ShowSource = options.ShowSource
+	model, err := ComputeMetrics(paths, options, issues)
 	if err != nil {
 		return reportPath, err
 	}
@@ -115,7 +114,7 @@ func GenerateReport(options secrets.SecretSearchOptions, paths []string, issues 
 	return
 }
 
-func computeMetrics(paths []string, issues []diagnostics.SecurityDiagnostic) (report.Model, error) {
+func ComputeMetrics(paths []string, options secrets.SecretSearchOptions, issues []*diagnostics.SecurityDiagnostic) (report.Model, error) {
 
 	var average float32
 	if len(paths) > 0 {
@@ -129,17 +128,18 @@ func computeMetrics(paths []string, issues []diagnostics.SecurityDiagnostic) (re
 		Issues:         issues,
 		TimeStamp:      time.Now().UTC().Format(time.RFC1123),
 		AveragePerFile: average,
+		ShowSource:     options.ShowSource,
 	}
 
-	sameSha := make(map[string][]diagnostics.SecurityDiagnostic)
+	sameSha := make(map[string][]*diagnostics.SecurityDiagnostic)
 
 	for _, issue := range issues {
 		if issue.SHA256 != nil {
 			sha := *issue.SHA256
-			if _, present := sameSha[sha]; present {
-				sameSha[sha] = append(sameSha[sha], issue)
+			if shas, present := sameSha[sha]; present {
+				sameSha[sha] = append(shas, issue)
 			} else {
-				sameSha[sha] = []diagnostics.SecurityDiagnostic{issue}
+				sameSha[sha] = []*diagnostics.SecurityDiagnostic{issue}
 			}
 		}
 		switch issue.Justification.Headline.Confidence {
@@ -266,7 +266,7 @@ func computeMetrics(paths []string, issues []diagnostics.SecurityDiagnostic) (re
 	data, err := generateAssets(grade, fixSVGColour(buffer.String()))
 
 	if err != nil {
-		return report.Model{}, fmt.Errorf("Problem generating assets: %s", err.Error())
+		return report.Model{}, fmt.Errorf("problem generating assets: %s", err.Error())
 	}
 
 	model.Grade = grade

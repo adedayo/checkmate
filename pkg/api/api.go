@@ -10,12 +10,40 @@ import (
 
 	common "github.com/adedayo/checkmate-core/pkg"
 	"github.com/adedayo/checkmate-core/pkg/diagnostics"
+	"github.com/adedayo/checkmate-core/pkg/projects"
 	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/websocket"
 )
 
 var (
-	routes = mux.NewRouter()
+	routes         = mux.NewRouter()
+	apiVersion     = "0.0.0"
+	pm             = projects.MakeSimpleProjectManager()
+	allowedOrigins = []string{
+		"localhost:17283",
+		"http://localhost:4200",
+		"localhost:4200",
+	}
+	corsOptions = []handlers.CORSOption{
+		handlers.AllowedMethods([]string{"GET", "HEAD", "POST"}),
+		handlers.AllowedHeaders([]string{"Content-Type", "Authorization", "Accept", "Accept-Language", "Origin"}),
+		handlers.AllowCredentials(),
+	}
+
+	upgrader = websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			for _, origin := range allowedOrigins {
+				if origin == r.Host {
+					return true
+				}
+			}
+			return strings.Split(r.Host, ":")[0] == "localhost" //allow localhost independent of port
+		},
+	}
 )
 
 func init() {
@@ -24,6 +52,42 @@ func init() {
 
 func addRoutes() {
 	routes.HandleFunc("/api/findsecrets", findSecrets).Methods("POST")
+	routes.HandleFunc("/api/secrets/scan", scanSecrets).Methods("GET")
+	routes.HandleFunc("/api/version", version).Methods("GET")
+	routes.HandleFunc("/api/secrets/defaultpolicy", defaultPolicy).Methods("GET")
+	routes.HandleFunc("/api/projectsummaries", projectSummaries).Methods("GET")
+	routes.HandleFunc("/api/projectsummary/{projectID}", getProjectSummary).Methods("GET")
+	routes.HandleFunc("/api/createproject", createProject).Methods("POST")
+
+}
+
+func version(w http.ResponseWriter, r *http.Request) {
+	json.NewEncoder(w).Encode(apiVersion)
+}
+
+func defaultPolicy(w http.ResponseWriter, r *http.Request) {
+	json.NewEncoder(w).Encode(diagnostics.GenerateSampleExclusion())
+}
+
+func getProjectSummary(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	projID := vars["projectID"]
+	summary := pm.GetProjectSummary(projID)
+	json.NewEncoder(w).Encode(summary)
+}
+
+func projectSummaries(w http.ResponseWriter, r *http.Request) {
+	json.NewEncoder(w).Encode(pm.ListProjectSummaries())
+}
+
+func createProject(w http.ResponseWriter, r *http.Request) {
+	var projDesc projects.ProjectDescriptionWire
+	if err := json.NewDecoder(r.Body).Decode(&projDesc); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	proj := pm.CreateProject(projDesc.ToProjectDescription())
+	json.NewEncoder(w).Encode(pm.GetProjectSummary(proj.ID))
 }
 
 func findSecrets(w http.ResponseWriter, r *http.Request) {
@@ -47,7 +111,7 @@ func findSecrets(w http.ResponseWriter, r *http.Request) {
 		Exclusions: diagnostics.MakeEmptyExcludes(),
 	}
 	finder := secrets.GetFinderForFileType(data.SourceType, path, options)
-	diagnostics := []diagnostics.SecurityDiagnostic{}
+	diagnostics := []*diagnostics.SecurityDiagnostic{}
 	for diagnostic := range secrets.FindSecret(path, strings.NewReader(data.Source), finder, true) {
 		diagnostics = append(diagnostics, diagnostic)
 	}
@@ -56,7 +120,36 @@ func findSecrets(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(diagnostics)
 }
 
+func scanSecrets(w http.ResponseWriter, r *http.Request) {
+	var options ProjectScanOptions
+
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("Error upgrading websocket connection %s", err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err = ws.ReadJSON(&options)
+	if err != nil {
+		log.Printf("Error deserialising scan options %s", err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	runSecretScan(options, ws)
+
+}
+
 //ServeAPI serves the analysis service on the specified port
-func ServeAPI(port int) {
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%d", port), routes))
+func ServeAPI(config Config) {
+	hostPort := "localhost:%d"
+	if config.Local {
+		//localhost electron app
+		corsOptions = append(corsOptions, handlers.AllowedOrigins(allowedOrigins))
+	} else {
+		hostPort = ":%d"
+	}
+	apiVersion = config.AppVersion
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(hostPort, config.ApiPort), handlers.CORS(corsOptions...)(routes)))
 }

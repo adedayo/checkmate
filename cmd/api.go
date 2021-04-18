@@ -39,7 +39,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var port int
+var (
+	port      int
+	bindLocal bool
+)
 
 // apiCmd represents the api command
 var apiCmd = &cobra.Command{
@@ -52,12 +55,19 @@ var apiCmd = &cobra.Command{
 Version: %s
 
 Author: Adedayo Adetoye (Dayo) <https://github.com/adedayo>
-		`, common.AppName, port, rootCmd.Version)
-		api.ServeAPI(port)
+		`, common.AppName, port, appVersion)
+		config := api.Config{
+			AppName:    common.AppName,
+			AppVersion: appVersion,
+			ApiPort:    port,
+			Local:      bindLocal,
+		}
+		api.ServeAPI(config)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(apiCmd)
-	apiCmd.Flags().IntVarP(&port, "port", "p", 8080, "Port on which to serve the API service")
+	apiCmd.Flags().IntVarP(&port, "port", "p", 17283, "Port on which to serve the API service")
+	apiCmd.Flags().BoolVar(&bindLocal, "bind-localhost", false, "Bind the API service to localhost")
 }
