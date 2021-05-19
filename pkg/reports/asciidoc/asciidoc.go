@@ -28,7 +28,7 @@ var (
 		executable := "asciidoctor-pdf"
 		switch runtime.GOOS {
 		case "windows":
-			return fmt.Sprintf("%s.exe", executable)
+			return fmt.Sprintf("%s", executable)
 		default:
 			return executable
 		}

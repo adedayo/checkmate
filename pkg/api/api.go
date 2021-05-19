@@ -57,6 +57,9 @@ func addRoutes() {
 	routes.HandleFunc("/api/secrets/defaultpolicy", defaultPolicy).Methods("GET")
 	routes.HandleFunc("/api/projectsummaries", projectSummaries).Methods("GET")
 	routes.HandleFunc("/api/projectsummary/{projectID}", getProjectSummary).Methods("GET")
+	routes.HandleFunc("/api/project/{projectID}", getProject).Methods("GET")
+	routes.HandleFunc("/api/project/issues", getIssues).Methods("POST")
+	routes.HandleFunc("/api/project/issues/fix", fixIssue).Methods("POST")
 	routes.HandleFunc("/api/createproject", createProject).Methods("POST")
 
 }
@@ -76,8 +79,34 @@ func getProjectSummary(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(summary)
 }
 
+func getProject(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	projID := vars["projectID"]
+	project := pm.GetProject(projID)
+	json.NewEncoder(w).Encode(project)
+}
+
 func projectSummaries(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(pm.ListProjectSummaries())
+}
+
+func getIssues(w http.ResponseWriter, r *http.Request) {
+	var search projects.PaginatedIssueSearch
+	if err := json.NewDecoder(r.Body).Decode(&search); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	json.NewEncoder(w).Encode(pm.GetIssues(search))
+}
+
+func fixIssue(w http.ResponseWriter, r *http.Request) {
+	var fix diagnostics.ExcludeRequirement
+	if err := json.NewDecoder(r.Body).Decode(&fix); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	json.NewEncoder(w).Encode(pm.RemediateIssue(fix))
 }
 
 func createProject(w http.ResponseWriter, r *http.Request) {

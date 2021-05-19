@@ -67,10 +67,10 @@ func main() {
 	pm.RunScan(project.ID, policy, secrets.MakeSecretScanner(options),
 		scanIDC, progressM, summariser, diagConsumers...)
 
-	println("Project Summaries:")
-	for _, sum := range pm.ListProjectSummaries() {
-		fmt.Printf("%#v\n", sum)
-	}
+	// println("Project Summaries:")
+	// for _, sum := range pm.ListProjectSummaries() {
+	// 	fmt.Printf("%#v\n", sum)
+	// }
 
 }
 

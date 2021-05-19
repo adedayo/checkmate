@@ -15,10 +15,10 @@ github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
-github.com/adedayo/checkmate-core v0.1.5 h1:l/YFA3Ki6XaWbvnbV05BqiaABxfuIdgKFCvz/1q1xgM=
-github.com/adedayo/checkmate-core v0.1.5/go.mod h1:LK2Nsqs3LHG5ZB4io+4wPwf+oC5GSYEv3XfxKqf99/0=
-github.com/adedayo/checkmate-plugin v0.2.1 h1:9CKHm2+cnt47Cv+0O5csZ+KMJ+Pr2DDa/SzJmJhQWOU=
-github.com/adedayo/checkmate-plugin v0.2.1/go.mod h1:4oQpJBQ59TKlEoIxxVAKouuvs0Cj3DMc86N2Gx/o7aw=
+github.com/adedayo/checkmate-core v0.1.6 h1:pqcTQ4ZiGyxsnzRnRdapglGI6bUfItl6uI8wFqQfUDc=
+github.com/adedayo/checkmate-core v0.1.6/go.mod h1:LK2Nsqs3LHG5ZB4io+4wPwf+oC5GSYEv3XfxKqf99/0=
+github.com/adedayo/checkmate-plugin v0.2.2 h1:y9FnKeIrQDvXsUvxNx2s2RJGMyR1KbHgv1Lsu296JYg=
+github.com/adedayo/checkmate-plugin v0.2.2/go.mod h1:ihRBJGxB12C9ZXufUrtTEr50OGDyw6VyjusoP1Shm4I=
 github.com/adedayo/go-lsp v0.0.9 h1:4B73UpTRRpvrZAV6Y7tGzYhljeXBDyJATXGgTSN77n0=
 github.com/adedayo/go-lsp v0.0.9/go.mod h1:WffoYSvtuVjjYcxJeU8dPpIBGTI6dAXjAL5vqb4OLcg=
 github.com/alcortesm/tgz v0.0.0-20161220082320-9c5fe88206d7 h1:uSoVVbwJiQipAclBbw+8quDsfcvFjOpI5iCf4p/cqCs=
