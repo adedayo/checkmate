@@ -4,6 +4,7 @@ import (
 	"math"
 	"time"
 
+	"github.com/adedayo/checkmate-core/pkg/code"
 	"github.com/adedayo/checkmate-core/pkg/diagnostics"
 	"github.com/adedayo/checkmate-core/pkg/projects"
 	"github.com/adedayo/checkmate-core/pkg/scores"
@@ -11,40 +12,109 @@ import (
 
 // Model models the generated report
 type Model struct {
-	Grade                string
-	Logo                 string `yaml:"-"`
-	SALLogo              string `yaml:"-"`
-	GradeLogo            string `yaml:"-"`
-	Chart                string `yaml:"-"`
-	HighCount            int
-	MediumCount          int
-	LowCount             int
-	InformationalCount   int
-	FileCount            int
-	SkippedCount         int
-	IssuesPerType        int
-	AveragePerFile       float32
-	Issues               []*diagnostics.SecurityDiagnostic `yaml:"-"`
-	TimeStamp            string
-	ShowSource           bool
-	ReusedSecretsCount   int
-	NumberOfSecretsReuse int
-	ReusedSecrets        map[string][]*diagnostics.SecurityDiagnostic `yaml:"-"`
+	Grade                     string
+	Logo                      string                                       `yaml:"-"`
+	SALLogo                   string                                       `yaml:"-"`
+	GradeLogo                 string                                       `yaml:"-"`
+	Chart                     string                                       `yaml:"-"`
+	HighCount                 int                                          `json:"highCount"`
+	MediumCount               int                                          `json:"mediumCount"`
+	LowCount                  int                                          `json:"lowCount"`
+	InformationalCount        int                                          `json:"informationalCount"`
+	FileCount                 int                                          `json:"fileCount"`
+	SkippedCount              int                                          `json:"skippedCount"`
+	IssuesPerType             int                                          `json:"issuesPerType"`
+	AveragePerFile            float32                                      `json:"averagePerFile"`
+	Issues                    []*diagnostics.SecurityDiagnostic            `yaml:"-"`
+	TimeStamp                 string                                       `json:"timeStamp"`
+	ShowSource                bool                                         `json:"showSource"`
+	ReusedSecretsCount        int                                          `json:"reusedSecretsCount"`
+	NumberOfSecretsReuse      int                                          `json:"numberOfSecretsReuse"`
+	ReusedSecrets             map[string][]*diagnostics.SecurityDiagnostic `yaml:"-"`
+	ProdAndNonProdSecretReuse []ReusedSecret                               `json:"prodAndNonProdSecretReuse"`
+}
+
+type ReusedSecret struct {
+	Secret                 string
+	ProductionLocations    []SecretLocation `json:"productionLocations"`
+	NonProductionLocations []SecretLocation `json:"nonProductionLocations"`
+}
+
+type SecretLocation struct {
+	Location       string
+	HighlightRange code.Range `json:"highLightRange"`
 }
 
 //Summarise converts model to a ScanSummary, attaching the model to AdditionalInfo
 func (m *Model) Summarise() *projects.ScanSummary {
 
+	rus := []ReusedSecret{}
+	for k, dd := range m.ReusedSecrets {
+		prod := []SecretLocation{}
+		dev := []SecretLocation{}
+		for _, d := range dd {
+			if hasTag("test", d) {
+				dev = append(dev, SecretLocation{
+					Location:       *d.Location,
+					HighlightRange: d.HighlightRange,
+				})
+			} else {
+				prod = append(prod, SecretLocation{
+					Location:       *d.Location,
+					HighlightRange: d.HighlightRange,
+				})
+			}
+		}
+		if len(prod)*len(dev) > 0 { //only record secrets that are reused across both production and non-production
+			rus = append(rus, ReusedSecret{
+				Secret:                 k,
+				ProductionLocations:    prod,
+				NonProductionLocations: dev,
+			})
+		}
+
+	}
+
+	m.ProdAndNonProdSecretReuse = rus
+
+	//100% basis metric
+	metric := (0.3*m.calculateProductionVsTestSecretReuse() +
+		0.4*m.calculateSensitiveFilesPenalty() + 0.1*m.calculateSecretsReuse() +
+		0.2*m.calculateHigherConfidencePenalties())
+
+	grade := metricToGrade(metric)
+	m.Grade = grade
+
 	return &projects.ScanSummary{
 		Score: scores.Score{
-			Grade: m.Grade,
-			Metric: (0.3*m.calculateProductionVsTestSecretReuse() +
-				0.3*m.calculateSensitiveFilesPenalty() + 0.1*m.calculateSecretsReuse() +
-				0.3*m.calculateHigherConfidencePenalties()) / 100,
+			Grade:     grade,
+			Metric:    metric,
 			TimeStamp: time.Now(),
 		},
 		AdditionalInfo: m,
 	}
+}
+
+func metricToGrade(metric float32) string {
+	if metric > 95 {
+		return "A+"
+	}
+	if metric > 85 {
+		return "A"
+	}
+	if metric > 70 {
+		return "B"
+	}
+	if metric > 60 {
+		return "C"
+	}
+	if metric > 50 {
+		return "D"
+	}
+	if metric > 40 {
+		return "E"
+	}
+	return "F"
 }
 
 func hasTag(tag string, diag *diagnostics.SecurityDiagnostic) bool {
@@ -66,10 +136,12 @@ func (m Model) calculateProductionVsTestSecretReuse() (score float32) {
 		var prod, test bool
 		for _, diag := range v {
 			if hasTag("test", diag) {
+				test = true
 				if prod {
 					return 0
 				}
 			} else {
+				prod = true
 				if test {
 					return 0
 				}
@@ -80,7 +152,7 @@ func (m Model) calculateProductionVsTestSecretReuse() (score float32) {
 }
 
 //penalises the use of sensitive files (e.g. certificates, key stores etc) in non-test.
-//If all instances are in a test context, then only 30% mark is returned instead of 100% max score
+//If all instances are in a test context, then a 70% mark is returned instead of 100% max score
 func (m Model) calculateSensitiveFilesPenalty() (score float32) {
 	var test bool
 	for _, issue := range m.Issues {
@@ -92,7 +164,7 @@ func (m Model) calculateSensitiveFilesPenalty() (score float32) {
 		}
 	}
 	if test {
-		return 30
+		return 70
 	}
 	return 100
 }
@@ -101,16 +173,21 @@ func (m Model) calculateSensitiveFilesPenalty() (score float32) {
 func (m Model) calculateSecretsReuse() (score float32) {
 	reuseCount := float64(0)
 	reuseEntropy := float64(0)
+	sizes := []float64{}
 	for _, v := range m.ReusedSecrets {
 		n := float64(len(v))
+		sizes = append(sizes, n)
 		reuseCount += n
-		ent := math.Log2(n) / n
-		reuseEntropy += ent
 		// log.Printf("Ent: %f = %f/%f, sum = %f\n", ent, math.Log2(n), n, reuseEntropy)
 	}
 
 	if reuseCount == 0 {
 		return 100
+	}
+
+	for _, size := range sizes {
+		p := size / reuseCount
+		reuseEntropy -= p * math.Log2(p)
 	}
 
 	// the max "entropy" is log2(reuseCount), we use that to calculate how close the reuse is to the max

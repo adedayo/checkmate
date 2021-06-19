@@ -153,7 +153,7 @@ func search(cmd *cobra.Command, args []string) {
 			fmt.Print("[]")
 		}
 	} else {
-		path, err := asciidoc.GenerateReport(options, files, issues...)
+		path, err := asciidoc.GenerateReport(options.ShowSource, len(files), issues...)
 		if err != nil {
 			fmt.Printf("\nError: %s%s\n", err.Error(), path)
 			return

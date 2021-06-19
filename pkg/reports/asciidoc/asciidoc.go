@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/adedayo/checkmate-core/pkg/diagnostics"
-	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
 	"github.com/adedayo/checkmate/pkg/assets"
 	report "github.com/adedayo/checkmate/pkg/reports/model"
 	"github.com/wcharczuk/go-chart/v2"
@@ -71,7 +70,7 @@ var (
 )
 
 //GenerateReport generates PDF report using asciidoc-pdf, if not found, returns the JSON-formatted results in the reportPath
-func GenerateReport(options secrets.SecretSearchOptions, paths []string, issues ...*diagnostics.SecurityDiagnostic) (reportPath string, err error) {
+func GenerateReport(showSource bool, fileCount int, issues ...*diagnostics.SecurityDiagnostic) (reportPath string, err error) {
 	asciidocPath, err := exec.LookPath(asciidocExec)
 	if err != nil {
 		issuesJSON, e := json.MarshalIndent(issues, "", " ")
@@ -83,10 +82,15 @@ func GenerateReport(options secrets.SecretSearchOptions, paths []string, issues 
 		}
 		return reportPath, fmt.Errorf("%s executable file not found in your $PATH. Install it and ensure that it is in your $PATH%s", asciidocExec, error2)
 	}
-	model, err := ComputeMetrics(paths, options, issues)
+	model, err := ComputeMetrics(fileCount, showSource, issues)
 	if err != nil {
 		return reportPath, err
 	}
+	return generateReportFromModel(model, asciidocPath)
+}
+
+func generateReportFromModel(model report.Model, asciidocPath string) (reportPath string, err error) {
+
 	t, err := template.New("").Funcs(funcMap).Parse(assets.Report)
 	if err != nil {
 		return reportPath, err
@@ -114,21 +118,21 @@ func GenerateReport(options secrets.SecretSearchOptions, paths []string, issues 
 	return
 }
 
-func ComputeMetrics(paths []string, options secrets.SecretSearchOptions, issues []*diagnostics.SecurityDiagnostic) (report.Model, error) {
+func ComputeMetrics(fileCount int, showSource bool, issues []*diagnostics.SecurityDiagnostic) (report.Model, error) {
 
 	var average float32
-	if len(paths) > 0 {
-		average = float32(len(issues)) / float32(len(paths))
+	if fileCount > 0 {
+		average = float32(len(issues)) / float32(fileCount)
 	}
 	model := report.Model{
 		HighCount:      0,
 		MediumCount:    0,
 		LowCount:       0,
-		FileCount:      len(paths),
+		FileCount:      fileCount,
 		Issues:         issues,
 		TimeStamp:      time.Now().UTC().Format(time.RFC1123),
 		AveragePerFile: average,
-		ShowSource:     options.ShowSource,
+		ShowSource:     showSource,
 	}
 
 	sameSha := make(map[string][]*diagnostics.SecurityDiagnostic)
@@ -262,14 +266,17 @@ func ComputeMetrics(paths []string, options secrets.SecretSearchOptions, issues 
 
 	buffer := bytes.NewBuffer([]byte{})
 	_ = graph.Render(chart.SVG, buffer)
-	grade := calculateGrade(highPercent, lowPercent, mediumPercent, infoPercent)
+	// grade := calculateGrade(highPercent, lowPercent, mediumPercent, infoPercent)
+	//calculate grade
+	model.Summarise()
+	grade := model.Grade
 	data, err := generateAssets(grade, fixSVGColour(buffer.String()))
 
 	if err != nil {
 		return report.Model{}, fmt.Errorf("problem generating assets: %s", err.Error())
 	}
 
-	model.Grade = grade
+	// model.Grade = grade
 	model.GradeLogo = data.grade
 	model.Logo = data.checkMateLogo
 	model.SALLogo = data.salLogo
@@ -286,34 +293,34 @@ func cleanAssets(assets report.Model, aDoc string) {
 }
 
 //Some rough and dirty grading
-func calculateGrade(high, med, low, info float64) string {
-	grade := "A+"
+// func calculateGrade(high, med, low, info float64) string {
+// 	grade := "A+"
 
-	if high == 0.0 && med == 0.0 && low == 0.0 && info == 0.0 {
-		return grade
-	}
+// 	if high == 0.0 && med == 0.0 && low == 0.0 && info == 0.0 {
+// 		return grade
+// 	}
 
-	if high == 0.0 && med == 0.0 && low == 0.0 && info > 0.0 {
-		return "A"
-	}
+// 	if high == 0.0 && med == 0.0 && low == 0.0 && info > 0.0 {
+// 		return "A"
+// 	}
 
-	if high == 0.0 && med == 0.0 && low > 0.0 {
-		return "B"
-	}
+// 	if high == 0.0 && med == 0.0 && low > 0.0 {
+// 		return "B"
+// 	}
 
-	if high == 0.0 && med > 0 {
-		return "C"
-	}
+// 	if high == 0.0 && med > 0 {
+// 		return "C"
+// 	}
 
-	if high > 0.0 {
+// 	if high > 0.0 {
 
-		if high > 20.0 {
-			return "F"
-		}
-		return "D"
-	}
-	return grade
-}
+// 		if high > 20.0 {
+// 			return "F"
+// 		}
+// 		return "D"
+// 	}
+// 	return grade
+// }
 
 func fixSVGColour(svg string) string {
 	return rgbaFix.ReplaceAllString(svg, "rgb($1)")

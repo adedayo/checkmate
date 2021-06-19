@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path"
 	"strings"
 
 	common "github.com/adedayo/checkmate-core/pkg"
 	"github.com/adedayo/checkmate-core/pkg/diagnostics"
 	"github.com/adedayo/checkmate-core/pkg/projects"
 	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
+	"github.com/adedayo/checkmate/pkg/reports/asciidoc"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
@@ -57,11 +60,13 @@ func addRoutes() {
 	routes.HandleFunc("/api/secrets/defaultpolicy", defaultPolicy).Methods("GET")
 	routes.HandleFunc("/api/projectsummaries", projectSummaries).Methods("GET")
 	routes.HandleFunc("/api/projectsummary/{projectID}", getProjectSummary).Methods("GET")
+	routes.HandleFunc("/api/scansummary/{projectID}/{scanID}", getScanSummary).Methods("GET")
+	routes.HandleFunc("/api/scanreport/{projectID}/{scanID}", getScanReport).Methods("GET")
 	routes.HandleFunc("/api/project/{projectID}", getProject).Methods("GET")
 	routes.HandleFunc("/api/project/issues", getIssues).Methods("POST")
 	routes.HandleFunc("/api/project/issues/fix", fixIssue).Methods("POST")
 	routes.HandleFunc("/api/createproject", createProject).Methods("POST")
-
+	routes.HandleFunc("/api/updateproject/{projectID}", updateProject).Methods("POST")
 }
 
 func version(w http.ResponseWriter, r *http.Request) {
@@ -77,6 +82,68 @@ func getProjectSummary(w http.ResponseWriter, r *http.Request) {
 	projID := vars["projectID"]
 	summary := pm.GetProjectSummary(projID)
 	json.NewEncoder(w).Encode(summary)
+}
+
+func getScanSummary(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	projID := vars["projectID"]
+	scanID := vars["scanID"]
+	summary, err := pm.GetScanResultSummary(projID, scanID)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	json.NewEncoder(w).Encode(summary)
+}
+
+func getScanReport(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	projID := vars["projectID"]
+	scanID := vars["scanID"]
+
+	loc := pm.GetScanLocation(projID, scanID)
+	scanReport := path.Join(loc, fmt.Sprintf("%s.pdf", scanID))
+
+	//check if report already exists and send, otherwise generate and store
+	_, err := os.Stat(scanReport)
+
+	if !os.IsNotExist(err) {
+		//report already exists
+		json.NewEncoder(w).Encode(scanReport)
+		return
+	}
+
+	summary, err := pm.GetScanResultSummary(projID, scanID)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	info, ok := summary.AdditionalInfo.(map[string]interface{})
+	if !ok {
+		http.Error(w, "Unable to generate report", http.StatusBadRequest)
+		return
+	}
+
+	showSource := info["showsource"].(bool)
+	fileCount := info["filecount"].(int)
+
+	fileName, err := asciidoc.GenerateReport(showSource, fileCount, pm.GetScanResults(projID, scanID)...)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	//move report into the scan directory
+	err = os.Rename(fileName, scanReport)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	json.NewEncoder(w).Encode(scanReport)
 }
 
 func getProject(w http.ResponseWriter, r *http.Request) {
@@ -105,7 +172,6 @@ func fixIssue(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
 	json.NewEncoder(w).Encode(pm.RemediateIssue(fix))
 }
 
@@ -115,8 +181,31 @@ func createProject(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	proj := pm.CreateProject(projDesc.ToProjectDescription())
+	desc, err := projDesc.ToProjectDescription()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	proj := pm.CreateProject(desc)
 	json.NewEncoder(w).Encode(pm.GetProjectSummary(proj.ID))
+}
+
+func updateProject(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	projID := vars["projectID"]
+
+	var projDesc projects.ProjectDescriptionWire
+	if err := json.NewDecoder(r.Body).Decode(&projDesc); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	desc, err := projDesc.ToProjectDescription()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	proj := pm.UpdateProject(projID, desc)
+	json.NewEncoder(w).Encode(proj)
 }
 
 func findSecrets(w http.ResponseWriter, r *http.Request) {

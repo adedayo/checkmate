@@ -18,6 +18,6 @@ require (
 
 // replace github.com/adedayo/go-lsp v0.0.9 => ../go-lsp
 
-// replace github.com/adedayo/checkmate-core v0.1.5 => ../checkmate-core
+replace github.com/adedayo/checkmate-core v0.1.6 => ../checkmate-core
 
-// replace github.com/adedayo/checkmate-plugin v0.2.1 => ../checkmate-plugin
+replace github.com/adedayo/checkmate-plugin v0.2.2 => ../checkmate-plugin
