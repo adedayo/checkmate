@@ -36,7 +36,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"path/filepath"
 
 	common "github.com/adedayo/checkmate-core/pkg"
 	"github.com/adedayo/checkmate-core/pkg/diagnostics"
@@ -83,7 +82,7 @@ func search(cmd *cobra.Command, args []string) {
 	}
 
 	if generateSampleExclusion {
-		fmt.Printf(diagnostics.GenerateSampleExclusion())
+		fmt.Printf("%s\n", diagnostics.GenerateSampleExclusion())
 		return
 	}
 
@@ -106,12 +105,11 @@ func search(cmd *cobra.Command, args []string) {
 			log.Printf("Warning: %s. Continuing with no exclusion", err.Error())
 		} else {
 			if err := yaml.Unmarshal(data, &excludeDefinitions); err != nil {
-				log.Printf("Warning: %s. Continuing with no exclusion", err.Error())
+				log.Printf("Warning: %s. Continuing with common/default exclusion", err.Error())
+				excludeDefinitions = secrets.MakeCommonExclusions()
 			} else {
-				//Successfully loaded exclusion. Add exclusion file to the exclusion
-				if wlPath, err := filepath.Abs(exclusion); err == nil {
-					excludeDefinitions.PathExclusionRegExs = append(excludeDefinitions.PathExclusionRegExs, wlPath)
-				}
+				//Successfully loaded exclusion. Merge with common exclusions
+				excludeDefinitions = secrets.MergeExclusions(excludeDefinitions, secrets.MakeCommonExclusions())
 			}
 		}
 	}

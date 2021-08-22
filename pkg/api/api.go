@@ -56,6 +56,8 @@ func init() {
 func addRoutes() {
 	routes.HandleFunc("/api/findsecrets", findSecrets).Methods("POST")
 	routes.HandleFunc("/api/secrets/scan", scanSecrets).Methods("GET")
+	routes.HandleFunc("/api/workspaces", getWorkspaces).Methods("GET")
+	routes.HandleFunc("/api/workspacenames", getWorkspaceNames).Methods("GET")
 	routes.HandleFunc("/api/version", version).Methods("GET")
 	routes.HandleFunc("/api/secrets/defaultpolicy", defaultPolicy).Methods("GET")
 	routes.HandleFunc("/api/projectsummaries", projectSummaries).Methods("GET")
@@ -67,6 +69,10 @@ func addRoutes() {
 	routes.HandleFunc("/api/project/issues/fix", fixIssue).Methods("POST")
 	routes.HandleFunc("/api/createproject", createProject).Methods("POST")
 	routes.HandleFunc("/api/updateproject/{projectID}", updateProject).Methods("POST")
+}
+
+func getWorkspaces(w http.ResponseWriter, r *http.Request) {
+	json.NewEncoder(w).Encode(pm.GetWorkspaces())
 }
 
 func version(w http.ResponseWriter, r *http.Request) {
@@ -127,8 +133,14 @@ func getScanReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	showSource := info["showsource"].(bool)
-	fileCount := info["filecount"].(int)
+	showSource, ok := info["showSource"].(bool)
+	if !ok {
+		showSource = false
+	}
+	fileCount, ok := info["fileCount"].(int)
+	if !ok {
+		fileCount = 0
+	}
 
 	fileName, err := asciidoc.GenerateReport(showSource, fileCount, pm.GetScanResults(projID, scanID)...)
 	if err != nil {
@@ -155,6 +167,18 @@ func getProject(w http.ResponseWriter, r *http.Request) {
 
 func projectSummaries(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(pm.ListProjectSummaries())
+}
+
+func getWorkspaceNames(w http.ResponseWriter, r *http.Request) {
+	out := []string{}
+	m := make(map[string]bool)
+	for _, p := range pm.ListProjectSummaries() {
+		m[p.Workspace] = true
+	}
+	for k := range m {
+		out = append(out, k)
+	}
+	json.NewEncoder(w).Encode(out)
 }
 
 func getIssues(w http.ResponseWriter, r *http.Request) {
@@ -204,7 +228,7 @@ func updateProject(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	proj := pm.UpdateProject(projID, desc)
+	proj := pm.UpdateProject(projID, desc, workspaceSummariser)
 	json.NewEncoder(w).Encode(proj)
 }
 

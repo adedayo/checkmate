@@ -13,7 +13,6 @@ import (
 	"runtime"
 	"strings"
 	"text/template"
-	"time"
 
 	"github.com/adedayo/checkmate-core/pkg/diagnostics"
 	"github.com/adedayo/checkmate/pkg/assets"
@@ -40,7 +39,12 @@ var (
 		"deref":               deref,
 	}
 
-	rgbaFix   = regexp.MustCompile(`rgba\((\d+,\d+,\d+),1.0\)`)
+	rgbaFix       = regexp.MustCompile(`rgba\((\d+,\d+,\d+),1.0\)`)
+	criticalStyle = chart.Style{
+		FillColor:   drawing.ColorFromHex("660099"), //Purple
+		StrokeColor: drawing.ColorFromHex("660099"),
+		StrokeWidth: 0,
+	}
 	highStyle = chart.Style{
 		FillColor:   drawing.ColorRed,
 		StrokeColor: drawing.ColorRed,
@@ -89,7 +93,7 @@ func GenerateReport(showSource bool, fileCount int, issues ...*diagnostics.Secur
 	return generateReportFromModel(model, asciidocPath)
 }
 
-func generateReportFromModel(model report.Model, asciidocPath string) (reportPath string, err error) {
+func generateReportFromModel(model *report.Model, asciidocPath string) (reportPath string, err error) {
 
 	t, err := template.New("").Funcs(funcMap).Parse(assets.Report)
 	if err != nil {
@@ -118,68 +122,19 @@ func generateReportFromModel(model report.Model, asciidocPath string) (reportPat
 	return
 }
 
-func ComputeMetrics(fileCount int, showSource bool, issues []*diagnostics.SecurityDiagnostic) (report.Model, error) {
+func ComputeMetrics(fileCount int, showSource bool, issues []*diagnostics.SecurityDiagnostic) (*report.Model, error) {
 
-	var average float32
-	if fileCount > 0 {
-		average = float32(len(issues)) / float32(fileCount)
-	}
-	model := report.Model{
-		HighCount:      0,
-		MediumCount:    0,
-		LowCount:       0,
-		FileCount:      fileCount,
-		Issues:         issues,
-		TimeStamp:      time.Now().UTC().Format(time.RFC1123),
-		AveragePerFile: average,
-		ShowSource:     showSource,
-	}
-
-	sameSha := make(map[string][]*diagnostics.SecurityDiagnostic)
-
-	for _, issue := range issues {
-		if issue.SHA256 != nil {
-			sha := *issue.SHA256
-			if shas, present := sameSha[sha]; present {
-				sameSha[sha] = append(shas, issue)
-			} else {
-				sameSha[sha] = []*diagnostics.SecurityDiagnostic{issue}
-			}
-		}
-		switch issue.Justification.Headline.Confidence {
-		case diagnostics.High:
-			model.HighCount++
-		case diagnostics.Medium:
-			model.MediumCount++
-		case diagnostics.Low:
-			model.LowCount++
-		default:
-			model.InformationalCount++
-
-		}
-	}
-
-	model.ReusedSecrets = sameSha
-
-	count := 0
-	numberOfReuse := 0
-	for hash := range model.ReusedSecrets {
-		cc := len(model.ReusedSecrets[hash])
-		if cc > 1 {
-			count++
-			numberOfReuse += cc
-		}
-	}
-	model.ReusedSecretsCount = count
-	model.NumberOfSecretsReuse = numberOfReuse
-
+	model := report.GenerateModel(fileCount, showSource, issues)
 	barWidth := 20
-	issueCount := float64(model.HighCount + model.MediumCount + model.LowCount + model.InformationalCount)
+	issueCount := float64(model.CriticalCount + model.HighCount + model.MediumCount + model.LowCount + model.InformationalCount)
+
+	criticalPercent := 0.0
 	highPercent := 0.0
 	mediumPercent := 0.0
 	lowPercent := 0.0
 	infoPercent := 0.0
 	if issueCount > 0 {
+		criticalPercent = 100.0 * float64(model.CriticalCount) / issueCount
 		highPercent = 100.0 * float64(model.HighCount) / issueCount
 		mediumPercent = 100.0 * float64(model.MediumCount) / issueCount
 		lowPercent = 100.0 * float64(model.LowCount) / issueCount
@@ -201,6 +156,21 @@ func ComputeMetrics(fileCount int, showSource bool, issues []*diagnostics.Securi
 		},
 		XAxis: chart.Shown(),
 		Bars: []chart.StackedBar{
+			{
+				Name:  "Critical",
+				Width: barWidth,
+				Values: []chart.Value{
+					{
+						Value: 100.0 - criticalPercent,
+						Style: invisibleStyle,
+					},
+					{
+						Value: criticalPercent,
+						Label: fmt.Sprintf("%d", model.CriticalCount),
+						Style: criticalStyle,
+					},
+				},
+			},
 			{
 				Name:  "High",
 				Width: barWidth,
@@ -273,7 +243,7 @@ func ComputeMetrics(fileCount int, showSource bool, issues []*diagnostics.Securi
 	data, err := generateAssets(grade, fixSVGColour(buffer.String()))
 
 	if err != nil {
-		return report.Model{}, fmt.Errorf("problem generating assets: %s", err.Error())
+		return &report.Model{}, fmt.Errorf("problem generating assets: %s", err.Error())
 	}
 
 	// model.Grade = grade
@@ -285,42 +255,12 @@ func ComputeMetrics(fileCount int, showSource bool, issues []*diagnostics.Securi
 	return model, nil
 }
 
-func cleanAssets(assets report.Model, aDoc string) {
+func cleanAssets(assets *report.Model, aDoc string) {
 	_ = os.Remove(assets.Logo)
 	_ = os.Remove(assets.SALLogo)
 	_ = os.Remove(assets.Chart)
 	_ = os.Remove(aDoc)
 }
-
-//Some rough and dirty grading
-// func calculateGrade(high, med, low, info float64) string {
-// 	grade := "A+"
-
-// 	if high == 0.0 && med == 0.0 && low == 0.0 && info == 0.0 {
-// 		return grade
-// 	}
-
-// 	if high == 0.0 && med == 0.0 && low == 0.0 && info > 0.0 {
-// 		return "A"
-// 	}
-
-// 	if high == 0.0 && med == 0.0 && low > 0.0 {
-// 		return "B"
-// 	}
-
-// 	if high == 0.0 && med > 0 {
-// 		return "C"
-// 	}
-
-// 	if high > 0.0 {
-
-// 		if high > 20.0 {
-// 			return "F"
-// 		}
-// 		return "D"
-// 	}
-// 	return grade
-// }
 
 func fixSVGColour(svg string) string {
 	return rgbaFix.ReplaceAllString(svg, "rgb($1)")

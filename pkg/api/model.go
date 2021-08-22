@@ -1,11 +1,13 @@
 package api
 
-import secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
+import (
+	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
+)
 
 type Config struct {
 	AppName, AppVersion string
 	ApiPort             int
-	Local               bool //if to bind the api to localhost:port (electron) or simply :port (web app) instead
+	Local               bool //if set, to bind the api to localhost:port (electron) or simply :port (web service) instead
 }
 
 type ProjectScanOptions struct {

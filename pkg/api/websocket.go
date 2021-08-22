@@ -73,7 +73,8 @@ func runSecretScan(options ProjectScanOptions, ws *websocket.Conn) {
 		if options, ok := project.ScanPolicy.Config["secret-search-options"]; ok {
 			if scanOpts, good := options.(secrets.SecretSearchOptions); good {
 				secOptions = scanOpts
-				if excl, err := diagnostics.CompileExcludes(&project.ScanPolicy.Policy); err == nil {
+				excludes := secrets.MergeExclusions(project.ScanPolicy.Policy, secrets.MakeCommonExclusions())
+				if excl, err := diagnostics.CompileExcludes(&excludes); err == nil {
 					secOptions.Exclusions = excl
 				}
 			}
@@ -88,7 +89,7 @@ func runSecretScan(options ProjectScanOptions, ws *websocket.Conn) {
 			return model.Summarise()
 		}
 
-		pm.RunScan(project.ID, project.ScanPolicy, secrets.MakeSecretScanner(secOptions), scanIDC, progressMon, summariser, &consumer)
+		pm.RunScan(project.ID, project.ScanPolicy, secrets.MakeSecretScanner(secOptions), scanIDC, progressMon, summariser, workspaceSummariser, &consumer)
 		removeScanListeners(id)
 	}
 }
