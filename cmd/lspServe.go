@@ -70,7 +70,11 @@ var lspServeCmd = &cobra.Command{
 			}
 		}
 		var wl diagnostics.ExclusionProvider
-		if w, err := diagnostics.CompileExcludes(&wld); err != nil {
+		container := diagnostics.ExcludeContainer{
+			ExcludeDef:   &wld,
+			Repositories: args,
+		}
+		if w, err := diagnostics.CompileExcludes(container); err != nil {
 			log.Printf("Warning: %s. Continuing with no exclusion", err.Error())
 		} else {
 			wl = w

@@ -166,7 +166,19 @@ func getProject(w http.ResponseWriter, r *http.Request) {
 }
 
 func projectSummaries(w http.ResponseWriter, r *http.Request) {
-	json.NewEncoder(w).Encode(pm.ListProjectSummaries())
+	summaries := pm.ListProjectSummaries()
+	// log.Printf("Summaries: %#v\n", summaries)
+	// for _, sum := range summaries {
+	// 	err := json.NewEncoder(w).Encode(sum)
+
+	// 	if err != nil {
+	// 		fmt.Printf("%s:\n%#v\n", err.Error(), sum)
+	// 	}
+	// }
+	err := json.NewEncoder(w).Encode(summaries)
+	if err != nil {
+		log.Printf("%s\n", err.Error())
+	}
 }
 
 func getWorkspaceNames(w http.ResponseWriter, r *http.Request) {

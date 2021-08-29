@@ -1,7 +1,6 @@
 package report
 
 import (
-	"log"
 	"math"
 	"time"
 
@@ -88,8 +87,8 @@ func (mc ModelCounts) scoreMetrics() float32 {
 		0.4*sfp + 0.1*srm +
 		0.2*hcp
 
-	log.Printf("metric = %f, prodVsTest = %f, sensitiveFile = %f, secretReuse = %f, higherConfidencePenalty = %f",
-		metrics, pvt, sfp, srm, hcp)
+	// log.Printf("metric = %f, prodVsTest = %f, sensitiveFile = %f, secretReuse = %f, higherConfidencePenalty = %f",
+	// 	metrics, pvt, sfp, srm, hcp)
 	return metrics
 }
 

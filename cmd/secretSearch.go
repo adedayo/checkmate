@@ -113,8 +113,12 @@ func search(cmd *cobra.Command, args []string) {
 			}
 		}
 	}
+	container := diagnostics.ExcludeContainer{
+		ExcludeDef:   &excludeDefinitions,
+		Repositories: args,
+	}
 	var exclusionProvider diagnostics.ExclusionProvider
-	if excludeProvider, err := diagnostics.CompileExcludes(&excludeDefinitions); err != nil {
+	if excludeProvider, err := diagnostics.CompileExcludes(container); err != nil {
 		log.Printf("Warning: %s. Continuing with no exclusion", err.Error())
 	} else {
 		exclusionProvider = excludeProvider

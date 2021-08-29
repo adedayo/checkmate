@@ -74,7 +74,13 @@ func runSecretScan(options ProjectScanOptions, ws *websocket.Conn) {
 			if scanOpts, good := options.(secrets.SecretSearchOptions); good {
 				secOptions = scanOpts
 				excludes := secrets.MergeExclusions(project.ScanPolicy.Policy, secrets.MakeCommonExclusions())
-				if excl, err := diagnostics.CompileExcludes(&excludes); err == nil {
+				container := diagnostics.ExcludeContainer{
+					ExcludeDef: &excludes,
+				}
+				for _, loc := range project.Repositories {
+					container.Repositories = append(container.Repositories, loc.Location)
+				}
+				if excl, err := diagnostics.CompileExcludes(container); err == nil {
 					secOptions.Exclusions = excl
 				}
 			}
@@ -86,11 +92,15 @@ func runSecretScan(options ProjectScanOptions, ws *websocket.Conn) {
 			if err != nil {
 				return &projects.ScanSummary{}
 			}
-			return model.Summarise()
+			summary := model.Summarise()
+			project = pm.GetProject(options.ProjectID) //reloading project as policies might have been manually changed during scanning
+			ws.WriteJSON(project)
+			ws.WriteJSON(summary)
+			removeScanListeners(id)
+			return summary
 		}
 
 		pm.RunScan(project.ID, project.ScanPolicy, secrets.MakeSecretScanner(secOptions), scanIDC, progressMon, summariser, workspaceSummariser, &consumer)
-		removeScanListeners(id)
 	}
 }
 
