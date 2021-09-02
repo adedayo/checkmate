@@ -42,6 +42,7 @@ The following is a summary of metrics calculated during the security audit of yo
 [cols="h,d"]
 |===
 | Total number of issues | {{ len .Issues }}
+| Total number of Critical Issues| {{ .CriticalCount }}
 | Total number of High Issues| {{ .HighCount }}
 | Total number of Medium Issues| {{ .MediumCount }}
 | Total number of Low Issues| {{ .LowCount }}
@@ -68,7 +69,7 @@ The following is a summary of metrics calculated during the security audit of yo
 {{ range $index, $issue := .Issues }}
 
 
-*Problem {counter:seq}*. {{ $issue.Justification.Headline.Description }}, *Confidence*: {{ $issue.Justification.Headline.Confidence }} 
+*Problem {counter:seq}*. {{ $issue.Justification.Headline.Description }}, *Severity*: {{ $issue.Justification.Headline.Confidence }} 
 
 *Source code evidence*:
 
@@ -92,7 +93,7 @@ The following is a summary of metrics calculated during the security audit of yo
 
 *Analysis*
 {{ range $index, $evidence := $issue.Justification.Reasons }}
-{{ translateConfidence $evidence.Confidence }} {{ $evidence.Description }} *Confidence* {{ $evidence.Confidence }}
+{{ translateConfidence $evidence.Confidence }} {{ $evidence.Description }} *Severity* {{ $evidence.Confidence }}
 {{ end }}
 
 ---

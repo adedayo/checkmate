@@ -389,11 +389,11 @@ func deref(s *string) string {
 
 func translateConfidence(conf diagnostics.Confidence) string {
 	switch conf {
-	case diagnostics.High:
+	case diagnostics.High, diagnostics.Critical:
 		return "CAUTION:"
 	case diagnostics.Medium:
 		return "IMPORTANT:"
-	case diagnostics.Low:
+	case diagnostics.Low, diagnostics.Info:
 		return "WARNING:"
 	default:
 		return ""
