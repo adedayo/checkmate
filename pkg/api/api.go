@@ -15,6 +15,8 @@ import (
 	"github.com/adedayo/checkmate-core/pkg/projects"
 	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
 	"github.com/adedayo/checkmate/pkg/reports/asciidoc"
+	csvreport "github.com/adedayo/checkmate/pkg/reports/csv"
+
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
@@ -64,6 +66,7 @@ func addRoutes() {
 	routes.HandleFunc("/api/projectsummary/{projectID}", getProjectSummary).Methods("GET")
 	routes.HandleFunc("/api/scansummary/{projectID}/{scanID}", getScanSummary).Methods("GET")
 	routes.HandleFunc("/api/scanreport/{projectID}/{scanID}", getScanReport).Methods("GET")
+	routes.HandleFunc("/api/csvscanreport/{projectID}/{scanID}", getCSVScanReport).Methods("GET")
 	routes.HandleFunc("/api/project/{projectID}", getProject).Methods("GET")
 	routes.HandleFunc("/api/project/issues", getIssues).Methods("POST")
 	routes.HandleFunc("/api/project/issues/fix", fixIssue).Methods("POST")
@@ -101,6 +104,31 @@ func getScanSummary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	json.NewEncoder(w).Encode(summary)
+}
+
+func getCSVScanReport(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	projID := vars["projectID"]
+	scanID := vars["scanID"]
+
+	loc := pm.GetScanLocation(projID, scanID)
+	scanReport := path.Join(loc, fmt.Sprintf("%s.csv", scanID))
+
+	//check if report already exists and send, otherwise generate and store
+	_, err := os.Stat(scanReport)
+
+	if !os.IsNotExist(err) {
+		//report already exists
+		json.NewEncoder(w).Encode(scanReport)
+		return
+	}
+
+	err = csvreport.Generate(scanReport, pm.GetScanResults(projID, scanID))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(scanReport)
 }
 
 func getScanReport(w http.ResponseWriter, r *http.Request) {
