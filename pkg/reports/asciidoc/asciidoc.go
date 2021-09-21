@@ -73,8 +73,32 @@ var (
 	}
 )
 
+//Thank you https://blog.haroldadmin.com/finding-right-path/ for the solution
+//https://github.com/haroldadmin/pathfix
+func fixPath() {
+	// Find the default shell
+	defaultShell := os.Getenv("SHELL")
+	// Prepare command to get all environment variables
+	// eg. /bin/bash -ilc env
+	envCommand := exec.Command(defaultShell, "-ilc", "env")
+	allEnvVars, _ := envCommand.Output()
+
+	// Find the PATH variable
+	for _, envVar := range strings.Split(string(allEnvVars), "\n") {
+		if strings.HasPrefix(envVar, "PATH") {
+			currentPath := os.Getenv("PATH")
+			// Append retrieved PATH to existing value, to get the complete PATH
+			completePath := currentPath + string(os.PathListSeparator) + envVar
+			// Set the current process's PATH to the complete PATH
+			os.Setenv("PATH", completePath)
+			return
+		}
+	}
+}
+
 //GenerateReport generates PDF report using asciidoc-pdf, if not found, returns the JSON-formatted results in the reportPath
 func GenerateReport(showSource bool, fileCount int, issues ...*diagnostics.SecurityDiagnostic) (reportPath string, err error) {
+	fixPath()
 	asciidocPath, err := exec.LookPath(asciidocExec)
 	if err != nil {
 		issuesJSON, e := json.MarshalIndent(issues, "", " ")
@@ -84,7 +108,7 @@ func GenerateReport(showSource bool, fileCount int, issues ...*diagnostics.Secur
 		} else {
 			reportPath = fmt.Sprintf("\n\nPrinting JSON instead\n\n%s", string(issuesJSON))
 		}
-		return reportPath, fmt.Errorf("%s executable file not found in your $PATH. Install it and ensure that it is in your $PATH%s", asciidocExec, error2)
+		return reportPath, fmt.Errorf("%s executable file not found in your $PATH. Install it and ensure that it is in your $PATH:%s", asciidocExec, error2)
 	}
 	model, err := ComputeMetrics(fileCount, showSource, issues)
 	if err != nil {
