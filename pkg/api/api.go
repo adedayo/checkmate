@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/base64"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -59,10 +60,10 @@ func addRoutes() {
 	routes.HandleFunc("/api/findsecrets", findSecrets).Methods("POST")
 	routes.HandleFunc("/api/secrets/scan", scanSecrets).Methods("GET")
 	routes.HandleFunc("/api/workspaces", getWorkspaces).Methods("GET")
-	routes.HandleFunc("/api/workspacenames", getWorkspaceNames).Methods("GET")
 	routes.HandleFunc("/api/version", version).Methods("GET")
 	routes.HandleFunc("/api/secrets/defaultpolicy", defaultPolicy).Methods("GET")
 	routes.HandleFunc("/api/projectsummaries", projectSummaries).Methods("GET")
+	routes.HandleFunc("/api/projectsummariesreport", projectSummariesReport).Methods("GET")
 	routes.HandleFunc("/api/projectsummary/{projectID}", getProjectSummary).Methods("GET")
 	routes.HandleFunc("/api/scansummary/{projectID}/{scanID}", getScanSummary).Methods("GET")
 	routes.HandleFunc("/api/scanreport/{projectID}/{scanID}", getScanReport).Methods("GET")
@@ -195,30 +196,35 @@ func getProject(w http.ResponseWriter, r *http.Request) {
 
 func projectSummaries(w http.ResponseWriter, r *http.Request) {
 	summaries := pm.ListProjectSummaries()
-	// log.Printf("Summaries: %#v\n", summaries)
-	// for _, sum := range summaries {
-	// 	err := json.NewEncoder(w).Encode(sum)
-
-	// 	if err != nil {
-	// 		fmt.Printf("%s:\n%#v\n", err.Error(), sum)
-	// 	}
-	// }
 	err := json.NewEncoder(w).Encode(summaries)
 	if err != nil {
 		log.Printf("%s\n", err.Error())
 	}
 }
 
-func getWorkspaceNames(w http.ResponseWriter, r *http.Request) {
-	out := []string{}
-	m := make(map[string]bool)
-	for _, p := range pm.ListProjectSummaries() {
-		m[p.Workspace] = true
+func projectSummariesReport(w http.ResponseWriter, r *http.Request) {
+	summaries := pm.ListProjectSummaries()
+
+	reportLocation := pm.GetProjectLocation("ProjectSummaries.csv")
+
+	file, err := os.Create(reportLocation)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
-	for k := range m {
-		out = append(out, k)
+
+	defer file.Close()
+
+	writer := csv.NewWriter(file)
+	writer.Write((&projects.ProjectSummary{}).CSVHeaders())
+	for _, summary := range summaries {
+		writer.Write(summary.CSVValues())
 	}
-	json.NewEncoder(w).Encode(out)
+	writer.Flush()
+
+	json.NewEncoder(w).Encode(reportLocation)
+
 }
 
 func getIssues(w http.ResponseWriter, r *http.Request) {

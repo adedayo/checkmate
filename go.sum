@@ -15,8 +15,9 @@ github.com/BurntSushi/toml v0.3.1 h1:WXkYYl6Yr3qBf1K79EBnL4mak0OimBfB0XUf9Vl28OQ
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/OneOfOne/xxhash v1.2.2/go.mod h1:HSdplMjZKSmBqAxg5vPj2TmRDmfkzw+cTzAElWljhcU=
-github.com/adedayo/checkmate-core v0.2.2 h1:0mfgdx/KgZuB+REFGTNeHTz9zoKzQbyVVjXE/0isrPE=
 github.com/adedayo/checkmate-core v0.2.2/go.mod h1:LK2Nsqs3LHG5ZB4io+4wPwf+oC5GSYEv3XfxKqf99/0=
+github.com/adedayo/checkmate-core v0.2.3 h1:FnueGap/1h+xzS4o8KFDFkF98SahIgiTRDy7pJgRldE=
+github.com/adedayo/checkmate-core v0.2.3/go.mod h1:LK2Nsqs3LHG5ZB4io+4wPwf+oC5GSYEv3XfxKqf99/0=
 github.com/adedayo/checkmate-plugin v0.3.3 h1:O+Or3tpgtVG+ogIJcAZuv6X+OvDTCq2UvzcK5nV7Y9Q=
 github.com/adedayo/checkmate-plugin v0.3.3/go.mod h1:sA3FJe0CSdRsBjCNCOrH+pUaZor5AklipDgzU4rqUmc=
 github.com/adedayo/go-lsp v0.0.9 h1:4B73UpTRRpvrZAV6Y7tGzYhljeXBDyJATXGgTSN77n0=
