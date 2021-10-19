@@ -29,31 +29,43 @@ var (
 	pm             = projects.MakeSimpleProjectManager()
 	allowedOrigins = []string{
 		"localhost:17283",
+		"checkmate-api:17283",
 		"http://localhost:4200",
+		"http://localhost",
+		"http://checkmate-app",
 		"localhost:4200",
 	}
 	corsOptions = []handlers.CORSOption{
 		handlers.AllowedMethods([]string{"GET", "HEAD", "POST"}),
 		handlers.AllowedHeaders([]string{"Content-Type", "Authorization", "Accept", "Accept-Language", "Origin"}),
 		handlers.AllowCredentials(),
+		handlers.AllowedOriginValidator(allowedOriginValidator),
 	}
 
 	upgrader = websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 		CheckOrigin: func(r *http.Request) bool {
-			for _, origin := range allowedOrigins {
-				if origin == r.Host {
-					return true
-				}
-			}
-			return strings.Split(r.Host, ":")[0] == "localhost" //allow localhost independent of port
+			return allowedOriginValidator(r.Host)
 		},
 	}
 )
 
 func init() {
 	addRoutes()
+}
+
+func allowedOriginValidator(origin string) bool {
+	for _, allowed := range allowedOrigins {
+		if allowed == origin {
+			return true
+		}
+	}
+	passCORS := strings.Split(origin, ":")[0] == "localhost" //allow localhost independent of port
+	if !passCORS {
+		fmt.Printf("Host %s fails CORS.", origin)
+	}
+	return passCORS
 }
 
 func addRoutes() {
@@ -63,7 +75,7 @@ func addRoutes() {
 	routes.HandleFunc("/api/version", version).Methods("GET")
 	routes.HandleFunc("/api/secrets/defaultpolicy", defaultPolicy).Methods("GET")
 	routes.HandleFunc("/api/projectsummaries", projectSummaries).Methods("GET")
-	routes.HandleFunc("/api/projectsummariesreport", projectSummariesReport).Methods("GET")
+	routes.HandleFunc("/api/projectsummariesreport/{workspace}", projectSummariesReport).Methods("GET")
 	routes.HandleFunc("/api/projectsummary/{projectID}", getProjectSummary).Methods("GET")
 	routes.HandleFunc("/api/scansummary/{projectID}/{scanID}", getScanSummary).Methods("GET")
 	routes.HandleFunc("/api/scanreport/{projectID}/{scanID}", getScanReport).Methods("GET")
@@ -203,8 +215,17 @@ func projectSummaries(w http.ResponseWriter, r *http.Request) {
 }
 
 func projectSummariesReport(w http.ResponseWriter, r *http.Request) {
-	summaries := pm.ListProjectSummaries()
+	vars := mux.Vars(r)
+	workspace := vars["workspace"]
+	filtered := true
+	if workspace == "__cm_all" {
+		filtered = false
+	}
 
+	if workspace == "Default" {
+		workspace = ""
+	}
+	summaries := pm.ListProjectSummaries()
 	reportLocation := pm.GetProjectLocation("ProjectSummaries.csv")
 
 	file, err := os.Create(reportLocation)
@@ -219,7 +240,14 @@ func projectSummariesReport(w http.ResponseWriter, r *http.Request) {
 	writer := csv.NewWriter(file)
 	writer.Write((&projects.ProjectSummary{}).CSVHeaders())
 	for _, summary := range summaries {
-		writer.Write(summary.CSVValues())
+		if filtered {
+			if workspace == summary.Workspace {
+				writer.Write(summary.CSVValues())
+			}
+		} else {
+			writer.Write(summary.CSVValues())
+		}
+
 	}
 	writer.Flush()
 
@@ -332,12 +360,11 @@ func scanSecrets(w http.ResponseWriter, r *http.Request) {
 //ServeAPI serves the analysis service on the specified port
 func ServeAPI(config Config) {
 	hostPort := "localhost:%d"
-	if config.Local {
-		//localhost electron app
-		corsOptions = append(corsOptions, handlers.AllowedOrigins(allowedOrigins))
-	} else {
+	if !config.Local {
+		// not localhost electron app
 		hostPort = ":%d"
 	}
+	corsOptions = append(corsOptions, handlers.AllowedOrigins(allowedOrigins))
 	apiVersion = config.AppVersion
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(hostPort, config.ApiPort), handlers.CORS(corsOptions...)(routes)))
 }

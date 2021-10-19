@@ -1,3 +1,4 @@
+project_name: checkmate
 builds:
   - main: ./checkmate.go
     flags:
