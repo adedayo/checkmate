@@ -83,6 +83,7 @@ func addRoutes() {
 	routes.HandleFunc("/api/project/{projectID}", getProject).Methods("GET")
 	routes.HandleFunc("/api/project/issues", getIssues).Methods("POST")
 	routes.HandleFunc("/api/project/issues/fix", fixIssue).Methods("POST")
+	routes.HandleFunc("/api/project/issues/codecontext", getCodeContext).Methods("POST")
 	routes.HandleFunc("/api/createproject", createProject).Methods("POST")
 	routes.HandleFunc("/api/updateproject/{projectID}", updateProject).Methods("POST")
 }
@@ -271,6 +272,15 @@ func fixIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	json.NewEncoder(w).Encode(pm.RemediateIssue(fix))
+}
+
+func getCodeContext(w http.ResponseWriter, r *http.Request) {
+	var cnt common.CodeContext
+	if err := json.NewDecoder(r.Body).Decode(&cnt); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	json.NewEncoder(w).Encode(pm.GetCodeContext(cnt))
 }
 
 func createProject(w http.ResponseWriter, r *http.Request) {
