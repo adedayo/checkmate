@@ -19,7 +19,7 @@ FROM alpine:latest
 
 WORKDIR /
 COPY --from=builder /app/dist/checkmate_linux_amd64  .
-
+RUN mkdir -p /var/lib/checkmate/data
 EXPOSE 17283
 
 CMD [ "/checkmate", "api", "--port", "17283" ]

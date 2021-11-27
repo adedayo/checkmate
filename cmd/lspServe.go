@@ -43,14 +43,14 @@ import (
 )
 
 var (
-	allowedOrigins = []string{}
-	lspExclusions  string
+	// allowedOrigins = []string{}
+	lspExclusions string
 )
 
-const (
-	//headerLengthPrefix is the content length preamble
-	headerLengthPrefix = "Content-Length:"
-)
+// const (
+//headerLengthPrefix is the content length preamble
+// headerLengthPrefix = "Content-Length:"
+// )
 
 // lspServeCmd represents the lspServe command
 var lspServeCmd = &cobra.Command{

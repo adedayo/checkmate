@@ -40,8 +40,8 @@ import (
 )
 
 var (
-	port      int
-	bindLocal bool
+	port                       int
+	bindLocal, serveGitService bool
 )
 
 // apiCmd represents the api command
@@ -57,10 +57,11 @@ Version: %s
 Author: Adedayo Adetoye (Dayo) <https://github.com/adedayo>
 		`, common.AppName, port, appVersion)
 		config := api.Config{
-			AppName:    common.AppName,
-			AppVersion: appVersion,
-			ApiPort:    port,
-			Local:      bindLocal,
+			AppName:         common.AppName,
+			AppVersion:      appVersion,
+			ApiPort:         port,
+			Local:           bindLocal,
+			ServeGitService: serveGitService,
 		}
 		api.ServeAPI(config)
 	},
@@ -70,4 +71,5 @@ func init() {
 	rootCmd.AddCommand(apiCmd)
 	apiCmd.Flags().IntVarP(&port, "port", "p", 17283, "Port on which to serve the API service")
 	apiCmd.Flags().BoolVar(&bindLocal, "bind-localhost", false, "Bind the API service to localhost")
+	apiCmd.Flags().BoolVar(&serveGitService, "serve-git-service", false, "Serve Git Service alongside the API")
 }

@@ -8,6 +8,7 @@ type Config struct {
 	AppName, AppVersion string
 	ApiPort             int
 	Local               bool //if set, to bind the api to localhost:port (electron) or simply :port (web service) instead
+	ServeGitService     bool
 }
 
 type ProjectScanOptions struct {

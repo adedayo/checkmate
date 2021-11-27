@@ -12,6 +12,9 @@ import (
 	"strings"
 
 	common "github.com/adedayo/checkmate-core/pkg"
+	model "github.com/adedayo/git-service-driver/pkg"
+	git "github.com/adedayo/git-service-driver/pkg/api"
+
 	"github.com/adedayo/checkmate-core/pkg/diagnostics"
 	"github.com/adedayo/checkmate-core/pkg/projects"
 	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
@@ -24,8 +27,13 @@ import (
 )
 
 var (
-	routes         = mux.NewRouter()
-	apiVersion     = "0.0.0"
+	routes     = mux.NewRouter()
+	apiVersion = "0.0.0"
+	caps       capabilities
+	// gitHubAuth     *gitutils.GitAuth
+	// gitLabAuth     *gitutils.GitAuth
+	gitConfManager = model.MakeConfigManager()
+
 	pm             = projects.MakeSimpleProjectManager()
 	allowedOrigins = []string{
 		"localhost:17283",
@@ -61,11 +69,15 @@ func allowedOriginValidator(origin string) bool {
 			return true
 		}
 	}
-	passCORS := strings.Split(origin, ":")[0] == "localhost" //allow localhost independent of port
+	passCORS := strings.Split(strings.TrimPrefix(origin, "http://"), ":")[0] == "localhost" //allow localhost independent of port
 	if !passCORS {
 		fmt.Printf("Host %s fails CORS.", origin)
 	}
 	return passCORS
+}
+
+type capabilities struct {
+	GitServiceEnabled, GitLabEnabled, GitHubEnabled bool
 }
 
 func addRoutes() {
@@ -73,6 +85,7 @@ func addRoutes() {
 	routes.HandleFunc("/api/secrets/scan", scanSecrets).Methods("GET")
 	routes.HandleFunc("/api/workspaces", getWorkspaces).Methods("GET")
 	routes.HandleFunc("/api/version", version).Methods("GET")
+	routes.HandleFunc("/api/git/capabilities", getCapabilities).Methods("GET")
 	routes.HandleFunc("/api/secrets/defaultpolicy", defaultPolicy).Methods("GET")
 	routes.HandleFunc("/api/projectsummaries", projectSummaries).Methods("GET")
 	routes.HandleFunc("/api/projectsummariesreport/{workspace}", projectSummariesReport).Methods("GET")
@@ -96,6 +109,9 @@ func version(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(apiVersion)
 }
 
+func getCapabilities(w http.ResponseWriter, r *http.Request) {
+	json.NewEncoder(w).Encode(caps)
+}
 func defaultPolicy(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(diagnostics.GenerateSampleExclusion())
 }
@@ -363,7 +379,7 @@ func scanSecrets(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	runSecretScan(options, ws)
+	runSecretScan(r.Context(), options, ws)
 
 }
 
@@ -376,5 +392,14 @@ func ServeAPI(config Config) {
 	}
 	corsOptions = append(corsOptions, handlers.AllowedOrigins(allowedOrigins))
 	apiVersion = config.AppVersion
+	if config.ServeGitService {
+		caps.GitServiceEnabled = true
+		conf := gitConfManager.GetConfig()
+		caps.GitHubEnabled = conf.IsServiceConfigured(model.GitHub)
+		caps.GitLabEnabled = conf.IsServiceConfigured(model.GitLab)
+		for _, rs := range git.GetRoutes() {
+			routes.HandleFunc(rs.Path, rs.Handler).Methods(rs.Methods...)
+		}
+	}
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(hostPort, config.ApiPort), handlers.CORS(corsOptions...)(routes)))
 }

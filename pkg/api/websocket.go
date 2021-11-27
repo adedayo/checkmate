@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -39,7 +40,7 @@ func removeScanListeners(socketIndex string) {
 	}
 }
 
-func runSecretScan(options ProjectScanOptions, ws *websocket.Conn) {
+func runSecretScan(ctx context.Context, options ProjectScanOptions, ws *websocket.Conn) {
 
 	project := pm.GetProject(options.ProjectID)
 	if project.ID == options.ProjectID {
@@ -100,7 +101,7 @@ func runSecretScan(options ProjectScanOptions, ws *websocket.Conn) {
 			return summary
 		}
 
-		pm.RunScan(project.ID, project.ScanPolicy, secrets.MakeSecretScanner(secOptions), scanIDC, progressMon, summariser, workspaceSummariser, &consumer)
+		pm.RunScan(ctx, project.ID, project.ScanPolicy, secrets.MakeSecretScanner(secOptions), scanIDC, progressMon, summariser, workspaceSummariser, &consumer)
 	}
 }
 
