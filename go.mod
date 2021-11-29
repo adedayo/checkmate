@@ -4,8 +4,8 @@ go 1.17
 
 require (
 	github.com/adedayo/checkmate-core v0.2.5
-	github.com/adedayo/checkmate-plugin v0.3.5
-	github.com/adedayo/git-service-driver v0.0.3
+	github.com/adedayo/checkmate-plugin v0.3.6
+	github.com/adedayo/git-service-driver v0.0.4
 	github.com/adedayo/go-lsp v0.0.9
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
@@ -36,7 +36,7 @@ require (
 	github.com/hashicorp/go-plugin v1.4.3 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/hashicorp/yamux v0.0.0-20211028200310-0bc27b27de87 // indirect
-	github.com/hasura/go-graphql-client v0.5.1 // indirect
+	github.com/hasura/go-graphql-client v0.4.0 // indirect
 	github.com/imdario/mergo v0.3.12 // indirect
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
@@ -68,7 +68,7 @@ require (
 	google.golang.org/genproto v0.0.0-20211118181313-81c1377c94b1 // indirect
 	google.golang.org/grpc v1.42.0 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
-	gopkg.in/ini.v1 v1.64.0 // indirect
+	gopkg.in/ini.v1 v1.65.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	nhooyr.io/websocket v1.8.7 // indirect
@@ -78,6 +78,6 @@ require (
 
 // replace github.com/adedayo/checkmate-core v0.2.5 => ../checkmate-core
 
-// replace github.com/adedayo/checkmate-plugin v0.3.5 => ../checkmate-plugin
+// replace github.com/adedayo/checkmate-plugin v0.3.6 => ../checkmate-plugin
 
-// replace github.com/adedayo/git-service-driver v0.0.3 => ../git-service-driver
+// replace github.com/adedayo/git-service-driver v0.0.4 => ../git-service-driver
