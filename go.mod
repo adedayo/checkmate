@@ -5,7 +5,7 @@ go 1.17
 require (
 	github.com/adedayo/checkmate-core v0.2.5
 	github.com/adedayo/checkmate-plugin v0.3.6
-	github.com/adedayo/git-service-driver v0.0.6
+	github.com/adedayo/git-service-driver v0.0.7
 	github.com/adedayo/go-lsp v0.0.9
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
@@ -71,4 +71,4 @@ require (
 
 // replace github.com/adedayo/checkmate-plugin v0.3.6 => ../checkmate-plugin
 
-// replace github.com/adedayo/git-service-driver v0.0.6 => ../git-service-driver
+// replace github.com/adedayo/git-service-driver v0.0.7 => ../git-service-driver

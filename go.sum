@@ -60,8 +60,8 @@ github.com/adedayo/checkmate-core v0.2.5 h1:6H63l8ml8Dk+vyaT/NqXhiPTuWiS4//WwMA5
 github.com/adedayo/checkmate-core v0.2.5/go.mod h1:Tziq1O82sOLGHkYyHa/rMGoe0L+6G/JKENkTK0+2JG8=
 github.com/adedayo/checkmate-plugin v0.3.6 h1:uDPjtKl6HyBEZFHuSxCk1cIOHY3XE6A1OZe/9UWHBHs=
 github.com/adedayo/checkmate-plugin v0.3.6/go.mod h1:SjgsiKv/ZbanvrgLFofrieYtNvgTMqMe8vh8Fziidno=
-github.com/adedayo/git-service-driver v0.0.6 h1:9DtDPZNvy9yNuv651Wlvdg80R5lUyy7ZKY3xg4JxErA=
-github.com/adedayo/git-service-driver v0.0.6/go.mod h1:oCnDRnV8BlKckcS3YkBAWhbxDCzU+zZi7qLPcZ+GJTs=
+github.com/adedayo/git-service-driver v0.0.7 h1:4SVur+RdyeJiYjTHwnECKMuT/KiuJ7PZS4bdn6SZ7JY=
+github.com/adedayo/git-service-driver v0.0.7/go.mod h1:oCnDRnV8BlKckcS3YkBAWhbxDCzU+zZi7qLPcZ+GJTs=
 github.com/adedayo/go-lsp v0.0.9 h1:4B73UpTRRpvrZAV6Y7tGzYhljeXBDyJATXGgTSN77n0=
 github.com/adedayo/go-lsp v0.0.9/go.mod h1:WffoYSvtuVjjYcxJeU8dPpIBGTI6dAXjAL5vqb4OLcg=
 github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239 h1:kFOfPq6dUM1hTo4JG6LR5AXSUEsOjtdm0kw0FtQtMJA=
