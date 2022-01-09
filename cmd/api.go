@@ -36,12 +36,14 @@ import (
 
 	common "github.com/adedayo/checkmate-core/pkg"
 	"github.com/adedayo/checkmate/pkg/api"
+	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 )
 
 var (
 	port                       int
 	bindLocal, serveGitService bool
+	cmDataPath                 string
 )
 
 // apiCmd represents the api command
@@ -56,12 +58,16 @@ Version: %s
 
 Author: Adedayo Adetoye (Dayo) <https://github.com/adedayo>
 		`, common.AppName, port, appVersion)
+
+		cmDataPath, _ = homedir.Expand(cmDataPath)
+
 		config := api.Config{
-			AppName:         common.AppName,
-			AppVersion:      appVersion,
-			ApiPort:         port,
-			Local:           bindLocal,
-			ServeGitService: serveGitService,
+			AppName:           common.AppName,
+			AppVersion:        appVersion,
+			ApiPort:           port,
+			Local:             bindLocal,
+			ServeGitService:   serveGitService,
+			CheckMateDataPath: cmDataPath,
 		}
 		api.ServeAPI(config)
 	},
@@ -72,4 +78,5 @@ func init() {
 	apiCmd.Flags().IntVarP(&port, "port", "p", 17283, "Port on which to serve the API service")
 	apiCmd.Flags().BoolVar(&bindLocal, "bind-localhost", false, "Bind the API service to localhost")
 	apiCmd.Flags().BoolVar(&serveGitService, "serve-git-service", false, "Serve Git Service alongside the API")
+	apiCmd.Flags().StringVar(&cmDataPath, "data-path", "~/.checkmate", fmt.Sprintf("Location of %s data and configurations", common.AppDisplayName))
 }

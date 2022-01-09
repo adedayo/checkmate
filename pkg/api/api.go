@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	common "github.com/adedayo/checkmate-core/pkg"
+	// intel "github.com/adedayo/code-intel-service/pkg/api"
 	model "github.com/adedayo/git-service-driver/pkg"
 	git "github.com/adedayo/git-service-driver/pkg/api"
 
@@ -392,14 +393,22 @@ func ServeAPI(config Config) {
 	}
 	corsOptions = append(corsOptions, handlers.AllowedOrigins(allowedOrigins))
 	apiVersion = config.AppVersion
+	common.CHECKMATE_BASE_DIR = config.CheckMateDataPath
 	if config.ServeGitService {
 		caps.GitServiceEnabled = true
 		conf := gitConfManager.GetConfig()
 		caps.GitHubEnabled = conf.IsServiceConfigured(model.GitHub)
 		caps.GitLabEnabled = conf.IsServiceConfigured(model.GitLab)
+
+		//add git service driver APIs
 		for _, rs := range git.GetRoutes() {
 			routes.HandleFunc(rs.Path, rs.Handler).Methods(rs.Methods...)
 		}
+
+		//add code intel services APIs
+		// for _, rs := range intel.GetRoutes() {
+		// 	routes.HandleFunc(rs.Path, rs.Handler).Methods(rs.Methods...)
+		// }
 	}
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(hostPort, config.ApiPort), handlers.CORS(corsOptions...)(routes)))
 }

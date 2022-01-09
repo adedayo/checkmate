@@ -9,6 +9,7 @@ type Config struct {
 	ApiPort             int
 	Local               bool //if set, to bind the api to localhost:port (electron) or simply :port (web service) instead
 	ServeGitService     bool
+	CheckMateDataPath   string
 }
 
 type ProjectScanOptions struct {
