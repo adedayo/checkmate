@@ -33,9 +33,8 @@ var (
 	caps       capabilities
 	// gitHubAuth     *gitutils.GitAuth
 	// gitLabAuth     *gitutils.GitAuth
-	gitConfManager = model.MakeConfigManager()
 
-	pm             = projects.MakeSimpleProjectManager()
+	pm             projects.ProjectManager
 	allowedOrigins = []string{
 		"localhost:17283",
 		"checkmate-api:17283",
@@ -393,15 +392,16 @@ func ServeAPI(config Config) {
 	}
 	corsOptions = append(corsOptions, handlers.AllowedOrigins(allowedOrigins))
 	apiVersion = config.AppVersion
-	common.CHECKMATE_BASE_DIR = config.CheckMateDataPath
+	pm = projects.MakeSimpleProjectManager(config.CheckMateDataPath)
 	if config.ServeGitService {
 		caps.GitServiceEnabled = true
+		gitConfManager := model.MakeConfigManager(config.CheckMateDataPath)
 		conf := gitConfManager.GetConfig()
 		caps.GitHubEnabled = conf.IsServiceConfigured(model.GitHub)
 		caps.GitLabEnabled = conf.IsServiceConfigured(model.GitLab)
 
 		//add git service driver APIs
-		for _, rs := range git.GetRoutes() {
+		for _, rs := range git.GetRoutes(config.CheckMateDataPath) {
 			routes.HandleFunc(rs.Path, rs.Handler).Methods(rs.Methods...)
 		}
 

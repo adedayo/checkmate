@@ -33,6 +33,7 @@ POSSIBILITY OF SUCH DAMAGE.
 
 import (
 	"fmt"
+	"log"
 
 	common "github.com/adedayo/checkmate-core/pkg"
 	"github.com/adedayo/checkmate/pkg/api"
@@ -59,8 +60,9 @@ Version: %s
 Author: Adedayo Adetoye (Dayo) <https://github.com/adedayo>
 		`, common.AppName, port, appVersion)
 
+		log.Printf("Inbound CheckMate Path %s", cmDataPath)
 		cmDataPath, _ = homedir.Expand(cmDataPath)
-
+		log.Printf("Expanded CheckMate Path %s", cmDataPath)
 		config := api.Config{
 			AppName:           common.AppName,
 			AppVersion:        appVersion,

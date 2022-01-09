@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	pm := projects.MakeSimpleProjectManager()
+	pm := projects.MakeSimpleProjectManager("~/.checkmate")
 
 	project := pm.GetProject("0b57cd1d-726d-457c-ba1a-435cca48bd26")
 
