@@ -62,12 +62,6 @@ github.com/ProtonMail/go-crypto v0.0.0-20211112122917-428f8eabeeb3 h1:XcF0cTDJei
 github.com/ProtonMail/go-crypto v0.0.0-20211112122917-428f8eabeeb3/go.mod h1:z4/9nQmJSSwwds7ejkxaJwO37dru3geImFUdJlaLzQo=
 github.com/acomagu/bufpipe v1.0.3 h1:fxAGrHZTgQ9w5QqVItgzwj235/uYZYgbXitB+dLupOk=
 github.com/acomagu/bufpipe v1.0.3/go.mod h1:mxdxdup/WdsKVreO5GpW4+M/1CE2sMG4jeGJ2sYmHc4=
-github.com/adedayo/checkmate-core v0.2.8 h1:ly6jY2UtFUR0o4Qn//FqP76YVLVrmVz1JQJ2p38GbP4=
-github.com/adedayo/checkmate-core v0.2.8/go.mod h1:Tziq1O82sOLGHkYyHa/rMGoe0L+6G/JKENkTK0+2JG8=
-github.com/adedayo/checkmate-plugin v0.3.8 h1:MzVLXHrZyhYUJVcD+aN+se2wPjAPpyvlRSM6x6Lzehc=
-github.com/adedayo/checkmate-plugin v0.3.8/go.mod h1:6pfh19owD3KFE/ZWJMMISts5/1cdQd9CEXKVX45Jf/A=
-github.com/adedayo/git-service-driver v0.1.0 h1:n5bayijrY66WfuJfsvoYP1PPp0fpSG6oZme1XMIfXiI=
-github.com/adedayo/git-service-driver v0.1.0/go.mod h1:X0qYxoR/rBypQb5sZZUdRwR/esa4kReRln6U1A9vZ6U=
 github.com/adedayo/go-lsp v0.0.9 h1:4B73UpTRRpvrZAV6Y7tGzYhljeXBDyJATXGgTSN77n0=
 github.com/adedayo/go-lsp v0.0.9/go.mod h1:WffoYSvtuVjjYcxJeU8dPpIBGTI6dAXjAL5vqb4OLcg=
 github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
@@ -408,6 +402,8 @@ github.com/prometheus/common v0.9.1/go.mod h1:yhUN8i9wzaXS3w1O07YhxHEBxD+W35wd8b
 github.com/prometheus/procfs v0.0.0-20181005140218-185b4288413d/go.mod h1:c3At6R/oaqEKCNdg8wHV1ftS6bRYblBhIjjI8uT2IGk=
 github.com/prometheus/procfs v0.0.2/go.mod h1:TjEm7ze935MbeOT/UhFTIMYKhuLP4wbCsTZCD3I8kEA=
 github.com/prometheus/procfs v0.0.8/go.mod h1:7Qr8sr6344vo1JqZ6HhLceV9o3AJ1Ff+GxbHq6oeK9A=
+github.com/robfig/cron/v3 v3.0.1 h1:WdRxkvbJztn8LMz/QEvLN5sBU+xKpSqwwUO1Pjr4qDs=
+github.com/robfig/cron/v3 v3.0.1/go.mod h1:eQICP3HwyT7UooqI/z+Ov+PtYAWygg1TEWWzGIFLtro=
 github.com/rogpeppe/fastuuid v1.2.0/go.mod h1:jVj6XXZzXRy/MSR5jhDC/2q6DgLz+nrA6LYCDYWNEvQ=
 github.com/rogpeppe/go-internal v1.3.0/go.mod h1:M8bDsm7K2OlrFYOpmOWEs/qY81heoFRclV5y23lUDJ4=
 github.com/rogpeppe/go-internal v1.6.1/go.mod h1:xXDCJY+GAPziupqXw64V24skbSoqbTEfhy4qGm1nDQc=

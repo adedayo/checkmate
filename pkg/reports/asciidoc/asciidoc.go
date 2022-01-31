@@ -15,8 +15,8 @@ import (
 	"text/template"
 
 	"github.com/adedayo/checkmate-core/pkg/diagnostics"
+	"github.com/adedayo/checkmate-core/pkg/projects"
 	"github.com/adedayo/checkmate/pkg/assets"
-	report "github.com/adedayo/checkmate/pkg/reports/model"
 	"github.com/wcharczuk/go-chart/v2"
 	"github.com/wcharczuk/go-chart/v2/drawing"
 )
@@ -117,7 +117,7 @@ func GenerateReport(showSource bool, fileCount int, issues ...*diagnostics.Secur
 	return generateReportFromModel(model, asciidocPath)
 }
 
-func generateReportFromModel(model *report.Model, asciidocPath string) (reportPath string, err error) {
+func generateReportFromModel(model *projects.Model, asciidocPath string) (reportPath string, err error) {
 
 	t, err := template.New("").Funcs(funcMap).Parse(assets.Report)
 	if err != nil {
@@ -146,9 +146,11 @@ func generateReportFromModel(model *report.Model, asciidocPath string) (reportPa
 	return
 }
 
-func ComputeMetrics(fileCount int, showSource bool, issues []*diagnostics.SecurityDiagnostic) (*report.Model, error) {
+func ComputeMetrics(fileCount int, showSource bool, issues []*diagnostics.SecurityDiagnostic) (*projects.Model, error) {
 
-	model := report.GenerateModel(fileCount, showSource, issues)
+	model := projects.GenerateModel(fileCount, showSource, issues)
+	//calculate grade
+	model.Summarise()
 	barWidth := 20
 	issueCount := float64(model.CriticalCount + model.HighCount + model.MediumCount + model.LowCount + model.InformationalCount)
 
@@ -261,16 +263,14 @@ func ComputeMetrics(fileCount int, showSource bool, issues []*diagnostics.Securi
 	buffer := bytes.NewBuffer([]byte{})
 	_ = graph.Render(chart.SVG, buffer)
 	// grade := calculateGrade(highPercent, lowPercent, mediumPercent, infoPercent)
-	//calculate grade
-	model.Summarise()
+
 	grade := model.Grade
 	data, err := generateAssets(grade, fixSVGColour(buffer.String()))
 
 	if err != nil {
-		return &report.Model{}, fmt.Errorf("problem generating assets: %s", err.Error())
+		return &projects.Model{}, fmt.Errorf("problem generating assets: %s", err.Error())
 	}
 
-	// model.Grade = grade
 	model.GradeLogo = data.grade
 	model.Logo = data.checkMateLogo
 	model.SALLogo = data.salLogo
@@ -279,7 +279,7 @@ func ComputeMetrics(fileCount int, showSource bool, issues []*diagnostics.Securi
 	return model, nil
 }
 
-func cleanAssets(assets *report.Model, aDoc string) {
+func cleanAssets(assets *projects.Model, aDoc string) {
 	_ = os.Remove(assets.Logo)
 	_ = os.Remove(assets.SALLogo)
 	_ = os.Remove(assets.Chart)

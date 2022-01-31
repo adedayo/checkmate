@@ -3,10 +3,10 @@ module github.com/adedayo/checkmate
 go 1.17
 
 require (
-	github.com/adedayo/checkmate-core v0.2.8
-	github.com/adedayo/checkmate-plugin v0.3.8
+	github.com/adedayo/checkmate-core v0.3.0
+	github.com/adedayo/checkmate-plugin v0.3.9
 	// github.com/adedayo/code-intel-service v0.0.1
-	github.com/adedayo/git-service-driver v0.1.0
+	github.com/adedayo/git-service-driver v0.1.1
 	github.com/adedayo/go-lsp v0.0.9
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
@@ -46,6 +46,7 @@ require (
 	github.com/mitchellh/mapstructure v1.4.3 // indirect
 	github.com/oklog/run v1.1.0 // indirect
 	github.com/pelletier/go-toml v1.9.4 // indirect
+	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/sergi/go-diff v1.2.0 // indirect
 	github.com/spf13/afero v1.6.0 // indirect
 	github.com/spf13/cast v1.4.1 // indirect
@@ -68,10 +69,10 @@ require (
 
 // replace github.com/adedayo/go-lsp v0.0.9 => ../go-lsp
 
-// replace github.com/adedayo/checkmate-core v0.2.8 => ../checkmate-core
+replace github.com/adedayo/checkmate-core v0.3.0 => ../checkmate-core
 
-// replace github.com/adedayo/checkmate-plugin v0.3.8 => ../checkmate-plugin
+replace github.com/adedayo/checkmate-plugin v0.3.9 => ../checkmate-plugin
 
-// replace github.com/adedayo/git-service-driver v0.1.0 => ../git-service-driver
+replace github.com/adedayo/git-service-driver v0.1.1 => ../git-service-driver
 
 // replace github.com/adedayo/code-intel-service v0.0.1 => ../code-intel-service

@@ -1,5 +1,0 @@
-package gitlab
-
-func GetRepositories() {
-
-}

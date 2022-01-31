@@ -102,7 +102,12 @@ func addRoutes() {
 }
 
 func getWorkspaces(w http.ResponseWriter, r *http.Request) {
-	json.NewEncoder(w).Encode(pm.GetWorkspaces())
+	wss, err := pm.GetWorkspaces()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(wss)
 }
 
 func version(w http.ResponseWriter, r *http.Request) {
@@ -328,7 +333,7 @@ func updateProject(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	proj := pm.UpdateProject(projID, desc, workspaceSummariser)
+	proj := pm.UpdateProject(projID, desc, projects.SimpleWorkspaceSummariser)
 	json.NewEncoder(w).Encode(proj)
 }
 

@@ -101,7 +101,7 @@ func runSecretScan(ctx context.Context, options ProjectScanOptions, ws *websocke
 			return summary
 		}
 
-		pm.RunScan(ctx, project.ID, project.ScanPolicy, secrets.MakeSecretScanner(secOptions), scanIDC, progressMon, summariser, workspaceSummariser, &consumer)
+		pm.RunScan(ctx, project.ID, project.ScanPolicy, secrets.MakeSecretScanner(secOptions), scanIDC, progressMon, summariser, projects.SimpleWorkspaceSummariser, &consumer)
 	}
 }
 
