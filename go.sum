@@ -62,6 +62,12 @@ github.com/ProtonMail/go-crypto v0.0.0-20211112122917-428f8eabeeb3 h1:XcF0cTDJei
 github.com/ProtonMail/go-crypto v0.0.0-20211112122917-428f8eabeeb3/go.mod h1:z4/9nQmJSSwwds7ejkxaJwO37dru3geImFUdJlaLzQo=
 github.com/acomagu/bufpipe v1.0.3 h1:fxAGrHZTgQ9w5QqVItgzwj235/uYZYgbXitB+dLupOk=
 github.com/acomagu/bufpipe v1.0.3/go.mod h1:mxdxdup/WdsKVreO5GpW4+M/1CE2sMG4jeGJ2sYmHc4=
+github.com/adedayo/checkmate-core v0.3.0 h1:JxPsRuTWAxokCpxDked1B7DQrlLOlZjMO3GbVL+q7xQ=
+github.com/adedayo/checkmate-core v0.3.0/go.mod h1:Sl/Da7c0DzQrb1qQvSDwHZ6OVGLNMvQiQKDjGdJ88dc=
+github.com/adedayo/checkmate-plugin v0.3.9 h1:Umu6YYCKWf5UtpxVAVCm5RyITX1mMk8bLbiTPy4UzKg=
+github.com/adedayo/checkmate-plugin v0.3.9/go.mod h1:jEmUvd2X9xocDka2zisNdhdxOJFe0WjpQbNQDXc9d70=
+github.com/adedayo/git-service-driver v0.1.1 h1:QKSpVjRoP/P1X+cP4lu90/g6YkAPpY5pPF5jNXvW8K8=
+github.com/adedayo/git-service-driver v0.1.1/go.mod h1:o+mLcKWraq4XhzkZJrqKtTHD9qiSO+IV6DxuNequlZo=
 github.com/adedayo/go-lsp v0.0.9 h1:4B73UpTRRpvrZAV6Y7tGzYhljeXBDyJATXGgTSN77n0=
 github.com/adedayo/go-lsp v0.0.9/go.mod h1:WffoYSvtuVjjYcxJeU8dPpIBGTI6dAXjAL5vqb4OLcg=
 github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc/go.mod h1:LOuyumcjzFXgccqObfd/Ljyb9UuFJ6TxHnclSeseNhc=
