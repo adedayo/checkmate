@@ -33,16 +33,16 @@ POSSIBILITY OF SUCH DAMAGE.
 
 import (
 	"fmt"
-	"log"
 
 	common "github.com/adedayo/checkmate-core/pkg"
 	"github.com/adedayo/checkmate/pkg/api"
+	scheduler "github.com/adedayo/checkmate/pkg/cron"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 )
 
 var (
-	port                       int
+	port, autoScanSchedule     int
 	bindLocal, serveGitService bool
 	cmDataPath                 string
 )
@@ -60,9 +60,16 @@ Version: %s
 Author: Adedayo Adetoye (Dayo) <https://github.com/adedayo>
 		`, common.AppName, port, appVersion)
 
-		log.Printf("Inbound CheckMate Path %s", cmDataPath)
 		cmDataPath, _ = homedir.Expand(cmDataPath)
-		log.Printf("Expanded CheckMate Path %s", cmDataPath)
+
+		//run automated scheduled scans
+		scheduleConfig := scheduler.Config{
+			Frequency: autoScanSchedule,
+			DataDir:   cmDataPath,
+		}
+		go scheduler.ScheduleReposiroryTracking(scheduleConfig)
+
+		//serve API
 		config := api.Config{
 			AppName:           common.AppName,
 			AppVersion:        appVersion,
@@ -79,6 +86,7 @@ func init() {
 	rootCmd.AddCommand(apiCmd)
 	apiCmd.Flags().IntVarP(&port, "port", "p", 17283, "Port on which to serve the API service")
 	apiCmd.Flags().BoolVar(&bindLocal, "bind-localhost", false, "Bind the API service to localhost")
+	apiCmd.Flags().IntVar(&autoScanSchedule, "auto-scanning-schedule", 300, "Time interval (in seconds) between launch of automatic scanning of monitored repository")
 	apiCmd.Flags().BoolVar(&serveGitService, "serve-git-service", false, "Serve Git Service alongside the API")
 	apiCmd.Flags().StringVar(&cmDataPath, "data-path", "~/.checkmate", fmt.Sprintf("Location of %s data and configurations", common.AppDisplayName))
 }

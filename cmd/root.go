@@ -73,11 +73,6 @@ func Execute(version string) {
 func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", fmt.Sprintf("config file (default is $HOME/.%s.yaml)", common.AppName))
-	// viper.SetEnvPrefix("cm")
-	// viper.BindEnv(gitlab.GITLAB_GRAHPQL_ENDPOINT)
-	// viper.BindEnv(gitlab.GITLAB_API_KEY)
-	// viper.BindEnv(github.GITHUB_GRAHPQL_ENDPOINT)
-	// viper.BindEnv(github.GITHUB_API_KEY)
 }
 
 // initConfig reads in config file and ENV variables if set.

@@ -17,6 +17,10 @@ type ProjectScanOptions struct {
 	SecretSearchOptions secrets.SecretSearchOptions
 }
 
+type MonitorOptions struct {
+	ProjectIDs []string
+}
+
 type SocketEndMessage struct {
 	Message string
 }

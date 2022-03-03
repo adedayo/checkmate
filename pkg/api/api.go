@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	common "github.com/adedayo/checkmate-core/pkg"
+	"github.com/hashicorp/go-multierror"
+
 	// intel "github.com/adedayo/code-intel-service/pkg/api"
 	model "github.com/adedayo/git-service-driver/pkg"
 	git "github.com/adedayo/git-service-driver/pkg/api"
@@ -81,8 +83,8 @@ type capabilities struct {
 }
 
 func addRoutes() {
-	routes.HandleFunc("/api/findsecrets", findSecrets).Methods("POST")
 	routes.HandleFunc("/api/secrets/scan", scanSecrets).Methods("GET")
+	routes.HandleFunc("/api/monitor/projectscan", monitorProjectScan).Methods("GET")
 	routes.HandleFunc("/api/workspaces", getWorkspaces).Methods("GET")
 	routes.HandleFunc("/api/version", version).Methods("GET")
 	routes.HandleFunc("/api/git/capabilities", getCapabilities).Methods("GET")
@@ -99,6 +101,8 @@ func addRoutes() {
 	routes.HandleFunc("/api/project/issues/codecontext", getCodeContext).Methods("POST")
 	routes.HandleFunc("/api/createproject", createProject).Methods("POST")
 	routes.HandleFunc("/api/updateproject/{projectID}", updateProject).Methods("POST")
+	routes.HandleFunc("/api/findsecrets", findSecrets).Methods("POST")
+
 }
 
 func getWorkspaces(w http.ResponseWriter, r *http.Request) {
@@ -240,13 +244,13 @@ func projectSummariesReport(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	workspace := vars["workspace"]
 	filtered := true
-	if workspace == "__cm_all" {
+	if workspace == "__cm_all" { //sent from web app to print project summaries for all workspaces
 		filtered = false
 	}
 
-	if workspace == "Default" {
-		workspace = ""
-	}
+	// if workspace == "Default" {
+	// 	workspace = ""
+	// }
 	summaries := pm.ListProjectSummaries()
 	reportLocation := pm.GetProjectLocation("ProjectSummaries.csv")
 
@@ -262,16 +266,38 @@ func projectSummariesReport(w http.ResponseWriter, r *http.Request) {
 	writer := csv.NewWriter(file)
 	writer.Write((&projects.ProjectSummary{}).CSVHeaders())
 	for _, summary := range summaries {
-		if filtered {
-			if workspace == summary.Workspace {
-				writer.Write(summary.CSVValues())
-			}
-		} else {
+		if !filtered || (filtered && workspace == summary.Workspace) {
 			writer.Write(summary.CSVValues())
 		}
-
 	}
+
+	writer.Write([]string{}) //NL :-)
+	writer.Write([]string{"Project Details"})
+
 	writer.Flush()
+	err = writer.Error()
+
+	for _, summary := range summaries {
+		if !filtered || (filtered && workspace == summary.Workspace) {
+			projectID := summary.ID
+			scanID := summary.LastScanID
+			writer.Write([]string{}) //NL :-)
+			writer.Write([]string{fmt.Sprintf("Project: %s", summary.Name)})
+			writer.Flush()
+			err = writer.Error()
+
+			e := csvreport.WriteSecurityDiagnosticCSVReport(file, pm.GetScanResults(projectID, scanID))
+			if e != nil {
+				multierror.Append(err, e)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+		}
+	}
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
 	json.NewEncoder(w).Encode(reportLocation)
 
@@ -385,6 +411,27 @@ func scanSecrets(w http.ResponseWriter, r *http.Request) {
 	}
 
 	runSecretScan(r.Context(), options, ws)
+
+}
+
+func monitorProjectScan(w http.ResponseWriter, r *http.Request) {
+	var options MonitorOptions
+
+	ws, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("Error upgrading websocket connection %s", err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err = ws.ReadJSON(&options)
+	if err != nil {
+		log.Printf("Error deserialising scan options %s", err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	addLongLivedSocket(r.Context(), options, ws)
 
 }
 
