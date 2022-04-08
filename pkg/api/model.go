@@ -21,6 +21,6 @@ type MonitorOptions struct {
 	ProjectIDs []string
 }
 
-type SocketEndMessage struct {
-	Message string
-}
+// type SocketEndMessage struct {
+// 	Message string
+// }
