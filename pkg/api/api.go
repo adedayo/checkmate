@@ -13,6 +13,7 @@ import (
 
 	common "github.com/adedayo/checkmate-core/pkg"
 	"github.com/hashicorp/go-multierror"
+	"gopkg.in/yaml.v3"
 
 	// intel "github.com/adedayo/code-intel-service/pkg/api"
 	model "github.com/adedayo/git-service-driver/pkg"
@@ -38,12 +39,9 @@ var (
 
 	pm             projects.ProjectManager
 	allowedOrigins = []string{
-		"localhost:17283",
-		"checkmate-api:17283",
-		"http://localhost:4200",
-		"http://localhost",
-		"http://checkmate-app",
-		"localhost:4200",
+		"localhost",
+		"checkmate-app",
+		"checkmate-api",
 	}
 	corsOptions = []handlers.CORSOption{
 		handlers.AllowedMethods([]string{"GET", "HEAD", "POST"}),
@@ -63,6 +61,36 @@ var (
 
 func init() {
 	addRoutes()
+	addAdditionalCORSOrigin()
+}
+
+type corsConfig struct {
+	CORSAllowlist []string `yaml:"cors_hostname_allowlist"`
+}
+
+func addAdditionalCORSOrigin() {
+	cors_config := "cors_config.yaml"
+	if _, err := os.Stat(cors_config); err == nil {
+		if file, err := os.Open(cors_config); err == nil {
+			var cors corsConfig
+			if err = yaml.NewDecoder(file).Decode(&cors); err == nil {
+				allowedOrigins = append(sanitizeCORS(cors.CORSAllowlist), allowedOrigins...)
+			} else {
+				log.Printf("Error decoding cors-config.yaml %v", err)
+			}
+		} else {
+			log.Printf("Error loading cors-config.yaml %v", err)
+		}
+	}
+}
+
+func sanitizeCORS(cors []string) (out []string) {
+	for _, c := range cors {
+		host := strings.Split(
+			strings.TrimPrefix(strings.TrimPrefix(c, "http://"), "https://"), ":")[0]
+		out = append(out, host)
+	}
+	return
 }
 
 func allowedOriginValidator(origin string) bool {
@@ -71,7 +99,9 @@ func allowedOriginValidator(origin string) bool {
 			return true
 		}
 	}
-	passCORS := strings.Split(strings.TrimPrefix(origin, "http://"), ":")[0] == "localhost" //allow localhost independent of port
+
+	host := strings.Split(strings.TrimPrefix(origin, "http://"), ":")[0]
+	passCORS := host == "checkmate-app" || host == "localhost" //allow docker's checkmate-app or localhost independent of port
 	if !passCORS {
 		fmt.Printf("Host %s fails CORS.", origin)
 	}
