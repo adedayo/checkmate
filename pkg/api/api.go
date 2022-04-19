@@ -94,8 +94,9 @@ func sanitizeCORS(cors []string) (out []string) {
 }
 
 func allowedOriginValidator(origin string) bool {
+	originHost := strings.Split(strings.TrimPrefix(origin, "http://"), ":")[0]
 	for _, allowed := range allowedOrigins {
-		if allowed == origin {
+		if allowed == originHost {
 			return true
 		}
 	}
