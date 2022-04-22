@@ -6,7 +6,7 @@ require (
 	github.com/adedayo/checkmate-core v0.3.1
 	github.com/adedayo/checkmate-plugin v0.4.0
 	// github.com/adedayo/code-intel-service v0.0.1
-	github.com/adedayo/git-service-driver v0.1.2
+	github.com/adedayo/git-service-driver v0.1.3-0.20220422191022-aad3b4c095c6
 	github.com/adedayo/go-lsp v0.0.9
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
