@@ -3,7 +3,7 @@ RUN mkdir /app
 WORKDIR /app/
 COPY go.mod go.sum ./
 RUN go mod download
-RUN go install github.com/goreleaser/goreleaser@v0.181.1
+RUN go install github.com/goreleaser/goreleaser@latest
 COPY . .
 RUN goreleaser build --config .goreleaser-linux.yml --rm-dist --snapshot
 
