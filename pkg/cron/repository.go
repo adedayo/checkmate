@@ -19,7 +19,9 @@ import (
 func updateCommitDBs(ctx context.Context, pm projects.ProjectManager, callback func(projID string, data interface{})) {
 	gsc := gitutils.MakeConfigManager(pm.GetBaseDir()).GetConfig()
 	for _, ps := range pm.ListProjectSummaries() {
-		processProjectSummary(ctx, ps, pm, gsc, callback)
+		if !ps.IsBeingScanned { //skip currently-being-scanned-projects
+			processProjectSummary(ctx, ps, pm, gsc, callback)
+		}
 	}
 }
 
