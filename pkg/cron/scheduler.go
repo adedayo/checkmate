@@ -22,7 +22,7 @@ func ScheduleReposiroryTracking(config Config) {
 	spec := fmt.Sprintf("@every %ds", config.Frequency)
 
 	schedule(spec, func() {
-		updateCommitDBs(context.Background(), pm, callback)
+		updateCommitDBs(context.Background(), pm, callback, config)
 	})
 
 	select {}
@@ -36,6 +36,7 @@ func callback(projID string, data interface{}) {
 }
 
 type Config struct {
-	Frequency int    //how often, in seconds the schedule should be run
-	DataDir   string //CheckMate data directory
+	Frequency        int    //how often, in seconds the schedule should be run
+	DataDir          string //CheckMate data directory
+	ScanOlderCommits bool   //whether commits, prior to HEAD, should be scanned. TODO: set this from the parameters
 }

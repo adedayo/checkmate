@@ -16,16 +16,17 @@ import (
 )
 
 //Track monitored projects, check for new commits, if any, run a scan of all projects that have that repository
-func updateCommitDBs(ctx context.Context, pm projects.ProjectManager, callback func(projID string, data interface{})) {
+func updateCommitDBs(ctx context.Context, pm projects.ProjectManager, callback func(projID string, data interface{}), config Config) {
 	gsc := gitutils.MakeConfigManager(pm.GetBaseDir()).GetConfig()
 	for _, ps := range pm.ListProjectSummaries() {
 		if !ps.IsBeingScanned { //skip currently-being-scanned-projects
-			processProjectSummary(ctx, ps, pm, gsc, callback)
+			processProjectSummary(ctx, ps, pm, gsc, callback, config)
 		}
 	}
 }
 
-func processProjectSummary(ctx context.Context, ps *projects.ProjectSummary, pm projects.ProjectManager, gsc *gitutils.GitServiceConfig, callback func(projID string, data interface{})) {
+func processProjectSummary(ctx context.Context, ps *projects.ProjectSummary, pm projects.ProjectManager,
+	gsc *gitutils.GitServiceConfig, callback func(projID string, data interface{}), config Config) {
 	/*
 		For each monitored git repo
 		1. check commits across brances
@@ -85,18 +86,18 @@ func processProjectSummary(ctx context.Context, ps *projects.ProjectSummary, pm 
 			// save project summary
 			pm.SaveProjectSummary(ps)
 			//determine which commits to auto-scan, and launch scan job
-			scanNextUnscannedBranch(ctx, ps, pm, callback)
+			scanNextUnscannedBranch(ctx, ps, pm, callback, config)
 		}
 	}
 }
 
 func scanNextUnscannedBranch(ctx context.Context, ps *projects.ProjectSummary,
-	pm projects.ProjectManager, callback func(projID string, data interface{})) {
+	pm projects.ProjectManager, callback func(projID string, data interface{}), config Config) {
 
 	configManager := gitutils.MakeConfigManager(pm.GetBaseDir()).GetConfig()
 
 	for _, repo := range ps.Repositories {
-		if repo.IsGit() {
+		if repo.IsGit() && repo.Monitor {
 			var hashToScan string
 			scansByBranch := ps.GetScansByBranch(repo.Location)
 			commits := ps.GetLastCommitByBranch(repo.Location)
@@ -146,7 +147,7 @@ func scanNextUnscannedBranch(ctx context.Context, ps *projects.ProjectSummary,
 				hashToScan = headCommits[0].Hash
 			} else {
 				//scan any other commits
-				if len(otherCommits) > 0 {
+				if len(otherCommits) > 0 && config.ScanOlderCommits {
 					sort.SliceStable(otherCommits, func(i, j int) bool {
 						a := otherCommits[i].Time
 						b := otherCommits[j].Time
@@ -155,6 +156,12 @@ func scanNextUnscannedBranch(ctx context.Context, ps *projects.ProjectSummary,
 					hashToScan = otherCommits[0].Hash
 				}
 			}
+
+			//do not scan if no specific hash is identified
+			if hashToScan == "" {
+				return
+			}
+
 			auth := &gitutils.GitAuth{}
 			if gitService, err := configManager.FindService(repo.GitServiceID); err == nil {
 				auth = gitService.MakeAuth()

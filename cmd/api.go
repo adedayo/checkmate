@@ -64,8 +64,9 @@ Author: Adedayo Adetoye (Dayo) <https://github.com/adedayo>
 
 		//run automated scheduled scans
 		scheduleConfig := scheduler.Config{
-			Frequency: autoScanSchedule,
-			DataDir:   cmDataPath,
+			Frequency:        autoScanSchedule,
+			DataDir:          cmDataPath,
+			ScanOlderCommits: false, //TODO: make this configurable
 		}
 		go scheduler.ScheduleReposiroryTracking(scheduleConfig)
 
