@@ -3,10 +3,10 @@ module github.com/adedayo/checkmate
 go 1.17
 
 require (
-	github.com/adedayo/checkmate-core v0.3.2-0.20220408153516-290ac97777d1
+	github.com/adedayo/checkmate-core v0.3.2-0.20220425084854-6224c9056470
 	github.com/adedayo/checkmate-plugin v0.4.0
 	// github.com/adedayo/code-intel-service v0.0.1
-	github.com/adedayo/git-service-driver v0.1.3-0.20220425091843-98ba4983c712
+	github.com/adedayo/git-service-driver v0.1.3-0.20220425094312-7012a0ee23ec
 	github.com/adedayo/go-lsp v0.0.9
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
