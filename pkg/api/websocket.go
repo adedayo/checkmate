@@ -15,21 +15,35 @@ import (
 var (
 	// sockets          = make(map[string][]*websocket.Conn)
 	// socLock          sync.RWMutex
-	longLivedSockets = make(map[string]map[string]*websocket.Conn) //projectID -> remoteAddres -> listening socket, they get removed when remote closes
+	longLivedSockets = make(map[string]map[string]*socket) //projectID -> remoteAddres -> listening socket, they get removed when remote closes
 	longSocLock      sync.RWMutex
 )
+
+type socket struct {
+	ws *websocket.Conn
+	mu sync.Mutex
+}
+
+func (sock *socket) WriteJSON(data interface{}) error {
+	sock.mu.Lock()
+	defer sock.mu.Unlock()
+	return sock.ws.WriteJSON(data)
+}
 
 func addLongLivedSocket(ctx context.Context, options MonitorOptions, ws *websocket.Conn) {
 	longSocLock.Lock()
 	defer longSocLock.Unlock()
 
 	for _, projectID := range options.ProjectIDs {
-		conns := make(map[string]*websocket.Conn)
+		conns := make(map[string]*socket)
 		if cc, exists := longLivedSockets[projectID]; exists {
 			conns = cc
 		}
 		remoteAdd := ws.RemoteAddr().String()
-		conns[remoteAdd] = ws
+		conns[remoteAdd] = &socket{
+			ws: ws,
+			mu: sync.Mutex{},
+		}
 		longLivedSockets[projectID] = conns
 	}
 	go cleanClose(ws)
@@ -195,12 +209,12 @@ func (c *webSocketDiagnosticConsumer) ReceiveDiagnostic(diagnostic *diagnostics.
 // return longConns
 // }
 
-func GetListeningSocketsByProjectID(id string) []*websocket.Conn {
+func GetListeningSocketsByProjectID(id string) []*socket {
 	projID := strings.Split(id, ":")[0]
 	longSocLock.Lock()
 	defer longSocLock.Unlock()
 
-	out := []*websocket.Conn{}
+	out := []*socket{}
 	if conns, exist := longLivedSockets[projID]; exist {
 		for _, c := range conns {
 			out = append(out, c)
