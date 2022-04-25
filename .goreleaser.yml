@@ -16,6 +16,8 @@ builds:
     goarm:
       - 7
       - 6
+    goamd64:
+      - "v1"
 archives:
   - id: darwin
     replacements:
