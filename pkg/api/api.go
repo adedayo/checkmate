@@ -44,7 +44,7 @@ var (
 		"checkmate-api",
 	}
 	corsOptions = []handlers.CORSOption{
-		handlers.AllowedMethods([]string{"GET", "HEAD", "POST"}),
+		handlers.AllowedMethods([]string{http.MethodGet, http.MethodHead, http.MethodPost, http.MethodOptions}),
 		handlers.AllowedHeaders([]string{"Content-Type", "Authorization", "Accept", "Accept-Language", "Origin"}),
 		handlers.AllowCredentials(),
 		handlers.AllowedOriginValidator(allowedOriginValidator),
