@@ -17,10 +17,14 @@ import (
 
 //Track monitored projects, check for new commits, if any, run a scan of all projects that have that repository
 func updateCommitDBs(ctx context.Context, pm projects.ProjectManager, callback func(projID string, data interface{}), config Config) {
-	gsc := gitutils.MakeConfigManager(pm.GetBaseDir()).GetConfig()
-	for _, ps := range pm.ListProjectSummaries() {
-		if !ps.IsBeingScanned { //skip currently-being-scanned-projects
-			processProjectSummary(ctx, ps, pm, gsc, callback, config)
+
+	if cm, err := gitutils.NewDBGitConfigManager(pm.GetBaseDir()); err == nil {
+		if gsc, err := cm.GetConfig(); err == nil {
+			for _, ps := range pm.ListProjectSummaries() {
+				if !ps.IsBeingScanned { //skip currently-being-scanned-projects
+					processProjectSummary(ctx, ps, pm, gsc, callback, config)
+				}
+			}
 		}
 	}
 }
@@ -94,7 +98,14 @@ func processProjectSummary(ctx context.Context, ps *projects.ProjectSummary, pm 
 func scanNextUnscannedBranch(ctx context.Context, ps *projects.ProjectSummary,
 	pm projects.ProjectManager, callback func(projID string, data interface{}), config Config) {
 
-	configManager := gitutils.MakeConfigManager(pm.GetBaseDir()).GetConfig()
+	configManager := &gitutils.GitServiceConfig{
+		GitServices: make(map[gitutils.GitServiceType]map[string]*gitutils.GitService),
+	}
+	if g, err := gitutils.NewDBGitConfigManager(pm.GetBaseDir()); err == nil {
+		if gcm, err := g.GetConfig(); err == nil {
+			configManager = gcm
+		}
+	}
 
 	for _, repo := range ps.Repositories {
 		if repo.IsGit() && repo.Monitor {
@@ -197,7 +208,10 @@ func runScan(ctx context.Context, ps *projects.ProjectSummary, pm projects.Proje
 		Exclusions:        diagnostics.MakeEmptyExcludes(),
 	}
 
-	project := pm.GetProject(ps.ID)
+	project, err := pm.GetProject(ps.ID)
+	if err != nil {
+		return
+	}
 
 	if options, ok := project.ScanPolicy.Config["secret-search-options"]; ok {
 		if scanOpts, good := options.(secrets.SecretSearchOptions); good {
@@ -218,7 +232,10 @@ func runScan(ctx context.Context, ps *projects.ProjectSummary, pm projects.Proje
 	summariser := func(projID, sID string, issues []*diagnostics.SecurityDiagnostic) *projects.ScanSummary {
 		model := projects.GenerateModel(len(paths), secOptions.ShowSource, issues)
 		summary := model.Summarise()
-		project := pm.GetProject(projID) //reloading project as policies might have been manually changed during scanning
+		project, err := pm.GetProject(projID) //reloading project as policies might have been manually changed during scanning
+		if err != nil {
+			return summary
+		}
 		callback(projID, project)
 		callback(projID, summary)
 		return summary

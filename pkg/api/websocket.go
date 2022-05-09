@@ -97,8 +97,8 @@ func socketCloseHandler(ws *websocket.Conn) func(code int, text string) error {
 
 func runSecretScan(ctx context.Context, options ProjectScanOptions, ws *websocket.Conn) {
 
-	project := pm.GetProject(options.ProjectID)
-	if project.ID == options.ProjectID {
+	projectSummary, err := pm.GetProjectSummary(options.ProjectID)
+	if err == nil {
 		id := options.ProjectID
 
 		consumer := webSocketDiagnosticConsumer{
@@ -128,14 +128,14 @@ func runSecretScan(ctx context.Context, options ProjectScanOptions, ws *websocke
 			Exclusions:        diagnostics.MakeEmptyExcludes(),
 		}
 
-		if options, ok := project.ScanPolicy.Config["secret-search-options"]; ok {
+		if options, ok := projectSummary.ScanPolicy.Config["secret-search-options"]; ok {
 			if scanOpts, good := options.(secrets.SecretSearchOptions); good {
 				secOptions = scanOpts
-				excludes := secrets.MergeExclusions(project.ScanPolicy.Policy, secrets.MakeCommonExclusions())
+				excludes := secrets.MergeExclusions(projectSummary.ScanPolicy.Policy, secrets.MakeCommonExclusions())
 				container := diagnostics.ExcludeContainer{
 					ExcludeDef: &excludes,
 				}
-				for _, loc := range project.Repositories {
+				for _, loc := range projectSummary.Repositories {
 					container.Repositories = append(container.Repositories, loc.Location)
 				}
 				if excl, err := diagnostics.CompileExcludes(container); err == nil {
@@ -144,21 +144,31 @@ func runSecretScan(ctx context.Context, options ProjectScanOptions, ws *websocke
 			}
 		}
 
+		var scanSummary *projects.ScanSummary
 		summariser := func(projID, sID string, issues []*diagnostics.SecurityDiagnostic) *projects.ScanSummary {
 
 			model, err := asciidoc.ComputeMetrics(len(paths), secOptions.ShowSource, issues)
 			if err != nil {
 				return &projects.ScanSummary{}
 			}
-			summary := model.Summarise()
-			project = pm.GetProject(options.ProjectID) //reloading project as policies might have been manually changed during scanning
-			ws.WriteJSON(project)
-			ws.WriteJSON(summary)
+			scanSummary = model.Summarise()
+
 			// removeScanListeners(id)
-			return summary
+			return scanSummary
 		}
 
-		pm.RunScan(ctx, project.ID, project.ScanPolicy, secrets.MakeSecretScanner(secOptions), scanIDC, progressMon, summariser, projects.SimpleWorkspaceSummariser, &consumer)
+		pm.RunScan(ctx, projectSummary.ID, projectSummary.ScanPolicy, secrets.MakeSecretScanner(secOptions), scanIDC, progressMon, summariser, projects.SimpleWorkspaceSummariser, &consumer)
+
+		projID := options.ProjectID
+		projectSummary, err = pm.GetProjectSummary(projID) //reloading project as policies might have been manually changed during scanning
+
+		if err == nil {
+			for _, ws := range GetListeningSocketsByProjectID(projID) {
+				ws.WriteJSON(projectSummary)
+				ws.WriteJSON(scanSummary)
+			}
+		}
+
 	}
 }
 

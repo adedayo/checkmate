@@ -16,10 +16,10 @@ import (
 	"gopkg.in/yaml.v3"
 
 	// intel "github.com/adedayo/code-intel-service/pkg/api"
-	model "github.com/adedayo/git-service-driver/pkg"
 	git "github.com/adedayo/git-service-driver/pkg/api"
 
 	"github.com/adedayo/checkmate-core/pkg/diagnostics"
+	gitutils "github.com/adedayo/checkmate-core/pkg/git"
 	"github.com/adedayo/checkmate-core/pkg/projects"
 	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
 	"github.com/adedayo/checkmate/pkg/reports/asciidoc"
@@ -159,7 +159,11 @@ func defaultPolicy(w http.ResponseWriter, r *http.Request) {
 func getProjectSummary(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	projID := vars["projectID"]
-	summary := pm.GetProjectSummary(projID)
+	summary, err := pm.GetProjectSummary(projID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	json.NewEncoder(w).Encode(summary)
 }
 
@@ -181,8 +185,10 @@ func getCSVScanReport(w http.ResponseWriter, r *http.Request) {
 	projID := vars["projectID"]
 	scanID := vars["scanID"]
 
-	loc := pm.GetScanLocation(projID, scanID)
-	scanReport := path.Join(loc, fmt.Sprintf("%s.csv", scanID))
+	reports_dir := path.Join(pm.GetBaseDir(), "reports")
+	// create the reports directory if it doesn't exist
+	os.MkdirAll(reports_dir, 0755)
+	scanReport := path.Join(reports_dir, fmt.Sprintf("%s.csv", scanID))
 
 	//check if report already exists and send, otherwise generate and store
 	_, err := os.Stat(scanReport)
@@ -193,7 +199,12 @@ func getCSVScanReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = csvreport.Generate(scanReport, pm.GetScanResults(projID, scanID))
+	results, err := pm.GetScanResults(projID, scanID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	err = csvreport.Generate(scanReport, results)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -206,8 +217,10 @@ func getScanReport(w http.ResponseWriter, r *http.Request) {
 	projID := vars["projectID"]
 	scanID := vars["scanID"]
 
-	loc := pm.GetScanLocation(projID, scanID)
-	scanReport := path.Join(loc, fmt.Sprintf("%s.pdf", scanID))
+	reports_dir := path.Join(pm.GetBaseDir(), "reports")
+	// create the reports directory if it doesn't exist
+	os.MkdirAll(reports_dir, 0755)
+	scanReport := path.Join(reports_dir, fmt.Sprintf("%s.pdf", scanID))
 
 	//check if report already exists and send, otherwise generate and store
 	_, err := os.Stat(scanReport)
@@ -240,7 +253,12 @@ func getScanReport(w http.ResponseWriter, r *http.Request) {
 		fileCount = 0
 	}
 
-	fileName, err := asciidoc.GenerateReport(showSource, fileCount, pm.GetScanResults(projID, scanID)...)
+	results, err := pm.GetScanResults(projID, scanID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	fileName, err := asciidoc.GenerateReport(showSource, fileCount, results...)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -259,7 +277,11 @@ func getScanReport(w http.ResponseWriter, r *http.Request) {
 func getProject(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	projID := vars["projectID"]
-	project := pm.GetProject(projID)
+	project, err := pm.GetProject(projID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	json.NewEncoder(w).Encode(project)
 }
 
@@ -316,8 +338,17 @@ func projectSummariesReport(w http.ResponseWriter, r *http.Request) {
 			writer.Write([]string{fmt.Sprintf("Project: %s", summary.Name)})
 			writer.Flush()
 			err = writer.Error()
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			results, err := pm.GetScanResults(projectID, scanID)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 
-			e := csvreport.WriteSecurityDiagnosticCSVReport(file, pm.GetScanResults(projectID, scanID))
+			e := csvreport.WriteSecurityDiagnosticCSVReport(file, results)
 			if e != nil {
 				multierror.Append(err, e)
 				http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -340,7 +371,14 @@ func getIssues(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	json.NewEncoder(w).Encode(pm.GetIssues(search))
+
+	issues, err := pm.GetIssues(search)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(issues)
 }
 
 func fixIssue(w http.ResponseWriter, r *http.Request) {
@@ -372,8 +410,18 @@ func createProject(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	proj := pm.CreateProject(desc)
-	json.NewEncoder(w).Encode(pm.GetProjectSummary(proj.ID))
+	proj, err := pm.CreateProject(desc)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	summary, err := pm.GetProjectSummary(proj.ID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(summary)
 }
 
 func updateProject(w http.ResponseWriter, r *http.Request) {
@@ -390,7 +438,12 @@ func updateProject(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	proj := pm.UpdateProject(projID, desc, projects.SimpleWorkspaceSummariser)
+	proj, err := pm.UpdateProject(projID, desc, projects.SimpleWorkspaceSummariser)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	json.NewEncoder(w).Encode(proj)
 }
 
@@ -475,17 +528,25 @@ func ServeAPI(config Config) {
 	}
 	corsOptions = append(corsOptions, handlers.AllowedOrigins(allowedOrigins))
 	apiVersion = config.AppVersion
-	pm = projects.MakeSimpleProjectManager(config.CheckMateDataPath)
+	p, err := projects.NewDBProjectManager(config.CheckMateDataPath)
+	if err != nil {
+		return
+	}
+	pm = p
 	if config.ServeGitService {
 		caps.GitServiceEnabled = true
-		gitConfManager := model.MakeConfigManager(config.CheckMateDataPath)
-		conf := gitConfManager.GetConfig()
-		caps.GitHubEnabled = conf.IsServiceConfigured(model.GitHub)
-		caps.GitLabEnabled = conf.IsServiceConfigured(model.GitLab)
+		gitConfManager, err := gitutils.NewDBGitConfigManager(config.CheckMateDataPath)
+		if err == nil {
+			if conf, err := gitConfManager.GetConfig(); err == nil {
+				caps.GitHubEnabled = conf.IsServiceConfigured(gitutils.GitHub)
+				caps.GitLabEnabled = conf.IsServiceConfigured(gitutils.GitLab)
 
-		//add git service driver APIs
-		for _, rs := range git.GetRoutes(config.CheckMateDataPath) {
-			routes.HandleFunc(rs.Path, rs.Handler).Methods(rs.Methods...)
+				//add git service driver APIs
+				for _, rs := range git.GetRoutes(config.CheckMateDataPath) {
+					routes.HandleFunc(rs.Path, rs.Handler).Methods(rs.Methods...)
+				}
+			}
+
 		}
 
 		//add code intel services APIs
