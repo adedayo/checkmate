@@ -10,7 +10,7 @@ import (
 func main() {
 	pm := projects.MakeSimpleProjectManager("~/.checkmate")
 
-	project := pm.GetProject("0b57cd1d-726d-457c-ba1a-435cca48bd26")
+	project, _ := pm.GetProject("0b57cd1d-726d-457c-ba1a-435cca48bd26")
 
 	summary, err := pm.GetScanResultSummary("0b57cd1d-726d-457c-ba1a-435cca48bd26", "ed9a6605-4d60-4346-989c-12bb24bd899a")
 	// fmt.Printf("Additional Info: %#v\n", summary.AdditionalInfo)

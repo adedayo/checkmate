@@ -33,8 +33,10 @@ POSSIBILITY OF SUCH DAMAGE.
 
 import (
 	"fmt"
+	"log"
 
 	common "github.com/adedayo/checkmate-core/pkg"
+	"github.com/adedayo/checkmate-core/pkg/projects"
 	"github.com/adedayo/checkmate/pkg/api"
 	scheduler "github.com/adedayo/checkmate/pkg/cron"
 	"github.com/mitchellh/go-homedir"
@@ -61,12 +63,18 @@ Author: Adedayo Adetoye (Dayo) <https://github.com/adedayo>
 		`, common.AppName, port, appVersion)
 
 		cmDataPath, _ = homedir.Expand(cmDataPath)
+		pm, err := projects.NewDBProjectManager(cmDataPath)
+		if err != nil {
+			log.Printf("%v", err)
+			return
+		}
 
 		//run automated scheduled scans
 		scheduleConfig := scheduler.Config{
 			Frequency:        autoScanSchedule,
 			DataDir:          cmDataPath,
 			ScanOlderCommits: false, //TODO: make this configurable
+			ProjectManager:   pm,
 		}
 		go scheduler.ScheduleReposiroryTracking(scheduleConfig)
 
@@ -78,6 +86,7 @@ Author: Adedayo Adetoye (Dayo) <https://github.com/adedayo>
 			Local:             bindLocal,
 			ServeGitService:   serveGitService,
 			CheckMateDataPath: cmDataPath,
+			ProjectManager:    pm,
 		}
 		api.ServeAPI(config)
 	},

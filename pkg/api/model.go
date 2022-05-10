@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/adedayo/checkmate-core/pkg/projects"
 	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
 )
 
@@ -10,6 +11,7 @@ type Config struct {
 	Local               bool //if set, to bind the api to localhost:port (electron) or simply :port (web service) instead
 	ServeGitService     bool
 	CheckMateDataPath   string
+	ProjectManager      projects.ProjectManager
 }
 
 type ProjectScanOptions struct {

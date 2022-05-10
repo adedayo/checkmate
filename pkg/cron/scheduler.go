@@ -6,7 +6,6 @@ import (
 
 	"github.com/adedayo/checkmate-core/pkg/projects"
 	"github.com/adedayo/checkmate/pkg/api"
-	"github.com/mitchellh/go-homedir"
 	"github.com/robfig/cron/v3"
 )
 
@@ -17,8 +16,7 @@ func schedule(spec string, f func()) {
 }
 
 func ScheduleReposiroryTracking(config Config) {
-	dataDir, _ := homedir.Expand(config.DataDir)
-	pm := projects.MakeSimpleProjectManager(dataDir)
+	pm := config.ProjectManager
 	spec := fmt.Sprintf("@every %ds", config.Frequency)
 
 	schedule(spec, func() {
@@ -39,4 +37,5 @@ type Config struct {
 	Frequency        int    //how often, in seconds the schedule should be run
 	DataDir          string //CheckMate data directory
 	ScanOlderCommits bool   //whether commits, prior to HEAD, should be scanned. TODO: set this from the parameters
+	ProjectManager   projects.ProjectManager
 }

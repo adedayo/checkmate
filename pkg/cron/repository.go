@@ -18,7 +18,7 @@ import (
 //Track monitored projects, check for new commits, if any, run a scan of all projects that have that repository
 func updateCommitDBs(ctx context.Context, pm projects.ProjectManager, callback func(projID string, data interface{}), config Config) {
 
-	if cm, err := gitutils.NewDBGitConfigManager(pm.GetBaseDir()); err == nil {
+	if cm, err := pm.GetGitConfigManager(); err == nil {
 		if gsc, err := cm.GetConfig(); err == nil {
 			for _, ps := range pm.ListProjectSummaries() {
 				if !ps.IsBeingScanned { //skip currently-being-scanned-projects
@@ -101,7 +101,7 @@ func scanNextUnscannedBranch(ctx context.Context, ps *projects.ProjectSummary,
 	configManager := &gitutils.GitServiceConfig{
 		GitServices: make(map[gitutils.GitServiceType]map[string]*gitutils.GitService),
 	}
-	if g, err := gitutils.NewDBGitConfigManager(pm.GetBaseDir()); err == nil {
+	if g, err := pm.GetGitConfigManager(); err == nil {
 		if gcm, err := g.GetConfig(); err == nil {
 			configManager = gcm
 		}

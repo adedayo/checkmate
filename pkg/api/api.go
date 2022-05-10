@@ -528,14 +528,11 @@ func ServeAPI(config Config) {
 	}
 	corsOptions = append(corsOptions, handlers.AllowedOrigins(allowedOrigins))
 	apiVersion = config.AppVersion
-	p, err := projects.NewDBProjectManager(config.CheckMateDataPath)
-	if err != nil {
-		return
-	}
-	pm = p
+
+	pm = config.ProjectManager
 	if config.ServeGitService {
 		caps.GitServiceEnabled = true
-		gitConfManager, err := gitutils.NewDBGitConfigManager(config.CheckMateDataPath)
+		gitConfManager, err := pm.GetGitConfigManager()
 		if err == nil {
 			if conf, err := gitConfManager.GetConfig(); err == nil {
 				caps.GitHubEnabled = conf.IsServiceConfigured(gitutils.GitHub)
