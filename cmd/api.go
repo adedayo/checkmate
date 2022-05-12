@@ -96,7 +96,7 @@ func init() {
 	rootCmd.AddCommand(apiCmd)
 	apiCmd.Flags().IntVarP(&port, "port", "p", 17283, "Port on which to serve the API service")
 	apiCmd.Flags().BoolVar(&bindLocal, "bind-localhost", false, "Bind the API service to localhost")
-	apiCmd.Flags().IntVar(&autoScanSchedule, "auto-scanning-schedule", 300, "Time interval (in seconds) between launch of automatic scanning of monitored repository")
+	apiCmd.Flags().IntVar(&autoScanSchedule, "auto-scanning-schedule", 3600, "Time interval (in seconds) between launch of automatic scanning of monitored repository")
 	apiCmd.Flags().BoolVar(&serveGitService, "serve-git-service", false, "Serve Git Service alongside the API")
 	apiCmd.Flags().StringVar(&cmDataPath, "data-path", "~/.checkmate", fmt.Sprintf("Location of %s data and configurations", common.AppDisplayName))
 }

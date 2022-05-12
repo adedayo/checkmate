@@ -1,31 +1,29 @@
 package main
 
 import (
-	"fmt"
-
 	"github.com/adedayo/checkmate-core/pkg/diagnostics"
-	"github.com/adedayo/checkmate-core/pkg/projects"
 )
 
 func main() {
-	pm := projects.MakeSimpleProjectManager("~/.checkmate")
 
-	project, _ := pm.GetProject("0b57cd1d-726d-457c-ba1a-435cca48bd26")
+	// pm := projects.MakeSimpleProjectManager("~/.checkmate")
 
-	summary, err := pm.GetScanResultSummary("0b57cd1d-726d-457c-ba1a-435cca48bd26", "ed9a6605-4d60-4346-989c-12bb24bd899a")
-	// fmt.Printf("Additional Info: %#v\n", summary.AdditionalInfo)
+	// project, _ := pm.GetProject("0b57cd1d-726d-457c-ba1a-435cca48bd26")
 
-	if err == nil {
-		mapp, ok := summary.AdditionalInfo.(map[string]interface{})
+	// summary, err := pm.GetScanResultSummary("0b57cd1d-726d-457c-ba1a-435cca48bd26", "ed9a6605-4d60-4346-989c-12bb24bd899a")
+	// // fmt.Printf("Additional Info: %#v\n", summary.AdditionalInfo)
 
-		if ok {
-			fmt.Printf("Map: %#v\n", mapp)
-		}
+	// if err == nil {
+	// 	mapp, ok := summary.AdditionalInfo.(map[string]interface{})
 
-		fmt.Printf("Got project %#v\n", project.ID)
+	// 	if ok {
+	// 		fmt.Printf("Map: %#v\n", mapp)
+	// 	}
 
-		println(mapp["showsource"].(bool))
-	}
+	// 	fmt.Printf("Got project %#v\n", project.ID)
+
+	// 	println(mapp["showsource"].(bool))
+	// }
 
 	// b, err := json.MarshalIndent(project, " ", " ")
 	// if err == nil {
