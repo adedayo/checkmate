@@ -4,11 +4,17 @@ import (
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
+	"regexp"
 	"strings"
 
 	common "github.com/adedayo/checkmate-core/pkg"
@@ -34,8 +40,7 @@ var (
 	routes     = mux.NewRouter()
 	apiVersion = "0.0.0"
 	caps       capabilities
-	// gitHubAuth     *gitutils.GitAuth
-	// gitLabAuth     *gitutils.GitAuth
+	idRegX     = regexp.MustCompile(`[a-zA-Z0-9]{8}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{12}`)
 
 	pm             projects.ProjectManager
 	allowedOrigins = []string{
@@ -121,11 +126,14 @@ func addRoutes() {
 	routes.HandleFunc("/api/git/capabilities", getCapabilities).Methods("GET")
 	routes.HandleFunc("/api/secrets/defaultpolicy", defaultPolicy).Methods("GET")
 	routes.HandleFunc("/api/projectsummaries", projectSummaries).Methods("GET")
-	routes.HandleFunc("/api/projectsummariesreport/{workspace}", projectSummariesReport).Methods("GET")
+	routes.HandleFunc("/api/projectsummariesreport/{workspace}", getWorkspaceReportPath).Methods("GET")
+	routes.HandleFunc("/api/downloadworkspacereport/{workspace}", downloadWorkspaceReport).Methods("GET")
 	routes.HandleFunc("/api/projectsummary/{projectID}", getProjectSummary).Methods("GET")
 	routes.HandleFunc("/api/scansummary/{projectID}/{scanID}", getScanSummary).Methods("GET")
-	routes.HandleFunc("/api/scanreport/{projectID}/{scanID}", getScanReport).Methods("GET")
+	routes.HandleFunc("/api/scanreport/{projectID}/{scanID}", getPDFScanReportPath).Methods("GET")
 	routes.HandleFunc("/api/csvscanreport/{projectID}/{scanID}", getCSVScanReport).Methods("GET")
+	routes.HandleFunc("/api/downloadscanreport/{projectID}/{scanID}", downloadPDFReport).Methods("GET")
+	routes.HandleFunc("/api/downloadcsvscanreport/{projectID}/{scanID}", downloadCSVReport).Methods("GET")
 	routes.HandleFunc("/api/project/{projectID}", getProject).Methods("GET")
 	routes.HandleFunc("/api/project/issues", getIssues).Methods("POST")
 	routes.HandleFunc("/api/project/issues/fix", fixIssue).Methods("POST")
@@ -181,22 +189,67 @@ func getScanSummary(w http.ResponseWriter, r *http.Request) {
 }
 
 func getCSVScanReport(w http.ResponseWriter, r *http.Request) {
+	scanReport, err := createCSVReport(w, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	json.NewEncoder(w).Encode(scanReport)
+}
+
+func getPDFScanReportPath(w http.ResponseWriter, r *http.Request) {
+	scanReport, err := createPDFReport(w, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	json.NewEncoder(w).Encode(scanReport)
+}
+
+func downloadReport(w http.ResponseWriter, r *http.Request, path string) {
+	file, err := os.Open(path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+	attachment := fmt.Sprintf(`attachment; filename="%s"`, filepath.Base(file.Name()))
+	w.Header().Set("Content-Disposition", attachment)
+	cType := mime.TypeByExtension(filepath.Ext(file.Name()))
+	if cType == "" {
+		w.Header().Set("Content-Type", "application/octet-stream")
+	} else {
+		w.Header().Set("Content-Type", cType)
+	}
+	if stat, err := file.Stat(); err == nil {
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", stat.Size()))
+	}
+	io.Copy(w, file)
+}
+
+func createCSVReport(w http.ResponseWriter, r *http.Request) (scanReport string, err error) {
 	vars := mux.Vars(r)
 	projID := vars["projectID"]
 	scanID := vars["scanID"]
 
-	reports_dir := path.Join(pm.GetBaseDir(), "reports")
+	if !(validateID(projID) && validateID(scanID)) {
+		err = errors.New("Invalid Project or Scan ID")
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	reports_dir := path.Join(pm.GetBaseDir(), "reports", projID)
 	// create the reports directory if it doesn't exist
 	os.MkdirAll(reports_dir, 0755)
-	scanReport := path.Join(reports_dir, fmt.Sprintf("%s.csv", scanID))
+	scanReport = path.Join(reports_dir, fmt.Sprintf("%s.csv", scanID))
 
 	//check if report already exists and send, otherwise generate and store
-	_, err := os.Stat(scanReport)
+	_, err = os.Stat(scanReport)
 
-	if !os.IsNotExist(err) {
+	if !errors.Is(err, fs.ErrNotExist) {
 		//report already exists
-		json.NewEncoder(w).Encode(scanReport)
-		return
+		// json.NewEncoder(w).Encode(scanReport)
+		return scanReport, nil
 	}
 
 	results, err := pm.GetScanResults(projID, scanID)
@@ -209,26 +262,48 @@ func getCSVScanReport(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	json.NewEncoder(w).Encode(scanReport)
+	return
 }
 
-func getScanReport(w http.ResponseWriter, r *http.Request) {
+func downloadCSVReport(w http.ResponseWriter, r *http.Request) {
+	scanReport, err := createCSVReport(w, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	downloadReport(w, r, scanReport)
+}
+
+func downloadPDFReport(w http.ResponseWriter, r *http.Request) {
+	scanReport, err := createPDFReport(w, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	downloadReport(w, r, scanReport)
+}
+
+func createPDFReport(w http.ResponseWriter, r *http.Request) (scanReport string, err error) {
 	vars := mux.Vars(r)
 	projID := vars["projectID"]
 	scanID := vars["scanID"]
-
-	reports_dir := path.Join(pm.GetBaseDir(), "reports")
-	// create the reports directory if it doesn't exist
+	if !(validateID(projID) && validateID(scanID)) {
+		err = errors.New("Invalid Project or Scan ID")
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	reports_dir := path.Join(pm.GetBaseDir(), "reports", projID)
+	// create the project reports directory if it doesn't exist
 	os.MkdirAll(reports_dir, 0755)
-	scanReport := path.Join(reports_dir, fmt.Sprintf("%s.pdf", scanID))
+	scanReport = path.Join(reports_dir, fmt.Sprintf("%s.pdf", scanID))
 
 	//check if report already exists and send, otherwise generate and store
-	_, err := os.Stat(scanReport)
+	_, err = os.Stat(scanReport)
 
-	if !os.IsNotExist(err) {
+	if !errors.Is(err, fs.ErrNotExist) {
 		//report already exists
-		json.NewEncoder(w).Encode(scanReport)
-		return
+		// json.NewEncoder(w).Encode(scanReport)
+		return scanReport, nil
 	}
 
 	summary, err := pm.GetScanResultSummary(projID, scanID)
@@ -271,7 +346,12 @@ func getScanReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(scanReport)
+	return
+}
+
+//ensure that the ID rougly looks like a UUID
+func validateID(id string) bool {
+	return idRegX.MatchString(id)
 }
 
 func getProject(w http.ResponseWriter, r *http.Request) {
@@ -293,7 +373,7 @@ func projectSummaries(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func projectSummariesReport(w http.ResponseWriter, r *http.Request) {
+func generateWorkspaceReport(w http.ResponseWriter, r *http.Request) (reportLocation string, err error) {
 	vars := mux.Vars(r)
 	workspace := vars["workspace"]
 	filtered := true
@@ -301,12 +381,10 @@ func projectSummariesReport(w http.ResponseWriter, r *http.Request) {
 		filtered = false
 	}
 
-	// if workspace == "Default" {
-	// 	workspace = ""
-	// }
-	summaries := pm.ListProjectSummaries()
-	reportLocation := pm.GetProjectLocation("ProjectSummaries.csv")
-
+	reports_dir := path.Join(pm.GetBaseDir(), "reports", "workspace")
+	// create the reports directory if it doesn't exist
+	os.MkdirAll(reports_dir, 0755)
+	reportLocation = path.Join(reports_dir, "ProjectSummaries.csv")
 	file, err := os.Create(reportLocation)
 
 	if err != nil {
@@ -315,8 +393,10 @@ func projectSummariesReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	defer file.Close()
-
 	writer := csv.NewWriter(file)
+
+	summaries := pm.ListProjectSummaries()
+
 	writer.Write((&projects.ProjectSummary{}).CSVHeaders())
 	for _, summary := range summaries {
 		if !filtered || (filtered && workspace == summary.Workspace) {
@@ -337,30 +417,44 @@ func projectSummariesReport(w http.ResponseWriter, r *http.Request) {
 			writer.Write([]string{}) //NL :-)
 			writer.Write([]string{fmt.Sprintf("Project: %s", summary.Name)})
 			writer.Flush()
-			err = writer.Error()
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			results, err := pm.GetScanResults(projectID, scanID)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			e := csvreport.WriteSecurityDiagnosticCSVReport(file, results)
+			e := writer.Error()
 			if e != nil {
 				multierror.Append(err, e)
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				continue
+			}
+			results, e := pm.GetScanResults(projectID, scanID)
+			if e != nil {
+				multierror.Append(err, e)
+				continue
+			}
+
+			e = csvreport.WriteSecurityDiagnosticCSVReport(file, results)
+			if e != nil {
+				multierror.Append(err, e)
+				continue
 			}
 		}
 	}
 
+	return
+
+}
+
+func downloadWorkspaceReport(w http.ResponseWriter, r *http.Request) {
+	reportLocation, err := generateWorkspaceReport(w, r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	downloadReport(w, r, reportLocation)
+}
 
+func getWorkspaceReportPath(w http.ResponseWriter, r *http.Request) {
+	reportLocation, err := generateWorkspaceReport(w, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	json.NewEncoder(w).Encode(reportLocation)
 
 }
