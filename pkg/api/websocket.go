@@ -147,7 +147,7 @@ func runSecretScan(ctx context.Context, options ProjectScanOptions, ws *websocke
 		var scanSummary *projects.ScanSummary
 		summariser := func(projID, sID string, issues []*diagnostics.SecurityDiagnostic) *projects.ScanSummary {
 
-			model, err := asciidoc.ComputeMetrics(len(paths), secOptions.ShowSource, issues)
+			model, err := asciidoc.ComputeMetrics("", len(paths), secOptions.ShowSource, issues)
 			if err != nil {
 				return &projects.ScanSummary{}
 			}

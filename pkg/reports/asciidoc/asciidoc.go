@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -97,7 +96,7 @@ func fixPath() {
 }
 
 //GenerateReport generates PDF report using asciidoc-pdf, if not found, returns the JSON-formatted results in the reportPath
-func GenerateReport(showSource bool, fileCount int, issues ...*diagnostics.SecurityDiagnostic) (reportPath string, err error) {
+func GenerateReport(baseDir string, showSource bool, fileCount int, issues ...*diagnostics.SecurityDiagnostic) (reportPath string, err error) {
 	fixPath()
 	asciidocPath, err := exec.LookPath(asciidocExec)
 	if err != nil {
@@ -110,14 +109,14 @@ func GenerateReport(showSource bool, fileCount int, issues ...*diagnostics.Secur
 		}
 		return reportPath, fmt.Errorf("%s executable file not found in your $PATH. Install it and ensure that it is in your $PATH:%s", asciidocExec, error2)
 	}
-	model, err := ComputeMetrics(fileCount, showSource, issues)
+	model, err := ComputeMetrics(baseDir, fileCount, showSource, issues)
 	if err != nil {
 		return reportPath, err
 	}
-	return generateReportFromModel(model, asciidocPath)
+	return generateReportFromModel(baseDir, model, asciidocPath)
 }
 
-func generateReportFromModel(model *projects.Model, asciidocPath string) (reportPath string, err error) {
+func generateReportFromModel(baseDir string, model *projects.Model, asciidocPath string) (reportPath string, err error) {
 
 	t, err := template.New("").Funcs(funcMap).Parse(assets.Report)
 	if err != nil {
@@ -131,7 +130,7 @@ func generateReportFromModel(model *projects.Model, asciidocPath string) (report
 		return reportPath, err
 	}
 
-	aDoc, err := generateFile(buf.Bytes(), "report*.adoc")
+	aDoc, err := generateFile(baseDir, buf.Bytes(), "report*.adoc")
 	if err != nil {
 		return reportPath, err
 	}
@@ -146,7 +145,7 @@ func generateReportFromModel(model *projects.Model, asciidocPath string) (report
 	return
 }
 
-func ComputeMetrics(fileCount int, showSource bool, issues []*diagnostics.SecurityDiagnostic) (*projects.Model, error) {
+func ComputeMetrics(baseDir string, fileCount int, showSource bool, issues []*diagnostics.SecurityDiagnostic) (*projects.Model, error) {
 
 	model := projects.GenerateModel(fileCount, showSource, issues)
 	//calculate grade
@@ -262,10 +261,9 @@ func ComputeMetrics(fileCount int, showSource bool, issues []*diagnostics.Securi
 
 	buffer := bytes.NewBuffer([]byte{})
 	_ = graph.Render(chart.SVG, buffer)
-	// grade := calculateGrade(highPercent, lowPercent, mediumPercent, infoPercent)
 
 	grade := model.Grade
-	data, err := generateAssets(grade, fixSVGColour(buffer.String()))
+	data, err := generateAssets(baseDir, grade, fixSVGColour(buffer.String()))
 
 	if err != nil {
 		return &projects.Model{}, fmt.Errorf("problem generating assets: %s", err.Error())
@@ -295,7 +293,7 @@ type assetFiles struct {
 	charts                        []string
 }
 
-func generateAssets(grade string, charts ...string) (assetFiles, error) {
+func generateAssets(baseDir, grade string, charts ...string) (assetFiles, error) {
 	files := []string{}
 	cleanUp := func() {
 		for _, file := range files {
@@ -311,7 +309,7 @@ func generateAssets(grade string, charts ...string) (assetFiles, error) {
 	} else {
 		gradeIcon = fmt.Sprintf(assets.Grade2, colourGrade(grade), grade)
 	}
-	grade, err := generateFile([]byte(gradeIcon), "sal_grade.*.svg")
+	grade, err := generateFile(baseDir, []byte(gradeIcon), "sal_grade.*.svg")
 	files = append(files, grade)
 	if err != nil {
 		cleanUp()
@@ -319,7 +317,7 @@ func generateAssets(grade string, charts ...string) (assetFiles, error) {
 	}
 	axs.grade = grade
 
-	logo, err := generateFile([]byte(assets.Logo), "checkmate_logo.*.svg")
+	logo, err := generateFile(baseDir, []byte(assets.Logo), "checkmate_logo.*.svg")
 	files = append(files, logo)
 	if err != nil {
 		cleanUp()
@@ -327,7 +325,7 @@ func generateAssets(grade string, charts ...string) (assetFiles, error) {
 	}
 	axs.checkMateLogo = logo
 
-	logo, err = generateFile([]byte(assets.SALLogo), "sal_logo.*.svg")
+	logo, err = generateFile(baseDir, []byte(assets.SALLogo), "sal_logo.*.svg")
 	files = append(files, logo)
 	if err != nil {
 		cleanUp()
@@ -336,7 +334,7 @@ func generateAssets(grade string, charts ...string) (assetFiles, error) {
 	axs.salLogo = logo
 
 	for _, c := range charts {
-		chart, err := generateFile([]byte(c), "chart.*.svg")
+		chart, err := generateFile(baseDir, []byte(c), "chart.*.svg")
 		files = append(files, chart)
 		if err != nil {
 			cleanUp()
@@ -360,8 +358,8 @@ func colourGrade(grade string) string {
 	}
 }
 
-func generateFile(data []byte, nameGlob string) (fileName string, err error) {
-	file, err := ioutil.TempFile("", nameGlob)
+func generateFile(baseDir string, data []byte, nameGlob string) (fileName string, err error) {
+	file, err := os.CreateTemp(baseDir, nameGlob)
 	if err != nil {
 		return
 	}

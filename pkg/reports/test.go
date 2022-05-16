@@ -5,7 +5,7 @@ import (
 )
 
 func main() {
-	if p, err := asciidoc.GenerateReport(false, 0); err != nil {
+	if p, err := asciidoc.GenerateReport("", false, 0); err != nil {
 		println(err.Error())
 	} else {
 		println(p)

@@ -268,7 +268,6 @@ func createCSVReport(w http.ResponseWriter, r *http.Request) (scanReport string,
 func downloadCSVReport(w http.ResponseWriter, r *http.Request) {
 	scanReport, err := createCSVReport(w, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	downloadReport(w, r, scanReport)
@@ -277,7 +276,6 @@ func downloadCSVReport(w http.ResponseWriter, r *http.Request) {
 func downloadPDFReport(w http.ResponseWriter, r *http.Request) {
 	scanReport, err := createPDFReport(w, r)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	downloadReport(w, r, scanReport)
@@ -333,7 +331,7 @@ func createPDFReport(w http.ResponseWriter, r *http.Request) (scanReport string,
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	fileName, err := asciidoc.GenerateReport(showSource, fileCount, results...)
+	fileName, err := asciidoc.GenerateReport(reports_dir, showSource, fileCount, results...)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
