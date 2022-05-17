@@ -135,6 +135,7 @@ func addRoutes() {
 	routes.HandleFunc("/api/downloadscanreport/{projectID}/{scanID}", downloadPDFReport).Methods("GET")
 	routes.HandleFunc("/api/downloadcsvscanreport/{projectID}/{scanID}", downloadCSVReport).Methods("GET")
 	routes.HandleFunc("/api/project/{projectID}", getProject).Methods("GET")
+	routes.HandleFunc("/api/deleteproject", deleteProject).Methods("POST")
 	routes.HandleFunc("/api/project/issues", getIssues).Methods("POST")
 	routes.HandleFunc("/api/project/issues/fix", fixIssue).Methods("POST")
 	routes.HandleFunc("/api/project/issues/codecontext", getCodeContext).Methods("POST")
@@ -456,6 +457,23 @@ func getWorkspaceReportPath(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(reportLocation)
 
 }
+func deleteProject(w http.ResponseWriter, r *http.Request) {
+	var id struct {
+		ProjectID string
+	}
+	if err := json.NewDecoder(r.Body).Decode(&id); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err := pm.DeleteProject(id.ProjectID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(id.ProjectID)
+}
 
 func getIssues(w http.ResponseWriter, r *http.Request) {
 	var search projects.PaginatedIssueSearch
@@ -595,14 +613,14 @@ func monitorProjectScan(w http.ResponseWriter, r *http.Request) {
 
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("Error upgrading websocket connection %s", err.Error())
+		// log.Printf("Error upgrading websocket connection %s", err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	err = ws.ReadJSON(&options)
 	if err != nil {
-		log.Printf("Error deserialising scan options %s", err.Error())
+		// log.Printf("Error deserialising scan options %s", err.Error())
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

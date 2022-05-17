@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"path"
 	"sort"
 	"strings"
 
@@ -50,7 +51,7 @@ func processProjectSummary(ctx context.Context, ps *projects.ProjectSummary, pm 
 				Repository: repo.Location,
 				ServiceID:  repo.GitServiceID,
 				Options: gitutils.GitCloneOptions{
-					BaseDir: pm.GetCodeBaseDir(),
+					BaseDir: path.Join(pm.GetCodeBaseDir(), ps.ID),
 					Auth:    auth,
 				},
 			}, ps.GetLastCommitByBranch(repo.Location)); len(commits) > 0 {
@@ -179,7 +180,7 @@ func scanNextUnscannedBranch(ctx context.Context, ps *projects.ProjectSummary,
 			}
 			//clone the commit of interest
 			gitutils.Clone(ctx, repo.Location, &gitutils.GitCloneOptions{
-				BaseDir:    pm.GetCodeBaseDir(),
+				BaseDir:    path.Join(pm.GetCodeBaseDir(), ps.ID),
 				CommitHash: hashToScan,
 				Auth:       auth,
 			})

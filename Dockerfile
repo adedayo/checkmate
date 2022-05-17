@@ -8,7 +8,8 @@ COPY . .
 RUN goreleaser build --config .goreleaser-linux.yml --rm-dist --snapshot
 
 
-FROM alpine:latest
+#base ruby for asciidoctor-pdf
+FROM ruby:slim 
 WORKDIR /
 RUN mkdir -p /var/lib/checkmate
 COPY --from=builder /app/dist/checkmate_linux_amd64_v1  .
