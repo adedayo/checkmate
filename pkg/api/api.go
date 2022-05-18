@@ -649,7 +649,7 @@ func ServeAPI(config Config) {
 				caps.GitLabEnabled = conf.IsServiceConfigured(gitutils.GitLab)
 
 				//add git service driver APIs
-				for _, rs := range git.GetRoutes(config.CheckMateDataPath) {
+				for _, rs := range git.GetRoutes(pm) {
 					routes.HandleFunc(rs.Path, rs.Handler).Methods(rs.Methods...)
 				}
 			}

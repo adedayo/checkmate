@@ -5,7 +5,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 RUN go install github.com/goreleaser/goreleaser@latest
 COPY . .
-RUN goreleaser build --config .goreleaser-linux.yml --rm-dist --snapshot
+RUN goreleaser build --config .goreleaser-linux.yml --rm-dist 
 
 
 #base ruby for asciidoctor-pdf

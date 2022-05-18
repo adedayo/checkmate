@@ -84,10 +84,10 @@ require (
 
 // replace github.com/adedayo/go-lsp v0.0.9 => ../go-lsp
 
-// replace github.com/adedayo/checkmate-core v0.4.4 => ../checkmate-core
+replace github.com/adedayo/checkmate-core v0.4.4 => ../checkmate-core
 
-// replace github.com/adedayo/checkmate-plugin v0.4.4 => ../checkmate-plugin
+replace github.com/adedayo/checkmate-plugin v0.4.4 => ../checkmate-plugin
 
-// replace github.com/adedayo/git-service-driver v0.4.4 => ../git-service-driver
+replace github.com/adedayo/git-service-driver v0.4.4 => ../git-service-driver
 
 // replace github.com/adedayo/code-intel-service v0.0.1 => ../code-intel-service
