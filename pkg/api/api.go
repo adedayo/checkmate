@@ -312,27 +312,34 @@ func createPDFReport(w http.ResponseWriter, r *http.Request) (scanReport string,
 		return
 	}
 
-	info, ok := summary.AdditionalInfo.(map[string]interface{})
-	if !ok {
+	// info, ok := summary.AdditionalInfo.(map[string]interface{})
+	// if !ok {
+	// 	http.Error(w, "Unable to generate report", http.StatusBadRequest)
+	// 	return
+	// }
+
+	if summary.AdditionalInfo == nil {
 		http.Error(w, "Unable to generate report", http.StatusBadRequest)
 		return
 	}
 
-	showSource, ok := info["showSource"].(bool)
-	if !ok {
-		showSource = false
-	}
-	fileCount, ok := info["fileCount"].(int)
-	if !ok {
-		fileCount = 0
-	}
+	info := summary.AdditionalInfo
+
+	// showSource, ok := info["showSource"].(bool)
+	// if !ok {
+	// 	showSource = false
+	// }
+	// fileCount, ok := info["fileCount"].(int)
+	// if !ok {
+	// 	fileCount = 0
+	// }
 
 	results, err := pm.GetScanResults(projID, scanID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	fileName, err := asciidoc.GenerateReport(reports_dir, showSource, fileCount, results...)
+	fileName, err := asciidoc.GenerateReport(reports_dir, info.ShowSource, info.FileCount, results...)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

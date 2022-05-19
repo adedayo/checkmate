@@ -3,9 +3,9 @@ module github.com/adedayo/checkmate
 go 1.17
 
 require (
-	github.com/adedayo/checkmate-core v0.4.6
-	github.com/adedayo/checkmate-plugin v0.4.6
-	github.com/adedayo/git-service-driver v0.4.6
+	github.com/adedayo/checkmate-core v0.4.7
+	github.com/adedayo/checkmate-plugin v0.4.7
+	github.com/adedayo/git-service-driver v0.4.7
 	// github.com/adedayo/code-intel-service v0.0.1
 	github.com/adedayo/go-lsp v0.0.9
 	github.com/go-git/go-git/v5 v5.4.2
@@ -82,12 +82,11 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
-// replace github.com/adedayo/go-lsp v0.0.9 => ../go-lsp
+// replace github.com/adedayo/checkmate-core v0.4.7 => ../checkmate-core
 
-// replace github.com/adedayo/checkmate-core v0.4.6 => ../checkmate-core
+// replace github.com/adedayo/git-service-driver v0.4.7 => ../git-service-driver
 
-// replace github.com/adedayo/checkmate-plugin v0.4.6 => ../checkmate-plugin
-
-// replace github.com/adedayo/git-service-driver v0.4.6 => ../git-service-driver
+// replace github.com/adedayo/checkmate-plugin v0.4.7 => ../checkmate-plugin
 
 // replace github.com/adedayo/code-intel-service v0.0.1 => ../code-intel-service
+// replace github.com/adedayo/go-lsp v0.0.9 => ../go-lsp
