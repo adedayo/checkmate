@@ -643,6 +643,9 @@ func ServeAPI(config Config) {
 	if config.ServeGitService {
 		caps.GitServiceEnabled = true
 		gitConfManager, err := pm.GetGitConfigManager()
+		if err != nil {
+			log.Printf("No Git config manager %v", err)
+		}
 		if err == nil {
 			if conf, err := gitConfManager.GetConfig(); err == nil {
 				caps.GitHubEnabled = conf.IsServiceConfigured(gitutils.GitHub)
@@ -652,6 +655,8 @@ func ServeAPI(config Config) {
 				for _, rs := range git.GetRoutes(pm) {
 					routes.HandleFunc(rs.Path, rs.Handler).Methods(rs.Methods...)
 				}
+			} else {
+				log.Printf("No Git config %v", err)
 			}
 
 		}
