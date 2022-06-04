@@ -26,6 +26,7 @@ import (
 
 	"github.com/adedayo/checkmate-core/pkg/diagnostics"
 	gitutils "github.com/adedayo/checkmate-core/pkg/git"
+	"github.com/adedayo/checkmate-core/pkg/plugins"
 	"github.com/adedayo/checkmate-core/pkg/projects"
 	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
 	"github.com/adedayo/checkmate/pkg/reports/asciidoc"
@@ -40,7 +41,8 @@ var (
 	routes     = mux.NewRouter()
 	apiVersion = "0.0.0"
 	caps       capabilities
-	idRegX     = regexp.MustCompile(`[a-zA-Z0-9]{8}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{12}`)
+	//used to validate UUID strings used for various (project,scan) IDs
+	idRegX = regexp.MustCompile(`[a-zA-Z0-9]{8}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{12}`) //see util.UUID.String()
 
 	pm             projects.ProjectManager
 	allowedOrigins = []string{
@@ -62,6 +64,16 @@ var (
 			return allowedOriginValidator(r.Host)
 		},
 	}
+
+	// handshakeConfig = plugin.HandshakeConfig{
+	// 	ProtocolVersion:  1,
+	// 	MagicCookieKey:   "CHECKMATE_PLUGIN",
+	// 	MagicCookieValue: "transform",
+	// }
+
+	// pluginMap = map[string]plugin.Plugin{
+	// 	"transformer": &plugins.TransformerPlugin{},
+	// }
 )
 
 func init() {
@@ -401,10 +413,11 @@ func generateWorkspaceReport(w http.ResponseWriter, r *http.Request) (reportLoca
 	defer file.Close()
 	writer := csv.NewWriter(file)
 
-	summaries := pm.ListProjectSummaries()
+	projectSummaries := pm.ListProjectSummaries()
 
+	//write summaries for each project in workspace
 	writer.Write((&projects.ProjectSummary{}).CSVHeaders())
-	for _, summary := range summaries {
+	for _, summary := range projectSummaries {
 		if !filtered || (filtered && workspace == summary.Workspace) {
 			writer.Write(summary.CSVValues())
 		}
@@ -416,12 +429,23 @@ func generateWorkspaceReport(w http.ResponseWriter, r *http.Request) (reportLoca
 	writer.Flush()
 	err = writer.Error()
 
-	for _, summary := range summaries {
-		if !filtered || (filtered && workspace == summary.Workspace) {
-			projectID := summary.ID
-			scanID := summary.LastScanID
+	transformers := loadReportPlugins()
+	log.Printf("Found %d report plugins", len(transformers))
+	//write each project's detailed results
+	for _, pSum := range projectSummaries {
+		// initialiser := plugins.PluginInitialiser{
+		// 	ProjectManager: pm,
+		// 	ProjectID:      pSum.ID,
+		// }
+		// for _, dt := range transformers {
+		// 	dt.Plugin.Init(&initialiser)
+		// 	defer dt.Kill()
+		// }
+		if !filtered || (filtered && workspace == pSum.Workspace) {
+			projectID := pSum.ID
+			scanID := pSum.LastScanID
 			writer.Write([]string{}) //NL :-)
-			writer.Write([]string{fmt.Sprintf("Project: %s", summary.Name)})
+			writer.Write([]string{fmt.Sprintf("Project: %s", pSum.Name)})
 			writer.Flush()
 			e := writer.Error()
 			if e != nil {
@@ -433,7 +457,13 @@ func generateWorkspaceReport(w http.ResponseWriter, r *http.Request) (reportLoca
 				multierror.Append(err, e)
 				continue
 			}
-
+			config := &plugins.Config{
+				ProjectID:   projectID,
+				CodeBaseDir: pm.GetCodeBaseDir(),
+			}
+			for _, dt := range transformers {
+				results = dt.Plugin.Transform(config, results...)
+			}
 			e = csvreport.WriteSecurityDiagnosticCSVReport(file, results)
 			if e != nil {
 				multierror.Append(err, e)
@@ -445,6 +475,93 @@ func generateWorkspaceReport(w http.ResponseWriter, r *http.Request) (reportLoca
 	return
 
 }
+
+func loadReportPlugins() (out []closableTransformer) {
+	cwd := ""
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = ""
+	}
+	pluginsDir := path.Join(cwd, "plugins")
+	log.Printf("Searching for report plugins at %s", pluginsDir)
+	// logger := hclog.New(&hclog.LoggerOptions{
+	// 	Name:   "checkmate_plugin",
+	// 	Output: os.Stdout,
+	// 	Level:  hclog.Debug,
+	// })
+	_ = filepath.WalkDir(pluginsDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if match, err := filepath.Match("*_plugin", d.Name()); err == nil && match {
+			log.Printf("Found a plugin file: %s", path)
+
+			// client := plugin.NewClient(&plugin.ClientConfig{
+			// 	HandshakeConfig: handshakeConfig,
+			// 	Plugins:         pluginMap,
+			// 	Cmd:             exec.Command(path),
+			// 	Logger:          logger,
+			// })
+
+			// rpcClient, err := client.Client()
+			// if err != nil {
+			// 	logger.Debug("%v", err)
+			// 	client.Kill()
+			// 	return nil
+			// }
+
+			// raw, err := rpcClient.Dispense("transformer")
+			// if err != nil {
+			// 	logger.Debug("%v", err)
+			// 	client.Kill()
+			// 	return nil
+			// }
+
+			// plug := raw.(plugins.DiagnosticTransformer)
+
+			plug, err := plugins.NewDiagnosticTransformerPlugin(path)
+
+			if err != nil {
+				log.Printf("Error instantiating plugin: %v", err)
+				return nil
+			}
+			out = append(out, closableTransformer{
+				// client: client,
+				Plugin: plug,
+			})
+			// plug, err := plugin.Open(path)
+			// if err != nil {
+			// 	log.Printf("Plugin error 1: %v", err)
+			// 	return nil
+			// } else {
+			// 	symbol, err := plug.Lookup("ReportPlugin")
+			// 	if err != nil {
+			// 		log.Printf("Plugin error 2: %v", err)
+			// 		return nil
+			// 	}
+			// 	transformer, ok := symbol.(plugins.DiagnosticTransformer)
+			// 	if ok {
+			// 		out = append(out, transformer)
+			// 	} else {
+			// 		log.Printf("%s does not conform to the plugins.DiagnosticTransformer interface", path)
+			// 	}
+			// }
+		}
+		return nil
+	})
+
+	return
+}
+
+type closableTransformer struct {
+	// client *plugin.Client
+	Plugin plugins.DiagnosticTransformer
+}
+
+// func (ct closableTransformer) Kill() {
+// 	ct.client.Kill()
+// }
 
 func downloadWorkspaceReport(w http.ResponseWriter, r *http.Request) {
 	reportLocation, err := generateWorkspaceReport(w, r)

@@ -11,6 +11,7 @@ type Config struct {
 	Local               bool //if set, to bind the api to localhost:port (electron) or simply :port (web service) instead
 	ServeGitService     bool
 	CheckMateDataPath   string
+	ReportPlugins       []string
 	ProjectManager      projects.ProjectManager
 }
 

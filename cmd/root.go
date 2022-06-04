@@ -61,7 +61,7 @@ func Execute(version string) {
 	
 	Version: %s
 
-	Author: Adedayo Adetoye (Dayo) <https://github.com/adedayo>
+	Author: Dr. Adedayo Adetoye (Dayo) <https://github.com/adedayo>
 	`, common.AppName, version)
 
 	if err := rootCmd.Execute(); err != nil {

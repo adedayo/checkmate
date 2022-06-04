@@ -35,8 +35,8 @@ import (
 	"fmt"
 	"log"
 
+	dbprojects "github.com/adedayo/checkmate-badger-project-manager/pkg/projects"
 	common "github.com/adedayo/checkmate-core/pkg"
-	"github.com/adedayo/checkmate-core/pkg/projects"
 	"github.com/adedayo/checkmate/pkg/api"
 	scheduler "github.com/adedayo/checkmate/pkg/cron"
 	"github.com/mitchellh/go-homedir"
@@ -47,6 +47,7 @@ var (
 	port, autoScanSchedule     int
 	bindLocal, serveGitService bool
 	cmDataPath                 string
+	// reportPlugins              []string
 )
 
 // apiCmd represents the api command
@@ -59,11 +60,11 @@ var apiCmd = &cobra.Command{
 		
 Version: %s
 
-Author: Adedayo Adetoye (Dayo) <https://github.com/adedayo>
+Author: Dr. Adedayo Adetoye (Dayo) <https://github.com/adedayo>
 		`, common.AppName, port, appVersion)
 
 		cmDataPath, _ = homedir.Expand(cmDataPath)
-		pm, err := projects.NewDBProjectManager(cmDataPath)
+		pm, err := dbprojects.NewDBProjectManager(cmDataPath)
 		if err != nil {
 			log.Printf("%v", err)
 			return
@@ -86,7 +87,8 @@ Author: Adedayo Adetoye (Dayo) <https://github.com/adedayo>
 			Local:             bindLocal,
 			ServeGitService:   serveGitService,
 			CheckMateDataPath: cmDataPath,
-			ProjectManager:    pm,
+			// ReportPlugins:     reportPlugins,
+			ProjectManager: pm,
 		}
 		api.ServeAPI(config)
 	},
@@ -99,4 +101,5 @@ func init() {
 	apiCmd.Flags().IntVar(&autoScanSchedule, "auto-scanning-schedule", 3600, "Time interval (in seconds) between launch of automatic scanning of monitored repository")
 	apiCmd.Flags().BoolVar(&serveGitService, "serve-git-service", false, "Serve Git Service alongside the API")
 	apiCmd.Flags().StringVar(&cmDataPath, "data-path", "~/.checkmate", fmt.Sprintf("Location of %s data and configurations", common.AppDisplayName))
+	// apiCmd.Flags().StringArrayVar(&reportPlugins, "report-plugins", []string{}, "A list of plugins to enrich generated reports")
 }
