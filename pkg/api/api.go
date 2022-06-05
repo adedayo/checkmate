@@ -270,6 +270,24 @@ func createCSVReport(w http.ResponseWriter, r *http.Request) (scanReport string,
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	//find report enricher plugins
+	transformers := loadReportPlugins()
+	//enrich report results if there are relevant plugins
+	if len(transformers) > 0 {
+
+		for _, dt := range transformers {
+			defer dt.Kill()
+		}
+
+		config := &plugins.Config{
+			ProjectID:   projID,
+			CodeBaseDir: pm.GetCodeBaseDir(),
+		}
+		for _, dt := range transformers {
+			results = dt.Plugin.Transform(config, results...)
+		}
+	}
 	err = csvreport.Generate(scanReport, results)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -430,17 +448,13 @@ func generateWorkspaceReport(w http.ResponseWriter, r *http.Request) (reportLoca
 	err = writer.Error()
 
 	transformers := loadReportPlugins()
-	log.Printf("Found %d report plugins", len(transformers))
+	for _, dt := range transformers {
+		defer dt.Kill()
+	}
+
 	//write each project's detailed results
 	for _, pSum := range projectSummaries {
-		// initialiser := plugins.PluginInitialiser{
-		// 	ProjectManager: pm,
-		// 	ProjectID:      pSum.ID,
-		// }
-		// for _, dt := range transformers {
-		// 	dt.Plugin.Init(&initialiser)
-		// 	defer dt.Kill()
-		// }
+
 		if !filtered || (filtered && workspace == pSum.Workspace) {
 			projectID := pSum.ID
 			scanID := pSum.LastScanID
@@ -457,12 +471,15 @@ func generateWorkspaceReport(w http.ResponseWriter, r *http.Request) (reportLoca
 				multierror.Append(err, e)
 				continue
 			}
-			config := &plugins.Config{
-				ProjectID:   projectID,
-				CodeBaseDir: pm.GetCodeBaseDir(),
-			}
-			for _, dt := range transformers {
-				results = dt.Plugin.Transform(config, results...)
+			//enrich report results if there are relevant plugins
+			if len(transformers) > 0 {
+				config := &plugins.Config{
+					ProjectID:   projectID,
+					CodeBaseDir: pm.GetCodeBaseDir(),
+				}
+				for _, dt := range transformers {
+					results = dt.Plugin.Transform(config, results...)
+				}
 			}
 			e = csvreport.WriteSecurityDiagnosticCSVReport(file, results)
 			if e != nil {
@@ -483,43 +500,12 @@ func loadReportPlugins() (out []closableTransformer) {
 		cwd = ""
 	}
 	pluginsDir := path.Join(cwd, "plugins")
-	log.Printf("Searching for report plugins at %s", pluginsDir)
-	// logger := hclog.New(&hclog.LoggerOptions{
-	// 	Name:   "checkmate_plugin",
-	// 	Output: os.Stdout,
-	// 	Level:  hclog.Debug,
-	// })
 	_ = filepath.WalkDir(pluginsDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		if match, err := filepath.Match("*_plugin", d.Name()); err == nil && match {
-			log.Printf("Found a plugin file: %s", path)
-
-			// client := plugin.NewClient(&plugin.ClientConfig{
-			// 	HandshakeConfig: handshakeConfig,
-			// 	Plugins:         pluginMap,
-			// 	Cmd:             exec.Command(path),
-			// 	Logger:          logger,
-			// })
-
-			// rpcClient, err := client.Client()
-			// if err != nil {
-			// 	logger.Debug("%v", err)
-			// 	client.Kill()
-			// 	return nil
-			// }
-
-			// raw, err := rpcClient.Dispense("transformer")
-			// if err != nil {
-			// 	logger.Debug("%v", err)
-			// 	client.Kill()
-			// 	return nil
-			// }
-
-			// plug := raw.(plugins.DiagnosticTransformer)
-
 			plug, err := plugins.NewDiagnosticTransformerPlugin(path)
 
 			if err != nil {
@@ -527,26 +513,8 @@ func loadReportPlugins() (out []closableTransformer) {
 				return nil
 			}
 			out = append(out, closableTransformer{
-				// client: client,
 				Plugin: plug,
 			})
-			// plug, err := plugin.Open(path)
-			// if err != nil {
-			// 	log.Printf("Plugin error 1: %v", err)
-			// 	return nil
-			// } else {
-			// 	symbol, err := plug.Lookup("ReportPlugin")
-			// 	if err != nil {
-			// 		log.Printf("Plugin error 2: %v", err)
-			// 		return nil
-			// 	}
-			// 	transformer, ok := symbol.(plugins.DiagnosticTransformer)
-			// 	if ok {
-			// 		out = append(out, transformer)
-			// 	} else {
-			// 		log.Printf("%s does not conform to the plugins.DiagnosticTransformer interface", path)
-			// 	}
-			// }
 		}
 		return nil
 	})
@@ -555,13 +523,12 @@ func loadReportPlugins() (out []closableTransformer) {
 }
 
 type closableTransformer struct {
-	// client *plugin.Client
-	Plugin plugins.DiagnosticTransformer
+	Plugin plugins.DiagnosticTransformerPlugin
 }
 
-// func (ct closableTransformer) Kill() {
-// 	ct.client.Kill()
-// }
+func (ct closableTransformer) Kill() {
+	ct.Plugin.ShutDown()
+}
 
 func downloadWorkspaceReport(w http.ResponseWriter, r *http.Request) {
 	reportLocation, err := generateWorkspaceReport(w, r)
