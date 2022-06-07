@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bufio"
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
@@ -506,12 +507,21 @@ func loadReportPlugins() (out []closableTransformer) {
 		}
 
 		if match, err := filepath.Match("*_plugin", d.Name()); err == nil && match {
-			plug, err := plugins.NewDiagnosticTransformerPlugin(path)
+			plug, stdout, err := plugins.NewDiagnosticTransformerPlugin(path)
 
 			if err != nil {
 				log.Printf("Error instantiating plugin: %v", err)
 				return nil
 			}
+
+			//stream stdout
+			go func() {
+				scanner := bufio.NewScanner(stdout)
+				name := d.Name()
+				for scanner.Scan() {
+					fmt.Printf("\t (%s)> %s\n", name, scanner.Text())
+				}
+			}()
 			out = append(out, closableTransformer{
 				Plugin: plug,
 			})
