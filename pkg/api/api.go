@@ -519,7 +519,7 @@ func loadReportPlugins() (out []closableTransformer) {
 				scanner := bufio.NewScanner(stdout)
 				name := d.Name()
 				for scanner.Scan() {
-					fmt.Printf("\t (%s)> %s\n", name, scanner.Text())
+					log.Printf("\t (%s)> %s\n", name, scanner.Text())
 				}
 			}()
 			out = append(out, closableTransformer{
