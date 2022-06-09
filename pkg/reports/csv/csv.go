@@ -23,9 +23,11 @@ func Generate(reportLocation string, issues []*diagnostics.SecurityDiagnostic) e
 
 func WriteSecurityDiagnosticCSVReport(out io.Writer, issues []*diagnostics.SecurityDiagnostic) error {
 	writer := csv.NewWriter(out)
-	writer.Write((&diagnostics.SecurityDiagnostic{}).CSVHeaders())
+	extraHeaders := diagnostics.GetExtraHeaders(issues)
+	headers := append((&diagnostics.SecurityDiagnostic{}).CSVHeaders(), extraHeaders...)
+	writer.Write(headers)
 	for _, issue := range issues {
-		writer.Write(issue.CSVValues())
+		writer.Write(issue.CSVValues(extraHeaders...))
 	}
 	writer.Flush()
 	return writer.Error()
