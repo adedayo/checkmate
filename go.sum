@@ -71,10 +71,11 @@ github.com/acomagu/bufpipe v1.0.3 h1:fxAGrHZTgQ9w5QqVItgzwj235/uYZYgbXitB+dLupOk
 github.com/acomagu/bufpipe v1.0.3/go.mod h1:mxdxdup/WdsKVreO5GpW4+M/1CE2sMG4jeGJ2sYmHc4=
 github.com/adedayo/checkmate-badger-project-manager v0.7.2 h1:cEHubafrMhoQEZ7xX3XZZvvPb948ZqQxloNG/pCnKjA=
 github.com/adedayo/checkmate-badger-project-manager v0.7.2/go.mod h1:Mb9aZZOLIY4QAzpe701r9NlWySGZ+y3QqxxxeTzE0JY=
-github.com/adedayo/checkmate-core v0.7.2 h1:BljeSxNr3djE6dCpGDJVg0lmDbwzuE1XjXG5r33Usbg=
 github.com/adedayo/checkmate-core v0.7.2/go.mod h1:ANClj+tNuWgvd1QTpOdQs4VlxUd+YCyTz6RzG6rWPhM=
-github.com/adedayo/checkmate-plugin v0.7.2 h1:ufmd9E7D4uqy4AKzz/RLbjFTGscOvgdTFf9xUCfZ7xU=
-github.com/adedayo/checkmate-plugin v0.7.2/go.mod h1:11hz68k93qtcjcnVGEDvtVD/Hu3hMePq/7uyCBcI1rM=
+github.com/adedayo/checkmate-core v0.7.3 h1:lWoiADhLxROv2cPzSOO3ejK/ZQLArvgnY7fNj1IR7E8=
+github.com/adedayo/checkmate-core v0.7.3/go.mod h1:ANClj+tNuWgvd1QTpOdQs4VlxUd+YCyTz6RzG6rWPhM=
+github.com/adedayo/checkmate-plugin v0.7.3 h1:xbZscnGr4zIKJCN+JXOZkLuuH7GHMqID4fHdSBja4Uw=
+github.com/adedayo/checkmate-plugin v0.7.3/go.mod h1:w5M4FWxEVFGDzJloEvrzKem6qzjI8ArDKRvT1MOXQx0=
 github.com/adedayo/git-service-driver v0.7.2 h1:7oYkNGREn5oktVA33DX7mzLdPvBKJwFne7T5CKtoDUw=
 github.com/adedayo/git-service-driver v0.7.2/go.mod h1:/Mz9vKXxPclDK4Cdnj1CunpP3TcdcPiyLhHC8NxxJgk=
 github.com/adedayo/go-lsp v0.0.9 h1:4B73UpTRRpvrZAV6Y7tGzYhljeXBDyJATXGgTSN77n0=

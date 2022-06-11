@@ -4,8 +4,8 @@ go 1.17
 
 require (
 	github.com/adedayo/checkmate-badger-project-manager v0.7.2
-	github.com/adedayo/checkmate-core v0.7.2
-	github.com/adedayo/checkmate-plugin v0.7.2
+	github.com/adedayo/checkmate-core v0.7.3
+	github.com/adedayo/checkmate-plugin v0.7.3
 	github.com/adedayo/git-service-driver v0.7.2
 
 	// github.com/adedayo/code-intel-service v0.0.1
