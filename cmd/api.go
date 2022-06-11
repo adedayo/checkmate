@@ -63,6 +63,8 @@ Version: %s
 Author: Dr. Adedayo Adetoye (Dayo) <https://github.com/adedayo>
 		`, common.AppName, port, appVersion)
 
+		// defer profile.Start(profile.MemProfile).Stop()
+
 		cmDataPath, _ = homedir.Expand(cmDataPath)
 		pm, err := dbprojects.NewDBProjectManager(cmDataPath)
 		if err != nil {
