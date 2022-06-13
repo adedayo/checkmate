@@ -3,7 +3,7 @@ module github.com/adedayo/checkmate
 go 1.17
 
 require (
-	github.com/adedayo/checkmate-badger-project-manager v0.8.0
+	github.com/adedayo/checkmate-badger-project-manager v0.8.1
 	github.com/adedayo/checkmate-core v0.8.0
 	github.com/adedayo/checkmate-plugin v0.8.0
 	github.com/adedayo/git-service-driver v0.8.0
