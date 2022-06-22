@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	common "github.com/adedayo/checkmate-core/pkg"
 	"github.com/hashicorp/go-multierror"
@@ -139,7 +140,9 @@ func addRoutes() {
 	routes.HandleFunc("/api/git/capabilities", getCapabilities).Methods("GET")
 	routes.HandleFunc("/api/secrets/defaultpolicy", defaultPolicy).Methods("GET")
 	routes.HandleFunc("/api/projectsummaries", projectSummaries).Methods("GET")
+	routes.HandleFunc("/api/workspaceissueselectron/{workspace}", getWorkspaceIssuesReportPath).Methods("GET")
 	routes.HandleFunc("/api/projectsummariesreport/{workspace}", getWorkspaceReportPath).Methods("GET")
+	routes.HandleFunc("/api/downloadworkspaceissues/{workspace}", downloadWorkspaceIssues).Methods("GET")
 	routes.HandleFunc("/api/downloadworkspacereport/{workspace}", downloadWorkspaceReport).Methods("GET")
 	routes.HandleFunc("/api/projectsummary/{projectID}", getProjectSummary).Methods("GET")
 	routes.HandleFunc("/api/scansummary/{projectID}/{scanID}", getScanSummary).Methods("GET")
@@ -410,6 +413,72 @@ func projectSummaries(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// just the issues across workspace projects
+func generateWorkspaceIssuesReport(w http.ResponseWriter, r *http.Request) (reportLocation string, err error) {
+
+	vars := mux.Vars(r)
+	workspace := vars["workspace"]
+	filtered := true
+	if workspace == "__cm_all" { //sent from web app to print project summaries for all workspaces
+		filtered = false
+	}
+
+	reports_dir := path.Join(pm.GetBaseDir(), "reports", "workspace")
+	// create the reports directory if it doesn't exist
+	os.MkdirAll(reports_dir, 0755)
+	reportLocation = path.Join(reports_dir, fmt.Sprintf("WorkspaceSummaries_%d.csv", time.Now().Unix()))
+	file, err := os.Create(reportLocation)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	defer file.Close()
+
+	projectSummaries := pm.ListProjectSummaries()
+
+	transformers := loadReportPlugins()
+	for _, dt := range transformers {
+		defer dt.Kill()
+	}
+
+	var out []*diagnostics.SecurityDiagnostic
+	//write each project's detailed results
+	for _, pSum := range projectSummaries {
+
+		if !filtered || (filtered && workspace == pSum.Workspace) {
+			projectID := pSum.ID
+			scanID := pSum.LastScanID
+			results, e := pm.GetScanResults(projectID, scanID)
+			if e != nil {
+				multierror.Append(err, e)
+				continue
+			}
+			//enrich report results if there are relevant plugins
+			if len(transformers) > 0 {
+				config := &plugins.Config{
+					ProjectID:   projectID,
+					CodeBaseDir: pm.GetCodeBaseDir(),
+				}
+				for _, dt := range transformers {
+					results = dt.Plugin.Transform(config, results...)
+				}
+			}
+			out = append(out, results...)
+			results = nil
+		}
+	}
+
+	e := csvreport.WriteSecurityDiagnosticCSVReport(file, out)
+	if e != nil {
+		multierror.Append(err, e)
+	}
+
+	return
+
+}
+
 func generateWorkspaceReport(w http.ResponseWriter, r *http.Request) (reportLocation string, err error) {
 	vars := mux.Vars(r)
 	workspace := vars["workspace"]
@@ -487,6 +556,7 @@ func generateWorkspaceReport(w http.ResponseWriter, r *http.Request) (reportLoca
 				multierror.Append(err, e)
 				continue
 			}
+			results = nil
 		}
 	}
 
@@ -540,6 +610,15 @@ func (ct closableTransformer) Kill() {
 	ct.Plugin.ShutDown()
 }
 
+func downloadWorkspaceIssues(w http.ResponseWriter, r *http.Request) {
+	reportLocation, err := generateWorkspaceIssuesReport(w, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	downloadReport(w, r, reportLocation)
+}
+
 func downloadWorkspaceReport(w http.ResponseWriter, r *http.Request) {
 	reportLocation, err := generateWorkspaceReport(w, r)
 	if err != nil {
@@ -547,6 +626,16 @@ func downloadWorkspaceReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	downloadReport(w, r, reportLocation)
+}
+
+func getWorkspaceIssuesReportPath(w http.ResponseWriter, r *http.Request) {
+	reportLocation, err := generateWorkspaceIssuesReport(w, r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(reportLocation)
+
 }
 
 func getWorkspaceReportPath(w http.ResponseWriter, r *http.Request) {
@@ -558,6 +647,7 @@ func getWorkspaceReportPath(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(reportLocation)
 
 }
+
 func deleteProject(w http.ResponseWriter, r *http.Request) {
 	var id struct {
 		ProjectID string
