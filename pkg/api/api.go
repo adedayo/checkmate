@@ -30,6 +30,7 @@ import (
 	gitutils "github.com/adedayo/checkmate-core/pkg/git"
 	"github.com/adedayo/checkmate-core/pkg/plugins"
 	"github.com/adedayo/checkmate-core/pkg/projects"
+	"github.com/adedayo/checkmate-core/pkg/util"
 	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
 	"github.com/adedayo/checkmate/pkg/reports/asciidoc"
 	csvreport "github.com/adedayo/checkmate/pkg/reports/csv"
@@ -768,9 +769,12 @@ func findSecrets(w http.ResponseWriter, r *http.Request) {
 	options := secrets.SecretSearchOptions{
 		Exclusions: diagnostics.MakeEmptyExcludes(),
 	}
-	finder := secrets.GetFinderForFileType(data.SourceType, path, options)
+	finder := secrets.GetFinderForFileType(data.SourceType, util.RepositoryIndexedFile{
+		RepositoryIndex: 0,
+		File:            path,
+	}, options)
 	diagnostics := []*diagnostics.SecurityDiagnostic{}
-	for diagnostic := range secrets.FindSecret(path, strings.NewReader(data.Source), finder, true) {
+	for diagnostic := range secrets.FindSecret(util.RepositoryIndexedFile{RepositoryIndex: 0, File: path}, strings.NewReader(data.Source), finder, true) {
 		diagnostics = append(diagnostics, diagnostic)
 	}
 
