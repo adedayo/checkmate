@@ -12,6 +12,12 @@ CheckMate is designed to be a pluggable code security analysis tool with feature
 
 ## Installation
 
+### Desktop App
+
+A desktop version of CheckMate may be found here: [CheckMate Desktop Application](https://github.com/adedayo/checkmate-app/releases)
+
+### Command-line application
+
 Pre-built binaries may be found for your operating system here: https://github.com/adedayo/checkmate/releases
 
 For macOS X, you could install via brew as follows:
