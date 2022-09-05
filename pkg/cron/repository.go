@@ -329,10 +329,5 @@ func hasCommitInBranch(branch string, branchCommits map[string][]gitutils.Commit
 }
 
 func gitToHTTPS(repo string) string {
-	repo = strings.TrimSpace(repo)
-	if strings.HasPrefix(repo, "git@") {
-		return strings.ReplaceAll(strings.ReplaceAll(repo, ":", "/"), "git@", "https://")
-	}
-
-	return repo
+	return gitutils.GitToHTTPS(repo)
 }

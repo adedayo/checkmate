@@ -1,7 +1,6 @@
 package api
 
 import (
-	"bufio"
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
@@ -134,32 +133,31 @@ type capabilities struct {
 }
 
 func addRoutes() {
-	routes.HandleFunc("/api/secrets/scan", scanSecrets).Methods("GET")
-	routes.HandleFunc("/api/monitor/projectscan", monitorProjectScan).Methods("GET")
-	routes.HandleFunc("/api/workspaces", getWorkspaces).Methods("GET")
-	routes.HandleFunc("/api/version", version).Methods("GET")
-	routes.HandleFunc("/api/git/capabilities", getCapabilities).Methods("GET")
-	routes.HandleFunc("/api/secrets/defaultpolicy", defaultPolicy).Methods("GET")
-	routes.HandleFunc("/api/projectsummaries", projectSummaries).Methods("GET")
-	routes.HandleFunc("/api/workspaceissueselectron/{workspace}", getWorkspaceIssuesReportPath).Methods("GET")
-	routes.HandleFunc("/api/projectsummariesreport/{workspace}", getWorkspaceReportPath).Methods("GET")
-	routes.HandleFunc("/api/downloadworkspaceissues/{workspace}", downloadWorkspaceIssues).Methods("GET")
-	routes.HandleFunc("/api/downloadworkspacereport/{workspace}", downloadWorkspaceReport).Methods("GET")
-	routes.HandleFunc("/api/projectsummary/{projectID}", getProjectSummary).Methods("GET")
-	routes.HandleFunc("/api/scansummary/{projectID}/{scanID}", getScanSummary).Methods("GET")
-	routes.HandleFunc("/api/scanreport/{projectID}/{scanID}", getPDFScanReportPath).Methods("GET")
-	routes.HandleFunc("/api/csvscanreport/{projectID}/{scanID}", getCSVScanReport).Methods("GET")
-	routes.HandleFunc("/api/downloadscanreport/{projectID}/{scanID}", downloadPDFReport).Methods("GET")
-	routes.HandleFunc("/api/downloadcsvscanreport/{projectID}/{scanID}", downloadCSVReport).Methods("GET")
-	routes.HandleFunc("/api/project/{projectID}", getProject).Methods("GET")
-	routes.HandleFunc("/api/deleteproject", deleteProject).Methods("POST")
-	routes.HandleFunc("/api/project/issues", getIssues).Methods("POST")
-	routes.HandleFunc("/api/project/issues/fix", fixIssue).Methods("POST")
-	routes.HandleFunc("/api/project/issues/codecontext", getCodeContext).Methods("POST")
-	routes.HandleFunc("/api/createproject", createProject).Methods("POST")
-	routes.HandleFunc("/api/updateproject/{projectID}", updateProject).Methods("POST")
-	routes.HandleFunc("/api/findsecrets", findSecrets).Methods("POST")
-
+	routes.HandleFunc("/api/secrets/scan", scanSecrets).Methods(http.MethodGet)
+	routes.HandleFunc("/api/monitor/projectscan", monitorProjectScan).Methods(http.MethodGet)
+	routes.HandleFunc("/api/workspaces", getWorkspaces).Methods(http.MethodGet)
+	routes.HandleFunc("/api/version", version).Methods(http.MethodGet)
+	routes.HandleFunc("/api/git/capabilities", getCapabilities).Methods(http.MethodGet)
+	routes.HandleFunc("/api/secrets/defaultpolicy", defaultPolicy).Methods(http.MethodGet)
+	routes.HandleFunc("/api/projectsummaries", projectSummaries).Methods(http.MethodGet)
+	routes.HandleFunc("/api/projectsummariesreport/{workspace}", getWorkspaceReportPath).Methods(http.MethodGet)
+	routes.HandleFunc("/api/workspaceissueselectron/{workspace}", getWorkspaceIssuesReportPath).Methods(http.MethodGet, http.MethodPost)
+	routes.HandleFunc("/api/downloadworkspaceissues/{workspace}", downloadWorkspaceIssues).Methods(http.MethodGet, http.MethodPost)
+	routes.HandleFunc("/api/downloadworkspacereport/{workspace}", downloadWorkspaceReport).Methods(http.MethodGet)
+	routes.HandleFunc("/api/projectsummary/{projectID}", getProjectSummary).Methods(http.MethodGet)
+	routes.HandleFunc("/api/scansummary/{projectID}/{scanID}", getScanSummary).Methods(http.MethodGet)
+	routes.HandleFunc("/api/scanreport/{projectID}/{scanID}", getPDFScanReportPath).Methods(http.MethodGet)
+	routes.HandleFunc("/api/csvscanreport/{projectID}/{scanID}", getCSVScanReport).Methods(http.MethodGet, http.MethodPost)
+	routes.HandleFunc("/api/downloadscanreport/{projectID}/{scanID}", downloadPDFReport).Methods(http.MethodGet)
+	routes.HandleFunc("/api/downloadcsvscanreport/{projectID}/{scanID}", downloadCSVReport).Methods(http.MethodGet, http.MethodPost)
+	routes.HandleFunc("/api/project/{projectID}", getProject).Methods(http.MethodGet)
+	routes.HandleFunc("/api/deleteproject", deleteProject).Methods(http.MethodPost)
+	routes.HandleFunc("/api/project/issues", getIssues).Methods(http.MethodPost)
+	routes.HandleFunc("/api/project/issues/fix", fixIssue).Methods(http.MethodPost)
+	routes.HandleFunc("/api/project/issues/codecontext", getCodeContext).Methods(http.MethodPost)
+	routes.HandleFunc("/api/createproject", createProject).Methods(http.MethodPost)
+	routes.HandleFunc("/api/updateproject/{projectID}", updateProject).Methods(http.MethodPost)
+	routes.HandleFunc("/api/findsecrets", findSecrets).Methods(http.MethodPost)
 }
 
 func getWorkspaces(w http.ResponseWriter, r *http.Request) {
@@ -256,6 +254,16 @@ func createCSVReport(w http.ResponseWriter, r *http.Request) (scanReport string,
 		return
 	}
 
+	var filter projects.IssueFilter
+	if r.Method == http.MethodPost {
+		err = json.NewDecoder(r.Body).Decode(&filter)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+	}
+
 	reports_dir := path.Join(pm.GetBaseDir(), "reports", projID)
 	// create the reports directory if it doesn't exist
 	os.MkdirAll(reports_dir, 0755)
@@ -275,6 +283,9 @@ func createCSVReport(w http.ResponseWriter, r *http.Request) (scanReport string,
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	//filter the results
+	results = filter.Filter(results)
 
 	//find report enricher plugins
 	transformers := loadReportPlugins()
@@ -444,6 +455,15 @@ func generateWorkspaceIssuesReport(w http.ResponseWriter, r *http.Request) (repo
 		defer dt.Kill()
 	}
 
+	var filter projects.IssueFilter
+
+	if r.Method == http.MethodPost {
+		ee := json.NewDecoder(r.Body).Decode(&filter)
+		if ee != nil {
+			http.Error(w, ee.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
 	var out []*diagnostics.SecurityDiagnostic
 	//write each project's detailed results
 	for _, pSum := range projectSummaries {
@@ -456,6 +476,10 @@ func generateWorkspaceIssuesReport(w http.ResponseWriter, r *http.Request) (repo
 				multierror.Append(err, e)
 				continue
 			}
+
+			//filter off unneeded results
+			results = filter.Filter(results)
+
 			//enrich report results if there are relevant plugins
 			if len(transformers) > 0 {
 				config := &plugins.Config{
@@ -563,44 +587,6 @@ func generateWorkspaceReport(w http.ResponseWriter, r *http.Request) (reportLoca
 
 	return
 
-}
-
-func loadReportPlugins() (out []closableTransformer) {
-	cwd := ""
-	cwd, err := os.Getwd()
-	if err != nil {
-		cwd = ""
-	}
-	pluginsDir := path.Join(cwd, "plugins")
-	_ = filepath.WalkDir(pluginsDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if match, err := filepath.Match("*_plugin", d.Name()); err == nil && match {
-			plug, stdout, err := plugins.NewDiagnosticTransformerPlugin(path)
-
-			if err != nil {
-				log.Printf("Error instantiating plugin: %v", err)
-				return nil
-			}
-
-			//stream stdout
-			go func() {
-				scanner := bufio.NewScanner(stdout)
-				name := d.Name()
-				for scanner.Scan() {
-					log.Printf("\t (%s)> %s\n", name, scanner.Text())
-				}
-			}()
-			out = append(out, closableTransformer{
-				Plugin: plug,
-			})
-		}
-		return nil
-	})
-
-	return
 }
 
 type closableTransformer struct {
