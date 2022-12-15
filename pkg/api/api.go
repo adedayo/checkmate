@@ -19,6 +19,7 @@ import (
 	"time"
 
 	common "github.com/adedayo/checkmate-core/pkg"
+	syncldap "github.com/adedayo/ldap-sync/pkg"
 	"github.com/hashicorp/go-multierror"
 	"gopkg.in/yaml.v3"
 
@@ -113,14 +114,17 @@ func sanitizeCORS(cors []string) (out []string) {
 }
 
 func allowedOriginValidator(origin string) bool {
-	originHost := strings.Split(strings.TrimPrefix(origin, "http://"), ":")[0]
+	origin = strings.TrimPrefix(origin, "http://")
+	origin = strings.TrimPrefix(origin, "https://")
+
+	originHost := strings.Split(origin, ":")[0]
 	for _, allowed := range allowedOrigins {
 		if allowed == originHost {
 			return true
 		}
 	}
 
-	host := strings.Split(strings.TrimPrefix(origin, "http://"), ":")[0]
+	host := strings.Split(origin, ":")[0]
 	passCORS := host == "checkmate-app" || host == "localhost" //allow docker's checkmate-app or localhost independent of port
 	if !passCORS {
 		fmt.Printf("Host %s fails CORS.", origin)
@@ -158,6 +162,49 @@ func addRoutes() {
 	routes.HandleFunc("/api/createproject", createProject).Methods(http.MethodPost)
 	routes.HandleFunc("/api/updateproject/{projectID}", updateProject).Methods(http.MethodPost)
 	routes.HandleFunc("/api/findsecrets", findSecrets).Methods(http.MethodPost)
+	routes.HandleFunc("/api/ldap/sync", ldapsync).Methods(http.MethodPost)
+	routes.HandleFunc("/api/ldap/login", login).Methods(http.MethodPost)
+}
+
+func login(w http.ResponseWriter, r *http.Request) {
+	var authData syncldap.LDAPAuthData
+
+	if err := json.NewDecoder(r.Body).Decode(&authData); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	result, err := syncldap.Auth(authData)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	json.NewEncoder(w).Encode(result)
+
+}
+
+func ldapsync(w http.ResponseWriter, r *http.Request) {
+
+	var config syncldap.LDAPSyncConfig
+
+	if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	result, err := syncldap.Do(config)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	result.UsersAndGroups = result.GetUsersAndGroups()
+
+	// TODO: persist the config and result in the DB
+
+	json.NewEncoder(w).Encode(result)
 }
 
 func getWorkspaces(w http.ResponseWriter, r *http.Request) {
@@ -401,7 +448,7 @@ func createPDFReport(w http.ResponseWriter, r *http.Request) (scanReport string,
 	return
 }
 
-//ensure that the ID rougly looks like a UUID
+// ensure that the ID rougly looks like a UUID
 func validateID(id string) bool {
 	return idRegX.MatchString(id)
 }
@@ -810,7 +857,7 @@ func monitorProjectScan(w http.ResponseWriter, r *http.Request) {
 
 }
 
-//ServeAPI serves the analysis service on the specified port
+// ServeAPI serves the analysis service on the specified port
 func ServeAPI(config Config) {
 	hostPort := "localhost:%d"
 	if !config.Local {
@@ -847,5 +894,17 @@ func ServeAPI(config Config) {
 		// 	routes.HandleFunc(rs.Path, rs.Handler).Methods(rs.Methods...)
 		// }
 	}
+
+	// if cert, key, err := pm.GetAPICertificate(); err == nil {
+	// 	certFile := "apiCert.pem"
+	// 	keyFile := "apiCertKey.key"
+	// 	if err = os.WriteFile(certFile, cert, 0644); err == nil {
+	// 		if err = os.WriteFile(keyFile, key, 0644); err == nil {
+	// 			log.Fatal(http.ListenAndServeTLS(fmt.Sprintf(hostPort, config.ApiPort),
+	// 				certFile, keyFile, handlers.CORS(corsOptions...)(routes)))
+	// 		}
+	// 	}
+	// }
+	//http if https above does not succeed
 	log.Fatal(http.ListenAndServe(fmt.Sprintf(hostPort, config.ApiPort), handlers.CORS(corsOptions...)(routes)))
 }

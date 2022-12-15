@@ -9,7 +9,6 @@ import (
 	"os/exec"
 	"path"
 	"regexp"
-	"runtime"
 	"strings"
 	"text/template"
 
@@ -21,15 +20,7 @@ import (
 )
 
 var (
-	asciidocExec = func() string {
-		executable := "asciidoctor-pdf"
-		switch runtime.GOOS {
-		case "windows":
-			return fmt.Sprintf("%s", executable)
-		default:
-			return executable
-		}
-	}()
+	asciidocExec = "asciidoctor-pdf"
 
 	funcMap = template.FuncMap{
 		"computeLanguage":     computeLanguage,
@@ -72,8 +63,8 @@ var (
 	}
 )
 
-//Thank you https://blog.haroldadmin.com/finding-right-path/ for the solution
-//https://github.com/haroldadmin/pathfix
+// Thank you https://blog.haroldadmin.com/finding-right-path/ for the solution
+// https://github.com/haroldadmin/pathfix
 func fixPath() {
 	// Find the default shell
 	defaultShell := os.Getenv("SHELL")
@@ -95,7 +86,7 @@ func fixPath() {
 	}
 }
 
-//GenerateReport generates PDF report using asciidoc-pdf, if not found, returns the JSON-formatted results in the reportPath
+// GenerateReport generates PDF report using asciidoc-pdf, if not found, returns the JSON-formatted results in the reportPath
 func GenerateReport(baseDir string, showSource bool, fileCount int, issues ...*diagnostics.SecurityDiagnostic) (reportPath string, err error) {
 	fixPath()
 	asciidocPath, err := exec.LookPath(asciidocExec)
@@ -150,6 +141,7 @@ func ComputeMetrics(baseDir string, fileCount int, showSource bool, issues []*di
 	model := projects.GenerateModel(fileCount, showSource, issues)
 	//calculate grade
 	model.Summarise()
+	model.Issues = issues //restore issues, which were removed in model.Summarise()
 	barWidth := 20
 	issueCount := float64(model.CriticalCount + model.HighCount + model.MediumCount + model.LowCount + model.InformationalCount)
 
@@ -376,7 +368,7 @@ func generateFile(baseDir string, data []byte, nameGlob string) (fileName string
 	return file.Name(), nil
 }
 
-//see https://github.com/rouge-ruby/rouge/wiki/List-of-supported-languages-and-lexers
+// see https://github.com/rouge-ruby/rouge/wiki/List-of-supported-languages-and-lexers
 func computeLanguage(file string) string {
 	ext := path.Ext(strings.ToLower(file))
 	switch ext {

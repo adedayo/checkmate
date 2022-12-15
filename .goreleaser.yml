@@ -14,15 +14,17 @@ builds:
       - arm64
       - arm
     goarm:
-      - 7
-      - 6
+      - "7"
+      - "6"
     goamd64:
       - "v1"
-archives:
-  - id: darwin
-    replacements:
-      darwin: Darwin
-      amd64: x86_64
+# archives:
+#   - id: darwin
+#     replacements:
+#       darwin: Darwin
+#       amd64: x86_64
+universal_binaries:
+- replace: true
 checksum:
   name_template: "checksums.txt"
 snapshot:
