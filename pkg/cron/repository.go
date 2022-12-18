@@ -16,7 +16,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
-//Track monitored projects, check for new commits, if any, run a scan of all projects that have that repository
+// Track monitored projects, check for new commits, if any, run a scan of all projects that have that repository
 func updateCommitDBs(ctx context.Context, pm projects.ProjectManager, callback func(projID string, data interface{}), config Config) {
 
 	if cm, err := pm.GetGitConfigManager(); err == nil {
@@ -254,7 +254,7 @@ func (n noopConsumer) ReceiveDiagnostic(*diagnostics.SecurityDiagnostic) {
 
 }
 
-//Checkout latest commits and return commits newer than provided list of commits per branch
+// Checkout latest commits and return commits newer than provided list of commits per branch
 func CheckLatestCommits(ctx context.Context, repo gitutils.RepositoryCloneSpec, branchCommits map[string][]gitutils.Commit) map[string][]gitutils.Commit {
 
 	out := make(map[string][]gitutils.Commit)
@@ -268,7 +268,7 @@ func CheckLatestCommits(ctx context.Context, repo gitutils.RepositoryCloneSpec, 
 		BaseDir: repo.Options.BaseDir,
 		Auth:    repo.Options.Auth,
 	}); err == nil {
-		if gitRepo, err := git.PlainOpen(dir); err == nil {
+		if gitRepo, err := git.PlainOpen(dir.Location); err == nil {
 			var head, headBranch string
 			if h, err := gitRepo.Head(); err == nil {
 				head = h.Hash().String()
