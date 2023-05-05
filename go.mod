@@ -1,12 +1,12 @@
 module github.com/adedayo/checkmate
 
-go 1.18
+go 1.19
 
 require (
-	github.com/adedayo/checkmate-badger-project-manager v0.8.9
-	github.com/adedayo/checkmate-core v0.8.9
-	github.com/adedayo/checkmate-plugin v0.8.9
-	github.com/adedayo/git-service-driver v0.8.9
+	github.com/adedayo/checkmate-badger-project-manager v0.9.0
+	github.com/adedayo/checkmate-core v0.9.0
+	github.com/adedayo/checkmate-plugin v0.9.0
+	github.com/adedayo/git-service-driver v0.9.0
 
 	// github.com/adedayo/code-intel-service v0.0.1
 	github.com/adedayo/go-lsp v0.0.9
@@ -83,14 +83,14 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
 
-// replace github.com/adedayo/checkmate-core v0.8.9 => ../checkmate-core
+// replace github.com/adedayo/checkmate-core v0.9.0 => ../checkmate-core
 
 // replace github.com/adedayo/ldap-sync v0.0.3 => ../../ldap/ldap-sync
 
-// replace github.com/adedayo/git-service-driver v0.8.9 => ../git-service-driver
-// replace github.com/adedayo/checkmate-plugin v0.8.9 => ../checkmate-plugin
+// replace github.com/adedayo/git-service-driver v0.9.0 => ../git-service-driver
+// replace github.com/adedayo/checkmate-plugin v0.9.0 => ../checkmate-plugin
 
-// replace github.com/adedayo/checkmate-badger-project-manager v0.8.9 => ../checkmate-badger-project-manager
+// replace github.com/adedayo/checkmate-badger-project-manager v0.9.0 => ../checkmate-badger-project-manager
 
 // replace github.com/adedayo/code-intel-service v0.0.1 => ../code-intel-service
 // replace github.com/adedayo/go-lsp v0.0.9 => ../go-lsp
