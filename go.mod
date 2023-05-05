@@ -1,6 +1,6 @@
 module github.com/adedayo/checkmate
 
-go 1.19
+go 1.20
 
 require (
 	github.com/adedayo/checkmate-badger-project-manager v0.9.0
