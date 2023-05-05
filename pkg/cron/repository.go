@@ -250,9 +250,7 @@ func runScan(ctx context.Context, ps *projects.ProjectSummary, pm projects.Proje
 type noopConsumer struct {
 }
 
-func (n noopConsumer) ReceiveDiagnostic(*diagnostics.SecurityDiagnostic) {
-
-}
+func (n noopConsumer) ReceiveDiagnostic(*diagnostics.SecurityDiagnostic) {}
 
 // Checkout latest commits and return commits newer than provided list of commits per branch
 func CheckLatestCommits(ctx context.Context, repo gitutils.RepositoryCloneSpec, branchCommits map[string][]gitutils.Commit) map[string][]gitutils.Commit {
