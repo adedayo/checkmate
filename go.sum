@@ -51,8 +51,8 @@ github.com/ProtonMail/go-crypto v0.0.0-20230426101702-58e86b294756 h1:L6S7kR7Slh
 github.com/ProtonMail/go-crypto v0.0.0-20230426101702-58e86b294756/go.mod h1:8TI4H3IbrackdNgv+92dI+rhpCaLqM0IfpgCgenFvRE=
 github.com/acomagu/bufpipe v1.0.4 h1:e3H4WUzM3npvo5uv95QuJM3cQspFNtFBzvJ2oNjKIDQ=
 github.com/acomagu/bufpipe v1.0.4/go.mod h1:mxdxdup/WdsKVreO5GpW4+M/1CE2sMG4jeGJ2sYmHc4=
-github.com/adedayo/checkmate-badger-project-manager v0.9.0 h1:TJwVbyWQs4g3kWe9W2TcNNMrNtpJCI6YaMPtNdPxHfU=
-github.com/adedayo/checkmate-badger-project-manager v0.9.0/go.mod h1:8RE95DBeuFHvHZ428mZsIoN+IgLEUIJsPCWiPPIQMSE=
+github.com/adedayo/checkmate-badger-project-manager v0.9.1 h1:4p0Knvi2ZnJjkvryFdRc4FwynX6ksy7LKbPqkrtt2Pc=
+github.com/adedayo/checkmate-badger-project-manager v0.9.1/go.mod h1:FU/eCXeGO/89bjyw/RSyazUQFGvMtVX31mE0djq2pYk=
 github.com/adedayo/checkmate-core v0.9.0 h1:Q0JOBPfW3poP0hDvg3U1CLMXRHz/MXp1CgGa3BAKzH0=
 github.com/adedayo/checkmate-core v0.9.0/go.mod h1:K4Q+KLtIPvKA7EIO8a28W7IdlKcBAk0mXPnvZg6ndPg=
 github.com/adedayo/checkmate-plugin v0.9.0 h1:/gdMCAM51TtxPPKy3PhN9gPhCb5vpsCKzyjpUf1T5lc=
