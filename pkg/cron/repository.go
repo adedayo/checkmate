@@ -11,6 +11,7 @@ import (
 	gitutils "github.com/adedayo/checkmate-core/pkg/git"
 	"github.com/adedayo/checkmate-core/pkg/projects"
 	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
+	"github.com/adedayo/git-service-driver/pkg/utils"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -243,7 +244,7 @@ func runScan(ctx context.Context, ps *projects.ProjectSummary, pm projects.Proje
 	}
 
 	pm.RunScan(ctx, ps.ID, project.ScanPolicy, secrets.MakeSecretScanner(secOptions), scanIDC,
-		progressMon, summariser, projects.SimpleWorkspaceSummariser, noopConsumer{})
+		utils.GitRepositoryStatusChecker, progressMon, summariser, projects.SimpleWorkspaceSummariser, noopConsumer{})
 
 }
 

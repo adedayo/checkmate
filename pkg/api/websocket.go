@@ -9,6 +9,7 @@ import (
 	"github.com/adedayo/checkmate-core/pkg/projects"
 	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
 	"github.com/adedayo/checkmate/pkg/reports/asciidoc"
+	"github.com/adedayo/git-service-driver/pkg/utils"
 	"github.com/gorilla/websocket"
 )
 
@@ -157,7 +158,8 @@ func runSecretScan(ctx context.Context, options ProjectScanOptions, ws *websocke
 			return scanSummary
 		}
 
-		pm.RunScan(ctx, projectSummary.ID, projectSummary.ScanPolicy, secrets.MakeSecretScanner(secOptions), scanIDC, progressMon, summariser, projects.SimpleWorkspaceSummariser, &consumer)
+		pm.RunScan(ctx, projectSummary.ID, projectSummary.ScanPolicy, secrets.MakeSecretScanner(secOptions), scanIDC,
+			utils.GitRepositoryStatusChecker, progressMon, summariser, projects.SimpleWorkspaceSummariser, &consumer)
 
 		projID := options.ProjectID
 		projectSummary, err = pm.GetProjectSummary(projID) //reloading project as policies might have been manually changed during scanning
@@ -190,7 +192,7 @@ func (c *webSocketDiagnosticConsumer) start(id string) {
 	// c.buff = []*diagnostics.SecurityDiagnostic{}
 }
 
-//Stop streaming diagnostics - noop
+// Stop streaming diagnostics - noop
 func (c *webSocketDiagnosticConsumer) ReceiveDiagnostic(diagnostic *diagnostics.SecurityDiagnostic) {
 
 	// if c.started {
