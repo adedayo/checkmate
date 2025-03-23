@@ -47,7 +47,6 @@ jobs:
       - name: Install GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
-          version: latest
           install-only: true
 
       - name: Run GoReleaser (Dry-Run or Full Release)
