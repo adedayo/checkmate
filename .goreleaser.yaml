@@ -11,7 +11,8 @@ before:
     - go generate ./...
 
 builds:
-  - main: ./checkmate.go
+  - id: checkmate
+    main: ./checkmate.go
     flags:
       - -trimpath
   - env:
