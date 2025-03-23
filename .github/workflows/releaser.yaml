@@ -1,0 +1,82 @@
+name: Release Checkmate
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout dependencies
+        run: |
+          git clone https://github.com/adedayo/checkmate-core.git ../checkmate-core
+          git clone https://github.com/adedayo/ldap-sync.git ../ldap-sync
+          git clone https://github.com/adedayo/git-service-driver.git ../git-service-driver
+          git clone https://github.com/adedayo/checkmate-plugin.git ../checkmate-plugin
+          git clone https://github.com/adedayo/checkmate-badger-project-manager.git ../checkmate-badger-project-manager
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - name: Authenticate to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u USERNAME --password-stdin
+
+      - name: Cache Go modules
+        uses: actions/cache@v3
+        with:
+          path: ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Verify dependencies and tidy
+        run: go mod tidy
+
+      - name: Install GoReleaser
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          version: latest
+          install-only: true
+
+      - name: Run GoReleaser (Dry-Run or Full Release)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ "${{ inputs.dry_run }}" == "true" ]; then
+            goreleaser release --snapshot --skip-publish --clean
+          else
+            goreleaser release --clean
+          fi
+
+      - name: Update Major Version Branches (v0, v1, etc.)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=$(git describe --tags --abbrev=0)  # Get latest tag (e.g., v0.9.4)
+          MAJOR=$(echo $TAG | cut -d. -f1)       # Extract major version (e.g., v0)
+
+          echo "Latest tag: $TAG"
+          echo "Major version: $MAJOR"
+
+          # Ensure we are on the main branch
+          git checkout main
+
+          # Update the major version branch (e.g., v0 → latest v0.x.x)
+          git branch -f $MAJOR $TAG
+          git push origin $MAJOR --force
+
+          # Update the `latest` branch to always point to the newest release
+          git branch -f latest $TAG
+          git push origin latest --force

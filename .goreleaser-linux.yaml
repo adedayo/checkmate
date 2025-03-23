@@ -1,3 +1,4 @@
+version: 2
 project_name: checkmate
 builds:
   - main: ./checkmate.go
@@ -24,15 +25,14 @@ changelog:
 before:
   hooks:
     - go mod download
-brews: 
-  - 
-   tap:
-    owner: adedayo
-    name: homebrew-tap
-   commit_author:
-    name: "Dayo Adetoye"
-    email: dayo.dev@gmail.com
-   caveats: "To get help running CheckMate please run: checkmate --help "
-   homepage: "https://github.com/adedayo/checkmate"
-   description: "CheckMate is a code security analysis tool."
-   license: "BSD-3-Clause"
+brews:
+  - repository:
+      owner: adedayo
+      name: homebrew-tap
+    commit_author:
+      name: "Dayo Adetoye"
+      email: dayo.dev@gmail.com
+    caveats: "To get help running CheckMate please run: checkmate --help "
+    homepage: "https://github.com/adedayo/checkmate"
+    description: "CheckMate is a code security analysis tool."
+    license: "BSD-3-Clause"

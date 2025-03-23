@@ -1,0 +1,20 @@
+name: "Checkmate Secret Scanner"
+description: "Scan repositories for secrets using Checkmate"
+author: "Dr. Dayo Adetoye <https://dayo-adetoye.com>"
+branding:
+  icon: "shield"
+  color: "blue"
+inputs:
+  path:
+    description: "Path to scan"
+    required: false
+    default: "."
+outputs:
+  findings:
+    description: "Scan results"
+runs:
+  using: "docker"
+  image: "ghcr.io/adedayo/checkmate:latest"
+  args:
+    - "--path"
+    - "${{ inputs.path }}"
