@@ -1,6 +1,3 @@
-# This is an example .goreleaser.yml file with some sensible defaults.
-# Make sure to check the documentation at https://goreleaser.com
-
 version: 2
 
 before:
@@ -11,16 +8,22 @@ before:
     - go generate ./...
 
 builds:
-  - id: checkmate_build
-    main: ./checkmate.go
+  - main: ./checkmate.go
+    env:
+      - CGO_ENABLED=0
     flags:
       - -trimpath
-  - env:
-      - CGO_ENABLED=0
     goos:
       - linux
-      - windows
       - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    goarm:
+      - "6" # Applies to 32-bit ARM
+    goamd64:
+      - v1 # Needed for reproducible builds
 
 archives:
   - formats: [tar.gz]
@@ -36,7 +39,6 @@ archives:
     format_overrides:
       - goos: windows
         formats: [zip]
-
 changelog:
   sort: asc
   filters:
@@ -54,6 +56,8 @@ dockers:
     use: buildx
     goos: linux
     goarch: amd64
+    extra_files:
+      - dist/checkmate_linux_amd64_v1/checkmate
 
 brews:
   - repository:
@@ -70,9 +74,3 @@ release:
   github:
     owner: adedayo
     name: checkmate
-#   footer: >-
-
-#     ---
-
-#     Released by [GoReleaser](https://github.com/goreleaser/goreleaser).
-

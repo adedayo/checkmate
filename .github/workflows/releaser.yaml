@@ -54,7 +54,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ "${{ inputs.dry_run }}" == "true" ]; then
-            goreleaser release --snapshot --skip-publish --clean
+            goreleaser release --snapshot --skip publish --clean
           else
             goreleaser release --clean
           fi
