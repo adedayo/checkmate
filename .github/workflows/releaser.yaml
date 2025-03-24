@@ -52,6 +52,7 @@ jobs:
       - name: Run GoReleaser (Dry-Run or Full Release)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_GITHUB_TOKEN: ${{ secrets.HOMEBREW_GITHUB_TOKEN }}
         run: |
           if [ "${{ inputs.dry_run }}" == "true" ]; then
             goreleaser release --snapshot --skip publish --clean

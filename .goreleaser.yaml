@@ -63,6 +63,7 @@ brews:
   - repository:
       owner: adedayo
       name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_GITHUB_TOKEN }}"
     commit_author:
       name: "Dayo Adetoye"
       email: dayo.dev@gmail.com
@@ -70,6 +71,7 @@ brews:
     homepage: "https://github.com/adedayo/checkmate"
     description: "CheckMate is a code security analysis tool."
     license: "BSD-3-Clause"
+
 release:
   github:
     owner: adedayo
