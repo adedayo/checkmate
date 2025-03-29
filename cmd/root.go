@@ -50,14 +50,14 @@ var (
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   common.AppName,
-	Short: fmt.Sprintf("%s provides security analysis for your software and configuration files associated with the software", common.AppName),
+	Short: fmt.Sprintf("Prevent a breach. Use %s to find hard-coded secrets in code, configuration, logs and other files.", common.AppName),
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute(version string) {
 	appVersion = version
-	rootCmd.Long = fmt.Sprintf(`%s provides security analysis for your software and configuration files associated with the software
+	rootCmd.Long = fmt.Sprintf(`Prevent a breach. Use %s to find hard-coded secrets in code, configuration, logs and other files.
 	
 	Version: %s
 

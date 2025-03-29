@@ -1,5 +1,5 @@
 # Use a minimal base image - base ruby for asciidoctor-pdf
-FROM ruby:slim 
+FROM ruby:slim
 
 WORKDIR /app
 
@@ -21,4 +21,4 @@ RUN gem install rouge text-hyphen asciidoctor-pdf
 USER 65532:65532
 
 # Run the binary
-ENTRYPOINT ["/app/checkmate"]
+ENTRYPOINT ["/app/checkmate", "search"]

@@ -130,7 +130,7 @@ func generateReportFromModel(baseDir string, model *projects.Model, asciidocPath
 	reportPath = strings.Replace(aDoc, ".adoc", ".pdf", -1)
 	log.Printf("Generating report at %s\n", reportPath)
 	if out, err := cmd.CombinedOutput(); err != nil {
-		return reportPath, fmt.Errorf("%s%s", string(out), err.Error())
+		return reportPath, fmt.Errorf("error generating report at %s%s", string(out), err.Error())
 	}
 	cleanAssets(model, aDoc)
 	return

@@ -34,8 +34,8 @@ POSSIBILITY OF SUCH DAMAGE.
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
+	"os"
 
 	common "github.com/adedayo/checkmate-core/pkg"
 	"github.com/adedayo/checkmate-core/pkg/diagnostics"
@@ -46,37 +46,43 @@ import (
 )
 
 var (
-	showSource, asJSON, runningCommentary     bool
-	exclusion                                 string
-	sensitiveFiles, sensitiveFilesOnly        bool
-	calculateChecksum, verbose, reportIgnored bool
-	generateSampleExclusion, skipTestFiles    bool
+	showSource, asJSON, asPDF, runningCommentary bool
+	exclusion                                    string
+	sensitiveFiles, sensitiveFilesOnly           bool
+	calculateChecksum, verbose, reportIgnored    bool
+	generateSampleExclusion, skipTestFiles       bool
 )
 
-// secretSearchCmd represents the secretSearch command
-var secretSearchCmd = &cobra.Command{
-	Use:   "secretSearch",
-	Short: "Search for secrets in a textual data source",
-	Long:  `Search for secrets in a textual data source`,
+// searchCmd represents the search command
+var searchCmd = &cobra.Command{
+	Use:   "search <path | git url> [<path | git url>...]",
+	Short: "Searches for secrets in files in local file system paths or git repositories",
+	Long:  `Searches for secrets in files in local file system paths or git repositories`,
 	Run:   search,
 }
 
 func init() {
-	rootCmd.AddCommand(secretSearchCmd)
-	secretSearchCmd.Flags().BoolVarP(&showSource, "source", "s", true, "Provide source code evidence in the diagnostic results")
-	secretSearchCmd.Flags().BoolVar(&calculateChecksum, "calculate-checksums", true, "Calculate checksums of secrets")
-	secretSearchCmd.Flags().StringVarP(&exclusion, "exclusion", "e", "", "Use provided exclusion yaml configuration")
-	secretSearchCmd.Flags().BoolVar(&asJSON, "json", false, "Generate JSON output")
-	secretSearchCmd.Flags().BoolVar(&sensitiveFiles, "sensitive-files", false, "List all registered sensitive files and their description")
-	secretSearchCmd.Flags().BoolVar(&sensitiveFilesOnly, "sensitive-files-only", false, "Only search for sensitive files (e.g. certificates, key stores etc.)")
-	secretSearchCmd.Flags().BoolVar(&runningCommentary, "running-commentary", false, "Generate a running commentary of results. Useful for analysis of large input data")
-	secretSearchCmd.Flags().BoolVar(&verbose, "verbose", false, "Generate verbose output such as current file being scanned as well as report about ignored files")
-	secretSearchCmd.Flags().BoolVar(&reportIgnored, "report-ignored", false, "Include ignored files and values in the reports")
-	secretSearchCmd.Flags().BoolVar(&generateSampleExclusion, "sample-exclusion", false, "Generates a sample exclusion YAML file content with descriptions")
-	secretSearchCmd.Flags().BoolVar(&skipTestFiles, "exclude-tests", false, "Skip test files during scan")
+	rootCmd.AddCommand(searchCmd)
+	searchCmd.Flags().BoolVarP(&showSource, "source", "s", true, "Provide source code evidence in the diagnostic results")
+	searchCmd.Flags().BoolVar(&calculateChecksum, "calculate-checksums", true, "Calculate checksums of secrets")
+	searchCmd.Flags().StringVarP(&exclusion, "exclusion", "e", "", "Use provided exclusion yaml configuration")
+	searchCmd.Flags().BoolVar(&asJSON, "json", true, "Generate JSON output")
+	searchCmd.Flags().BoolVar(&asPDF, "pdf", false, "Generate a PDF report (requires asciidoctor-pdf to be installed)")
+	searchCmd.Flags().BoolVar(&sensitiveFiles, "sensitive-files", false, "List all registered sensitive files and their description")
+	searchCmd.Flags().BoolVar(&sensitiveFilesOnly, "sensitive-files-only", false, "Only search for sensitive files (e.g. certificates, key stores etc.)")
+	searchCmd.Flags().BoolVar(&runningCommentary, "running-commentary", false, "Generate a running commentary of results. Useful for analysis of large input data")
+	searchCmd.Flags().BoolVar(&verbose, "verbose", false, "Generate verbose output such as current file being scanned as well as report about ignored files")
+	searchCmd.Flags().BoolVar(&reportIgnored, "report-ignored", false, "Include ignored files and values in the reports")
+	searchCmd.Flags().BoolVar(&generateSampleExclusion, "sample-exclusion", false, "Generates a sample exclusion YAML file content with descriptions")
+	searchCmd.Flags().BoolVar(&skipTestFiles, "exclude-tests", false, "Skip test files during scan")
 }
 
 func search(cmd *cobra.Command, args []string) {
+	if len(args) == 0 {
+		cmd.Usage()
+		return
+	}
+
 	if !(asJSON || sensitiveFiles || generateSampleExclusion) {
 		fmt.Printf("Starting %s %s (https://github.com/adedayo/checkmate)\n", common.AppName, appVersion)
 	}
@@ -100,7 +106,7 @@ func search(cmd *cobra.Command, args []string) {
 	var excludeDefinitions diagnostics.ExcludeDefinition = secrets.MakeCommonExclusions()
 
 	if exclusion != "" {
-		data, err := ioutil.ReadFile(exclusion)
+		data, err := os.ReadFile(exclusion)
 		if err != nil {
 			log.Printf("Warning: %s. Continuing with no exclusion", err.Error())
 		} else {
@@ -154,7 +160,8 @@ func search(cmd *cobra.Command, args []string) {
 			log.Printf("Marshall Error: %s", err.Error())
 			fmt.Print("[]")
 		}
-	} else {
+	}
+	if asPDF {
 		path, err := asciidoc.GenerateReport("", options.ShowSource, len(files), issues...)
 		if err != nil {
 			fmt.Printf("\nError: %s%s\n", err.Error(), path)
