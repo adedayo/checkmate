@@ -1,5 +1,5 @@
 # Use a minimal base image - base ruby for asciidoctor-pdf
-FROM ruby:slim
+FROM --platform=$TARGETPLATFORM ruby:slim
 
 WORKDIR /app
 
