@@ -4,7 +4,8 @@ FROM ruby:slim
 WORKDIR /app
 
 # Create necessary directories
-RUN mkdir -p /var/lib/checkmate /app/plugins
+RUN mkdir -p /var/lib/checkmate 
+RUN mkdir -p /app/plugins
 
 # Copy the prebuilt Checkmate binary from the host (Goreleaser output), passed through extra_files
 COPY checkmate /app/checkmate
