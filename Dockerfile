@@ -1,5 +1,7 @@
 # Use a minimal base image - base ruby for asciidoctor-pdf
-FROM --platform=$TARGETPLATFORM ruby:slim
+# Use architecture-specific Ruby base image
+ARG TARGETARCH
+FROM ${TARGETARCH}/ruby:slim
 
 WORKDIR /app
 
