@@ -68,7 +68,7 @@ dockers:
     goos: linux
     goarch: arm64
     build_flag_templates:
-      - "--platform=linux/arm64/v8"
+      - "--platform=linux/arm64"
     extra_files:
       - dist/checkmate_linux_arm64_v8.0/checkmate
 
