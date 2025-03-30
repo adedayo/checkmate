@@ -4,17 +4,17 @@ author: "Dr. Dayo Adetoye <https://dayo-adetoye.com>"
 branding:
   icon: "shield"
   color: "blue"
-inputs:
-  path:
-    description: "Path to scan"
-    required: false
-    default: "."
 outputs:
   findings:
     description: "Scan results"
+    value: ${{ steps.scan.outputs.findings }}
 runs:
-  using: "docker"
-  image: "ghcr.io/adedayo/checkmate:latest"
-  args:
-    - "--path"
-    - "${{ inputs.path }}"
+  using: "composite"
+  steps:
+    - name: Run Checkmate Secret Scanner
+      id: scan
+      run: |
+        docker run --rm -v ${{ github.workspace }}:/data ghcr.io/adedayo/checkmate search /data --json > results.json
+        cat results.json
+        echo "findings=$(cat results.json | jq -c .)" >> $GITHUB_ENV
+      shell: bash

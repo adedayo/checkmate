@@ -1,0 +1,28 @@
+name: Scan Repository for Secrets with Checkmate
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  checkmate_scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Run CheckMate
+        uses: ghcr.io/adedayo/checkmate-action@latest
+        with:
+          path: "."
+
+      - name: Upload Scan Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkmate-results-${{ github.sha }}
+          path: checkmate-report.json
+          retention-days: 90
