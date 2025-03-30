@@ -15,8 +15,8 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Run CheckMate
-        uses: ghcr.io/adedayo/checkmate@latest
+      - name: Scan for Secrets
+        uses: adedayo/checkmate
         with:
           path: "."
 
