@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run CheckMate
-        uses: ghcr.io/adedayo/checkmate-action@latest
+        uses: ghcr.io/adedayo/checkmate@latest
         with:
           path: "."
 
