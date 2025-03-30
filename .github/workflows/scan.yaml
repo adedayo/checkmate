@@ -16,7 +16,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Scan for Secrets
-        uses: adedayo/checkmate
+        uses: adedayo/checkmate@latest
         with:
           path: "."
 
