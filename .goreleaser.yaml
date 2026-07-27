@@ -89,4 +89,4 @@ release:
   github:
     owner: adedayo
     name: checkmate
-  replace_existing_artifacts: true
+  mode: replace
