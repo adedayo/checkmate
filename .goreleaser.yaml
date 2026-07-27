@@ -90,3 +90,4 @@ release:
     owner: adedayo
     name: checkmate
   mode: replace
+  replace_existing_artifacts: true
