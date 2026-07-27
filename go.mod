@@ -94,16 +94,3 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
-
-// Removed badger replacement
-
-// replace github.com/adedayo/code-intel-service v0.0.1 => ../code-intel-service
-// replace github.com/adedayo/go-lsp v0.0.9 => ../go-lsp
-
-replace github.com/adedayo/checkmate-core v1.0.9 => ../checkmate-core
-
-replace github.com/adedayo/checkmate-plugin v1.0.9 => ../checkmate-plugin
-
-replace github.com/adedayo/git-service-driver v1.0.9 => ../git-service-driver
-
-replace github.com/adedayo/ldap-sync v1.0.9 => ../ldap-sync
