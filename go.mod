@@ -3,9 +3,9 @@ module github.com/adedayo/checkmate
 go 1.26.1
 
 require (
-	github.com/adedayo/checkmate-core v0.9.12
-	github.com/adedayo/checkmate-plugin v0.9.12
-	github.com/adedayo/git-service-driver v0.9.12
+	github.com/adedayo/checkmate-core v1.0.0
+	github.com/adedayo/checkmate-plugin v1.0.0
+	github.com/adedayo/git-service-driver v1.0.0
 
 	// github.com/adedayo/code-intel-service v0.0.1
 	github.com/adedayo/go-lsp v0.0.9
@@ -23,7 +23,7 @@ require (
 )
 
 require (
-	github.com/adedayo/ldap-sync v0.9.12
+	github.com/adedayo/ldap-sync v1.0.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/uuid v1.6.0
@@ -100,10 +100,10 @@ require (
 // replace github.com/adedayo/code-intel-service v0.0.1 => ../code-intel-service
 // replace github.com/adedayo/go-lsp v0.0.9 => ../go-lsp
 
-replace github.com/adedayo/checkmate-core v0.9.12 => ../checkmate-core
+replace github.com/adedayo/checkmate-core v1.0.0 => ../checkmate-core
 
-replace github.com/adedayo/checkmate-plugin v0.9.12 => ../checkmate-plugin
+replace github.com/adedayo/checkmate-plugin v1.0.0 => ../checkmate-plugin
 
-replace github.com/adedayo/git-service-driver v0.9.12 => ../git-service-driver
+replace github.com/adedayo/git-service-driver v1.0.0 => ../git-service-driver
 
-replace github.com/adedayo/ldap-sync v0.9.12 => ../ldap-sync
+replace github.com/adedayo/ldap-sync v1.0.0 => ../ldap-sync
