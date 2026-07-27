@@ -94,11 +94,3 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
-
-replace github.com/adedayo/checkmate-core => ../checkmate-core
-
-replace github.com/adedayo/checkmate-plugin => ../checkmate-plugin
-
-replace github.com/adedayo/git-service-driver => ../git-service-driver
-
-replace github.com/adedayo/ldap-sync => ../ldap-sync
