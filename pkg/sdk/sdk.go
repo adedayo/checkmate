@@ -151,8 +151,8 @@ func (s *Scanner) convertDiagnostic(diag *diagnostics.SecurityDiagnostic) Findin
 	}
 
 	ruleName := diag.Justification.Headline.Description
-	line := int(diag.Range.Start.Line)
-	col := int(diag.Range.Start.Character)
+	line := int(diag.Range.Start.Line + 1)
+	col := int(diag.Range.Start.Character + 1)
 
 	findingID := computeFindingID(
 		ruleName,

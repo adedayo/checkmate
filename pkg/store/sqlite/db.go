@@ -670,9 +670,12 @@ func (d *DB) persistFinding(ctx context.Context, finding *diagnostics.SecurityDi
 	
 	ruleName := finding.Justification.Headline.Description
 	
+	line := finding.Range.Start.Line + 1
+	col := finding.Range.Start.Character + 1
+
 	// Build deterministic finding ID
 	hash := sha256.New()
-	hash.Write([]byte(fmt.Sprintf("%s:%s:%s:%d:%d:%s", ruleName, "", location, finding.Range.Start.Line, finding.Range.Start.Character, checksum)))
+	hash.Write([]byte(fmt.Sprintf("%s:%s:%s:%d:%d:%s", ruleName, "", location, line, col, checksum)))
 	findingID := fmt.Sprintf("%x", hash.Sum(nil))
 
 	d.mu.Lock()
@@ -699,8 +702,8 @@ func (d *DB) persistFinding(ctx context.Context, finding *diagnostics.SecurityDi
 		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'NOT_CHECKED', ?)`,
 		findingID, scanID, projectID,
 		ruleName, "generic.high_entropy", finding.Justification.Headline.Confidence.String(), finding.Justification.Headline.Confidence.String(),
-		"", "", "", location, finding.Range.Start.Line,
-		finding.Range.Start.Character,
+		"", "", "", location, line,
+		col,
 		evidenceRedacted, checksum, source,
 		now,
 	)
@@ -771,8 +774,16 @@ func (d *DB) scanFindingRow(row rowScanner) (*diagnostics.SecurityDiagnostic, er
 		SHA256:   &secretChecksum.String,
 		Source:   &sourceContext.String,
 	}
-	diag.Range.Start.Line = int64(lineNumber)
-	diag.Range.Start.Character = int64(columnNumber)
+	if lineNumber > 0 {
+		diag.Range.Start.Line = int64(lineNumber - 1)
+	} else {
+		diag.Range.Start.Line = int64(lineNumber)
+	}
+	if columnNumber > 0 {
+		diag.Range.Start.Character = int64(columnNumber - 1)
+	} else {
+		diag.Range.Start.Character = int64(columnNumber)
+	}
 
 	return diag, nil
 }

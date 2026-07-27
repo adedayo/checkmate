@@ -122,14 +122,8 @@ func GenerateSARIF(writer io.Writer, diags []*diagnostics.SecurityDiagnostic) er
 			locationURI = *diag.Location
 		}
 
-		startLine := int(diag.Range.Start.Line)
-		startColumn := int(diag.Range.Start.Character)
-		if startLine == 0 {
-			startLine = 1 // SARIF requires line >= 1
-		}
-		if startColumn == 0 {
-			startColumn = 1 // SARIF requires column >= 1
-		}
+		startLine := int(diag.Range.Start.Line + 1)
+		startColumn := int(diag.Range.Start.Character + 1)
 
 		// Use the fingerprint for partialFingerprints
 		fingerprint := ""

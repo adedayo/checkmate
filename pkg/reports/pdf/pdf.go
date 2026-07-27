@@ -253,8 +253,8 @@ func GenerateReport(outputDir string, showSource bool, fileCount int, issues ...
 			if issue.Location != nil && *issue.Location != "" {
 				locationPath = formatLocation(*issue.Location)
 			}
-			if issue.Range.Start.Line > 0 {
-				locationPath = fmt.Sprintf("%s:%d", locationPath, issue.Range.Start.Line)
+			if issue.Range.Start.Line >= 0 {
+				locationPath = fmt.Sprintf("%s:%d", locationPath, issue.Range.Start.Line+1)
 			}
 
 			snippetText := ""
