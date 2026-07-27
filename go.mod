@@ -100,10 +100,4 @@ require (
 // replace github.com/adedayo/code-intel-service v0.0.1 => ../code-intel-service
 // replace github.com/adedayo/go-lsp v0.0.9 => ../go-lsp
 
-replace github.com/adedayo/checkmate-core v1.0.2 => ../checkmate-core
 
-replace github.com/adedayo/checkmate-plugin v1.0.2 => ../checkmate-plugin
-
-replace github.com/adedayo/git-service-driver v1.0.2 => ../git-service-driver
-
-replace github.com/adedayo/ldap-sync v1.0.2 => ../ldap-sync
