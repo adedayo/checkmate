@@ -65,10 +65,18 @@ func GenerateSeverityChart(critical, high, medium, low int) ([]byte, error) {
 	}
 
 	barChart := chart.BarChart{
+		Title: "Secrets by Severity",
+		TitleStyle: chart.Style{
+			Hidden: false,
+		},
 		Width:  512,
 		Height: 300,
 		Bars:   bars,
 		YAxis: chart.YAxis{
+			Name: "Count",
+			NameStyle: chart.Style{
+				Hidden: false,
+			},
 			ValueFormatter: func(v interface{}) string {
 				if typed, isTyped := v.(float64); isTyped {
 					return fmt.Sprintf("%.0f", typed)
@@ -77,7 +85,7 @@ func GenerateSeverityChart(critical, high, medium, low int) ([]byte, error) {
 			},
 		},
 		Background: chart.Style{
-			Padding: chart.Box{Top: 20, Left: 20, Right: 20, Bottom: 20},
+			Padding: chart.Box{Top: 40, Left: 40, Right: 20, Bottom: 20},
 		},
 	}
 
