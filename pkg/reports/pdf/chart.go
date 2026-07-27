@@ -2,6 +2,7 @@ package pdf
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/wcharczuk/go-chart/v2"
 	"github.com/wcharczuk/go-chart/v2/drawing"
@@ -67,6 +68,14 @@ func GenerateSeverityChart(critical, high, medium, low int) ([]byte, error) {
 		Width:  512,
 		Height: 300,
 		Bars:   bars,
+		YAxis: chart.YAxis{
+			ValueFormatter: func(v interface{}) string {
+				if typed, isTyped := v.(float64); isTyped {
+					return fmt.Sprintf("%.0f", typed)
+				}
+				return ""
+			},
+		},
 		Background: chart.Style{
 			Padding: chart.Box{Top: 20, Left: 20, Right: 20, Bottom: 20},
 		},
