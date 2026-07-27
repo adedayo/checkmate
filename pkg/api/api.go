@@ -32,8 +32,9 @@ import (
 	"github.com/adedayo/checkmate-core/pkg/projects"
 	"github.com/adedayo/checkmate-core/pkg/util"
 	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
-	"github.com/adedayo/checkmate/pkg/reports/asciidoc"
+	"github.com/adedayo/checkmate/pkg/reports/pdf"
 	csvreport "github.com/adedayo/checkmate/pkg/reports/csv"
+	"github.com/adedayo/checkmate/pkg/store"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -47,7 +48,7 @@ var (
 	//used to validate UUID strings used for various (project,scan) IDs
 	idRegX = regexp.MustCompile(`[a-zA-Z0-9]{8}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{12}`) //see util.UUID.String()
 
-	pm             projects.ProjectManager
+	pm             store.PlatformStore
 	allowedOrigins = []string{
 		"localhost",
 		"checkmate-app",
@@ -164,6 +165,43 @@ func addRoutes() {
 	routes.HandleFunc("/api/findsecrets", findSecrets).Methods(http.MethodPost)
 	routes.HandleFunc("/api/ldap/sync", ldapsync).Methods(http.MethodPost)
 	routes.HandleFunc("/api/ldap/login", login).Methods(http.MethodPost)
+
+	// Phase 1 API V1 Auth endpoints
+	routes.HandleFunc("/v1/auth/login", authLogin).Methods(http.MethodPost)
+	routes.HandleFunc("/v1/auth/refresh", authRefresh).Methods(http.MethodPost)
+	routes.HandleFunc("/v1/auth/logout", authLogout).Methods(http.MethodPost)
+	routes.HandleFunc("/v1/auth/keys", createAPIKey).Methods(http.MethodPost)
+	routes.HandleFunc("/v1/auth/keys", listAPIKeys).Methods(http.MethodGet)
+	routes.HandleFunc("/v1/auth/keys/{keyID}", revokeAPIKey).Methods(http.MethodDelete)
+
+	// Phase 1 API V1 Platform endpoints
+	routes.HandleFunc("/v1/system/health", systemHealth).Methods(http.MethodGet)
+	routes.HandleFunc("/v1/system/ready", systemReady).Methods(http.MethodGet)
+	routes.HandleFunc("/v1/findings/search", searchFindings).Methods(http.MethodPost)
+	routes.HandleFunc("/v1/findings/{findingId}/triage", triageFinding).Methods(http.MethodPost)
+
+	// Settings
+	routes.HandleFunc("/v1/settings/ai", getAISettings).Methods(http.MethodGet)
+	routes.HandleFunc("/v1/settings/ai", updateAISettings).Methods(http.MethodPut)
+	routes.HandleFunc("/v1/projects/{projectId}/scans", listProjectScans).Methods(http.MethodGet)
+	routes.HandleFunc("/v1/projects/{projectId}/scans", startProjectScan).Methods(http.MethodPost)
+	routes.HandleFunc("/v1/projects/{projectId}/scans/{scanId}/events", scanSSEHandler).Methods(http.MethodGet)
+
+	// Phase 2 API V1 Webhooks endpoints
+	routes.HandleFunc("/v1/webhooks", listWebhooks).Methods(http.MethodGet)
+	routes.HandleFunc("/v1/webhooks", createWebhook).Methods(http.MethodPost)
+	routes.HandleFunc("/v1/webhooks/{webhookId}", deleteWebhook).Methods(http.MethodDelete)
+	routes.HandleFunc("/v1/webhooks/{webhookId}/test", testWebhook).Methods(http.MethodPost)
+
+	// Phase 2 API V1 Exceptions endpoints
+	routes.HandleFunc("/v1/exceptions", listExceptions).Methods(http.MethodGet)
+	routes.HandleFunc("/v1/exceptions", createException).Methods(http.MethodPost)
+	routes.HandleFunc("/v1/exceptions/export", exportExceptions).Methods(http.MethodGet)
+	routes.HandleFunc("/v1/exceptions/import", importExceptions).Methods(http.MethodPost)
+	routes.HandleFunc("/v1/exceptions/validate", validateExceptions).Methods(http.MethodPost)
+	routes.HandleFunc("/v1/exceptions/{exceptionId}", getException).Methods(http.MethodGet)
+	routes.HandleFunc("/v1/exceptions/{exceptionId}", updateException).Methods(http.MethodPatch)
+	routes.HandleFunc("/v1/exceptions/{exceptionId}", revokeException).Methods(http.MethodDelete)
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
@@ -432,7 +470,7 @@ func createPDFReport(w http.ResponseWriter, r *http.Request) (scanReport string,
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	fileName, err := asciidoc.GenerateReport(reports_dir, info.ShowSource, info.FileCount, results...)
+	fileName, err := pdf.GenerateReport(reports_dir, info.ShowSource, info.FileCount, results...)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -859,6 +897,7 @@ func monitorProjectScan(w http.ResponseWriter, r *http.Request) {
 
 // ServeAPI serves the analysis service on the specified port
 func ServeAPI(config Config) {
+	fmt.Printf("Starting CheckMate Server version %s\n", config.AppVersion)
 	hostPort := "localhost:%d"
 	if !config.Local {
 		// not localhost electron app
@@ -867,7 +906,7 @@ func ServeAPI(config Config) {
 	corsOptions = append(corsOptions, handlers.AllowedOrigins(allowedOrigins))
 	apiVersion = config.AppVersion
 
-	pm = config.ProjectManager
+	pm = config.Store
 	if config.ServeGitService {
 		caps.GitServiceEnabled = true
 		gitConfManager, err := pm.GetGitConfigManager()
@@ -901,10 +940,10 @@ func ServeAPI(config Config) {
 	// 	if err = os.WriteFile(certFile, cert, 0644); err == nil {
 	// 		if err = os.WriteFile(keyFile, key, 0644); err == nil {
 	// 			log.Fatal(http.ListenAndServeTLS(fmt.Sprintf(hostPort, config.ApiPort),
-	// 				certFile, keyFile, handlers.CORS(corsOptions...)(routes)))
+	// 				certFile, keyFile, handlers.CORS(corsOptions...)(AuthMiddleware(routes))))
 	// 		}
 	// 	}
 	// }
 	//http if https above does not succeed
-	log.Fatal(http.ListenAndServe(fmt.Sprintf(hostPort, config.ApiPort), handlers.CORS(corsOptions...)(routes)))
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(hostPort, config.ApiPort), handlers.CORS(corsOptions...)(AuthMiddleware(routes))))
 }

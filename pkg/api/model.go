@@ -1,8 +1,8 @@
 package api
 
 import (
-	"github.com/adedayo/checkmate-core/pkg/projects"
 	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
+	"github.com/adedayo/checkmate/pkg/store"
 )
 
 type Config struct {
@@ -12,7 +12,7 @@ type Config struct {
 	ServeGitService     bool
 	CheckMateDataPath   string
 	ReportPlugins       []string
-	ProjectManager      projects.ProjectManager
+	Store               store.PlatformStore
 }
 
 type ProjectScanOptions struct {

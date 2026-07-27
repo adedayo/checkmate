@@ -8,7 +8,6 @@ import (
 	"github.com/adedayo/checkmate-core/pkg/diagnostics"
 	"github.com/adedayo/checkmate-core/pkg/projects"
 	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
-	"github.com/adedayo/checkmate/pkg/reports/asciidoc"
 	"github.com/adedayo/git-service-driver/pkg/utils"
 	"github.com/gorilla/websocket"
 )
@@ -148,10 +147,7 @@ func runSecretScan(ctx context.Context, options ProjectScanOptions, ws *websocke
 		var scanSummary *projects.ScanSummary
 		summariser := func(projID, sID string, issues []*diagnostics.SecurityDiagnostic) *projects.ScanSummary {
 
-			model, err := asciidoc.ComputeMetrics("", len(paths), secOptions.ShowSource, issues)
-			if err != nil {
-				return &projects.ScanSummary{}
-			}
+			model := projects.GenerateModel(len(paths), secOptions.ShowSource, issues)
 			scanSummary = model.Summarise()
 
 			// removeScanListeners(id)

@@ -16,5 +16,6 @@ runs:
       run: |
         docker run --rm -v ${{ github.workspace }}:/data ghcr.io/adedayo/checkmate search /data --json > results.json
         cat results.json
-        echo "findings=$(cat results.json | jq -c .)" >> $GITHUB_ENV
+        echo "findings=$(cat results.json | jq -c .)" >> $GITHUB_OUTPUT
       shell: bash
+

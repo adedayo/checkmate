@@ -1,25 +1,20 @@
-# Use a minimal base image - base ruby for asciidoctor-pdf
-FROM ruby:slim
+# Use a minimal base image
+FROM debian:bookworm-slim
 
 WORKDIR /app
 
 # Create necessary directories
-RUN mkdir -p /var/lib/checkmate 
-RUN mkdir -p /app/plugins
+RUN mkdir -p /var/lib/checkmate && mkdir -p /app/plugins
 
-# Copy the prebuilt Checkmate binary from the host (Goreleaser output), passed through extra_files
+# Install ca-certificates for secure HTTPS operations
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates git && rm -rf /var/lib/apt/lists/*
+
+# Copy the prebuilt Checkmate binary
 COPY checkmate /app/checkmate
-
-# Copy additional assets if needed
-# COPY dist/plugins /app/plugins
-# COPY dist/cors_config.yaml  .
-
-# Install dependencies for PDF generation
-RUN apt update -y && apt install -y ghostscript
-RUN gem install rouge text-hyphen asciidoctor-pdf
 
 # Set a non-root user for security
 USER 65532:65532
 
-# Run the binary
-ENTRYPOINT ["/app/checkmate", "search"]
+# Run the binary (defaults to search, supports 'api' or other subcommands)
+ENTRYPOINT ["/app/checkmate"]
+CMD ["search"]

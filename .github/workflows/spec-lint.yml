@@ -1,0 +1,27 @@
+name: Spec Lint
+
+on:
+  push:
+    paths:
+      - "openspec/**"
+  pull_request:
+    paths:
+      - "openspec/**"
+
+jobs:
+  lint-openapi:
+    name: Lint OpenAPI Spec
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Spectral
+        run: npm install -g @stoplight/spectral-cli
+
+      - name: Lint OpenAPI spec
+        run: |
+          spectral lint \
+            openspec/changes/001-clean-slate-platform/specs/api-contract/openapi.yaml \
+            --ruleset https://unpkg.com/@stoplight/spectral-owasp-ruleset/dist/ruleset.mjs \
+            --fail-severity warn

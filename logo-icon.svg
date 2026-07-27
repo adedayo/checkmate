@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E293B"/>
+      <stop offset="100%" stop-color="#0F172A"/>
+    </linearGradient>
+
+    <linearGradient id="checkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Clean Minimal Shield Contour -->
+  <path d="M256 48 L404 104 V232 C404 348 334 428 256 460 C178 428 108 348 108 232 V104 L256 48 Z" 
+        fill="none" 
+        stroke="url(#shieldGrad)" 
+        stroke-width="26" 
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+
+  <!-- Centered Bold Emerald Checkmark -->
+  <path d="M176 252 L236 312 L348 192" 
+        fill="none" 
+        stroke="url(#checkGrad)" 
+        stroke-width="40" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"/>
+</svg>

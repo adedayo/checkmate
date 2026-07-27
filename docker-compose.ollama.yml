@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  checkmate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["api", "--port", "8080"]
+    ports:
+      - "8080:8080"
+    environment:
+      - CHECKMATE_AI_URL=http://ollama:11434/v1
+    depends_on:
+      - ollama
+    volumes:
+      - checkmate-data:/data
+
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+
+  ollama-setup:
+    image: curlimages/curl:latest
+    depends_on:
+      - ollama
+    restart: "no"
+    command: >
+      sh -c "
+        echo 'Waiting for Ollama API...'
+        while ! curl -s http://ollama:11434/api/tags > /dev/null; do
+          sleep 2
+        done
+        echo 'Pulling llama3 model...'
+        curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"llama3\"}'
+        echo 'Model pulled successfully.'
+      "
+
+volumes:
+  checkmate-data:
+  ollama-data:

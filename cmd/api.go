@@ -35,10 +35,10 @@ import (
 	"fmt"
 	"log"
 
-	dbprojects "github.com/adedayo/checkmate-badger-project-manager/pkg/projects"
 	common "github.com/adedayo/checkmate-core/pkg"
 	"github.com/adedayo/checkmate/pkg/api"
 	scheduler "github.com/adedayo/checkmate/pkg/cron"
+	"github.com/adedayo/checkmate/pkg/store/sqlite"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 )
@@ -66,7 +66,7 @@ Author: Dr. Adedayo Adetoye (Dayo) <https://github.com/adedayo>
 		// defer profile.Start(profile.MemProfile).Stop()
 
 		cmDataPath, _ = homedir.Expand(cmDataPath)
-		pm, err := dbprojects.NewDBProjectManager(cmDataPath)
+		pm, err := sqlite.New(cmDataPath)
 		if err != nil {
 			log.Printf("%v", err)
 			return
@@ -90,7 +90,7 @@ Author: Dr. Adedayo Adetoye (Dayo) <https://github.com/adedayo>
 			ServeGitService:   serveGitService,
 			CheckMateDataPath: cmDataPath,
 			// ReportPlugins:     reportPlugins,
-			ProjectManager: pm,
+			Store:             pm,
 		}
 		api.ServeAPI(config)
 	},

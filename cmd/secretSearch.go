@@ -40,17 +40,18 @@ import (
 	common "github.com/adedayo/checkmate-core/pkg"
 	"github.com/adedayo/checkmate-core/pkg/diagnostics"
 	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
-	"github.com/adedayo/checkmate/pkg/reports/asciidoc"
+	"github.com/adedayo/checkmate/pkg/report"
+	"github.com/adedayo/checkmate/pkg/reports/pdf"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
 
 var (
-	showSource, asJSON, asPDF, runningCommentary bool
-	exclusion                                    string
-	sensitiveFiles, sensitiveFilesOnly           bool
-	calculateChecksum, verbose, reportIgnored    bool
-	generateSampleExclusion, skipTestFiles       bool
+	showSource, asJSON, asPDF, asSARIF, runningCommentary bool
+	exclusion                                             string
+	sensitiveFiles, sensitiveFilesOnly                    bool
+	calculateChecksum, verbose, reportIgnored             bool
+	generateSampleExclusion, skipTestFiles                bool
 )
 
 // searchCmd represents the search command
@@ -67,7 +68,8 @@ func init() {
 	searchCmd.Flags().BoolVar(&calculateChecksum, "calculate-checksums", true, "Calculate checksums of secrets")
 	searchCmd.Flags().StringVarP(&exclusion, "exclusion", "e", "", "Use provided exclusion yaml configuration")
 	searchCmd.Flags().BoolVar(&asJSON, "json", true, "Generate JSON output")
-	searchCmd.Flags().BoolVar(&asPDF, "pdf", false, "Generate a PDF report (requires asciidoctor-pdf to be installed)")
+	searchCmd.Flags().BoolVar(&asSARIF, "sarif", false, "Generate SARIF 2.1.0 output")
+	searchCmd.Flags().BoolVar(&asPDF, "pdf", false, "Generate a PDF report")
 	searchCmd.Flags().BoolVar(&sensitiveFiles, "sensitive-files", false, "List all registered sensitive files and their description")
 	searchCmd.Flags().BoolVar(&sensitiveFilesOnly, "sensitive-files-only", false, "Only search for sensitive files (e.g. certificates, key stores etc.)")
 	searchCmd.Flags().BoolVar(&runningCommentary, "running-commentary", false, "Generate a running commentary of results. Useful for analysis of large input data")
@@ -161,8 +163,13 @@ func search(cmd *cobra.Command, args []string) {
 			fmt.Print("[]")
 		}
 	}
+	if asSARIF {
+		if err := report.GenerateSARIF(os.Stdout, issues); err != nil {
+			log.Printf("SARIF Generation Error: %s", err.Error())
+		}
+	}
 	if asPDF {
-		path, err := asciidoc.GenerateReport("", options.ShowSource, len(files), issues...)
+		path, err := pdf.GenerateReport("", options.ShowSource, len(files), issues...)
 		if err != nil {
 			fmt.Printf("\nError: %s%s\n", err.Error(), path)
 			return
