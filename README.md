@@ -4,7 +4,7 @@
 
 # CheckMate: Hard-coded Secrets Detection
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/adedayo/checkmate)](https://goreportcard.com/report/github.com/adedayo/checkmate)
+[![golangci-lint](https://github.com/adedayo/checkmate/actions/workflows/golangci-lint.yml/badge.svg)](https://github.com/adedayo/checkmate/actions/workflows/golangci-lint.yml)
 ![GitHub release](https://img.shields.io/github/release/adedayo/checkmate.svg)
 [![GitHub license](https://img.shields.io/github/license/adedayo/checkmate.svg)](https://github.com/adedayo/checkmate/blob/master/LICENSE)
 
