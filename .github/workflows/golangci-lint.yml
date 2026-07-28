@@ -20,6 +20,4 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: v1.64.0
+        uses: golangci/golangci-lint-action@v7
