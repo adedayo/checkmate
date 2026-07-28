@@ -3,9 +3,9 @@ module github.com/adedayo/checkmate
 go 1.26.1
 
 require (
-	github.com/adedayo/checkmate-core v1.0.12
-	github.com/adedayo/checkmate-plugin v1.0.12
-	github.com/adedayo/git-service-driver v1.0.12
+	github.com/adedayo/checkmate-core v1.0.13
+	github.com/adedayo/checkmate-plugin v1.0.13
+	github.com/adedayo/git-service-driver v1.0.13
 
 	// github.com/adedayo/code-intel-service v0.0.1
 	github.com/adedayo/go-lsp v0.0.9
@@ -23,7 +23,7 @@ require (
 )
 
 require (
-	github.com/adedayo/ldap-sync v1.0.12
+	github.com/adedayo/ldap-sync v1.0.13
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/golang-migrate/migrate/v4 v4.19.1
 	github.com/google/uuid v1.6.0
@@ -94,11 +94,3 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
-
-replace github.com/adedayo/checkmate-core => ../checkmate-core
-
-replace github.com/adedayo/checkmate-plugin => ../checkmate-plugin
-
-replace github.com/adedayo/git-service-driver => ../git-service-driver
-
-replace github.com/adedayo/ldap-sync => ../ldap-sync
