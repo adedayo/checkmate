@@ -10,6 +10,7 @@ permissions:
   contents: read
 
 env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: "true"
   GOPROXY: direct
   GONOSUMDB: github.com/adedayo/*
 
