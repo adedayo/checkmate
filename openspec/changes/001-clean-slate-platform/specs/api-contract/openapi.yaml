@@ -31,9 +31,11 @@ info:
 
 servers:
   - url: http://localhost:17283
-    description: Local development
+    description: Local development environment
+    x-internal: true
   - url: "{scheme}://{host}:{port}"
-    description: Self-hosted
+    description: Self-hosted production environment
+    x-internal: false
     variables:
       scheme:
         default: http
@@ -52,6 +54,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: "JWT Bearer authentication token supporting RFC8725 profile."
 
   schemas:
     # ─── Enums ────────────────────────────────────────────────────────────────
