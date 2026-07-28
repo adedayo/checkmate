@@ -9,15 +9,24 @@ on:
 permissions:
   contents: read
 
+env:
+  GOPROXY: direct
+  GONOSUMDB: github.com/adedayo/*
+
 jobs:
   golangci:
     name: lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v7
+        uses: golangci/golangci-lint-action@v6
