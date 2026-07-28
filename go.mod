@@ -3,7 +3,7 @@ module github.com/adedayo/checkmate
 go 1.26.1
 
 require (
-	github.com/adedayo/checkmate-core v1.0.14
+	github.com/adedayo/checkmate-core v1.0.15
 	github.com/adedayo/checkmate-plugin v1.0.14
 	github.com/adedayo/git-service-driver v1.0.14
 
@@ -94,3 +94,11 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
+
+replace github.com/adedayo/checkmate-core => ../checkmate-core
+
+replace github.com/adedayo/checkmate-plugin => ../checkmate-plugin
+
+replace github.com/adedayo/git-service-driver => ../git-service-driver
+
+replace github.com/adedayo/ldap-sync => ../ldap-sync
