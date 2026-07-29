@@ -81,7 +81,7 @@ func init() {
 
 func search(cmd *cobra.Command, args []string) {
 	if len(args) == 0 {
-		cmd.Usage()
+		_ = cmd.Usage()
 		return
 	}
 

@@ -31,7 +31,9 @@ func getFreePort() (port int, err error) {
 	if err != nil {
 		return
 	}
-	defer ltcp.Close()
+	defer func() {
+		_ = ltcp.Close()
+	}()
 	port = ltcp.Addr().(*net.TCPAddr).Port
 	return
 }
@@ -43,7 +45,7 @@ func RegisterDiagnosticTransformer(transformer DiagnosticTransformer) (micro Mic
 		return
 	}
 	fmt.Printf("port:%d\n", port)
-	os.Stdout.Sync()
+	_ = os.Stdout.Sync()
 	micro.Port = port
 	mux := makeHandler(transformer)
 
@@ -88,7 +90,9 @@ func (dth diagnosticTransformHandler) transfromDiagnostics(w http.ResponseWriter
 		if err != nil {
 			log.Printf("Error decoding diagnostics during transform")
 		}
-		defer r.Body.Close()
+		defer func() {
+			_ = r.Body.Close()
+		}()
 		d := dth.transformer.Transform(confD.Config, confD.Diagnostics...)
 		json.NewEncoder(w).Encode(d)
 

@@ -840,7 +840,7 @@ func (spm simpleProjectManager) RunScan(ctx context.Context, projectID string,
 		ScanID:      scanID,
 		Position:    0,
 		Total:       1,
-		CurrentFile: fmt.Sprintf("starting scan ..."),
+		CurrentFile: "starting scan ...",
 	})
 	scanner.Scan(ctx, projectID, scanID, spm, repoStatusChecker, progressMonitor, consumers...)
 	scanEndTime := time.Now()
