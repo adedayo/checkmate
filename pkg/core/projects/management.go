@@ -256,7 +256,7 @@ func UpdatePolicy(exclude diagnostics.ExcludeRequirement, pm ProjectManager) (re
 			return
 		}
 
-		_ = pm.UpdateProject(project.ID, ProjectDescription{
+		_, _ = pm.UpdateProject(project.ID, ProjectDescription{
 			Name:         project.Name,
 			Workspace:    project.Workspace,
 			Repositories: project.Repositories,
