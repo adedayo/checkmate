@@ -59,6 +59,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_GITHUB_TOKEN: ${{ secrets.HOMEBREW_GITHUB_TOKEN || secrets.PAT_TOKEN }}
+          HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_GITHUB_TOKEN || secrets.PAT_TOKEN }}
         run: |
           if [ "${{ inputs.dry_run }}" == "true" ]; then
             goreleaser release --snapshot --skip publish --clean
