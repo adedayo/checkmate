@@ -180,13 +180,13 @@ func scanNextUnscannedBranch(ctx context.Context, ps *projects.ProjectSummary,
 				auth = gitService.MakeAuth()
 			}
 			//clone the commit of interest
-			gitutils.Clone(ctx, repo.Location, &gitutils.GitCloneOptions{
+			if _, err := gitutils.Clone(ctx, repo.Location, &gitutils.GitCloneOptions{
 				BaseDir:    path.Join(pm.GetCodeBaseDir(), ps.ID),
 				CommitHash: hashToScan,
 				Auth:       auth,
-			})
-
-			runScan(ctx, ps, pm, callback)
+			}); err == nil {
+				runScan(ctx, ps, pm, callback)
+			}
 		}
 	}
 }
@@ -274,7 +274,7 @@ func CheckLatestCommits(ctx context.Context, repo gitutils.RepositoryCloneSpec, 
 				headBranch = h.Name().Short()
 			}
 			if refs, err := gitRepo.References(); err == nil {
-				refs.ForEach(func(ref *plumbing.Reference) error {
+				_ = refs.ForEach(func(ref *plumbing.Reference) error {
 					if ref.Name().IsRemote() {
 						if cIter, err := gitRepo.Log(&git.LogOptions{
 							From:  ref.Hash(), //branch indicator
@@ -282,7 +282,7 @@ func CheckLatestCommits(ctx context.Context, repo gitutils.RepositoryCloneSpec, 
 						}); err == nil {
 							branch := strings.TrimPrefix(ref.Name().Short(), "origin/")
 							commitsExist := hasCommitInBranch(branch, branchCommits)
-							cIter.ForEach(func(c *object.Commit) error {
+							_ = cIter.ForEach(func(c *object.Commit) error {
 								if !commitsExist || c.Author.When.After(branchCommits[branch][0].Time) {
 									hash := c.Hash.String()
 									commit := gitutils.Commit{

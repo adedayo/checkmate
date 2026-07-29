@@ -270,7 +270,7 @@ func (pathBSF pathBasedSourceSecretFinder) ConsumePath(rif util.RepositoryIndexe
 				}
 
 				val := issue.GetValue()
-				if !(pathBSF.ShouldExclude(path, val) || (issue.SHA256 != nil && pathBSF.ShouldExcludeHashOnPath(path, *issue.SHA256))) {
+				if !pathBSF.ShouldExclude(path, val) && (issue.SHA256 == nil || !pathBSF.ShouldExcludeHashOnPath(path, *issue.SHA256)) {
 					pathBSF.Broadcast(issue)
 				}
 			}

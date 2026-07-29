@@ -11,7 +11,7 @@ import (
 
 func schedule(spec string, f func()) {
 	c := cron.New()
-	c.AddFunc(spec, f)
+	_, _ = c.AddFunc(spec, f)
 	c.Start()
 }
 

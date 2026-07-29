@@ -101,15 +101,15 @@ func Test_detectSecret(t *testing.T) {
 			name:   "Slack Token",
 			secret: "xoxb-" + "333649436676-799261852869-clFJVVIaoJahpORboa3Ba2al",
 			wantEvidence: diagnostics.Evidence{
-				Description: "Identified a Slack Bot token, which may compromise bot integrations and communication channel security.",
-				Confidence:  diagnostics.High},
+				Description: "Slack Bot/User Token",
+				Confidence:  diagnostics.Critical},
 		},
 		{
 			name:   "Stripe Token",
 			secret: "sk_test_" + "26PHem9AhJZvU623DfE1x4sd",
 			wantEvidence: diagnostics.Evidence{
-				Description: "Found a Stripe Access Token, posing a risk to payment processing services and sensitive financial data.",
-				Confidence:  diagnostics.High},
+				Description: "Stripe/PayStack Token",
+				Confidence:  diagnostics.Critical},
 		},
 		{
 			name:   "GoCardless Token",

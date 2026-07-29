@@ -33,7 +33,7 @@ func (d *DB) CreateException(exc *store.Exception) error {
 
 	if err == nil && len(exc.AuditTrail) > 0 {
 		for _, audit := range exc.AuditTrail {
-			d.insertAuditLogTx(d.db, audit, "exception", exc.ID)
+			_ = d.insertAuditLogTx(d.db, audit, "exception", exc.ID)
 		}
 	}
 
@@ -93,9 +93,9 @@ func (d *DB) GetException(id string) (*store.Exception, error) {
 		exc.CreatedAt, _ = time.Parse(time.RFC3339, createdAt.String)
 	}
 
-	json.Unmarshal([]byte(scopeJSON), &exc.Scope)
-	json.Unmarshal([]byte(evidenceJSON), &exc.Evidence)
-	json.Unmarshal([]byte(tagsJSON), &exc.Tags)
+	_ = json.Unmarshal([]byte(scopeJSON), &exc.Scope)
+	_ = json.Unmarshal([]byte(evidenceJSON), &exc.Evidence)
+	_ = json.Unmarshal([]byte(tagsJSON), &exc.Tags)
 
 	exc.AuditTrail = d.getAuditLogsTx(d.db, "exception", id)
 
@@ -136,9 +136,9 @@ func (d *DB) ListExceptions() ([]*store.Exception, error) {
 			exc.CreatedAt, _ = time.Parse(time.RFC3339, createdAt.String)
 		}
 
-		json.Unmarshal([]byte(scopeJSON), &exc.Scope)
-		json.Unmarshal([]byte(evidenceJSON), &exc.Evidence)
-		json.Unmarshal([]byte(tagsJSON), &exc.Tags)
+		_ = json.Unmarshal([]byte(scopeJSON), &exc.Scope)
+		_ = json.Unmarshal([]byte(evidenceJSON), &exc.Evidence)
+		_ = json.Unmarshal([]byte(tagsJSON), &exc.Tags)
 
 		exceptions = append(exceptions, &exc)
 	}
@@ -179,7 +179,7 @@ func (d *DB) UpdateException(id string, updates store.ExceptionUpdate) (*store.E
 		Details:   "Exception updated via API",
 	}
 	exc.AuditTrail = append(exc.AuditTrail, audit)
-	d.insertAuditLogTx(d.db, audit, "exception", id)
+	_ = d.insertAuditLogTx(d.db, audit, "exception", id)
 
 	tagsJSON, _ := json.Marshal(exc.Tags)
 
@@ -214,7 +214,7 @@ func (d *DB) DeleteException(id string) error {
 		Details:   "Exception revoked via API",
 	}
 	exc.AuditTrail = append(exc.AuditTrail, audit)
-	d.insertAuditLogTx(d.db, audit, "exception", id)
+	_ = d.insertAuditLogTx(d.db, audit, "exception", id)
 
 	_, err = d.db.Exec(`
 		UPDATE exceptions
@@ -225,11 +225,12 @@ func (d *DB) DeleteException(id string) error {
 	return err
 }
 
-func (d *DB) insertAuditLogTx(db *sql.DB, audit *store.AuditEvent, resourceType, resourceID string) {
-	db.Exec(`
+func (d *DB) insertAuditLogTx(db *sql.DB, audit *store.AuditEvent, resourceType, resourceID string) error {
+	_, err := db.Exec(`
 		INSERT INTO audit_log (id, actor, action, resource_type, resource_id, diff, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`, "aud_"+uuid.New().String()[:12], audit.User, audit.Action, resourceType, resourceID, audit.Details, audit.Timestamp.Format(time.RFC3339))
+	return err
 }
 
 func (d *DB) getAuditLogsTx(db *sql.DB, resourceType, resourceID string) []*store.AuditEvent {
@@ -250,7 +251,7 @@ func (d *DB) getAuditLogsTx(db *sql.DB, resourceType, resourceID string) []*stor
 		var a store.AuditEvent
 		var createdAt sql.NullString
 		var details sql.NullString
-		rows.Scan(&a.User, &a.Action, &createdAt, &details)
+		_ = rows.Scan(&a.User, &a.Action, &createdAt, &details)
 		if createdAt.Valid {
 			a.Timestamp, _ = time.Parse(time.RFC3339, createdAt.String)
 		}

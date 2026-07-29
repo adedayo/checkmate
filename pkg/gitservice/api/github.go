@@ -86,7 +86,7 @@ func discoverGitHub(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(github.GitHubProjectSearchResult{
+	_ = json.NewEncoder(w).Encode(github.GitHubProjectSearchResult{
 		InstanceID:             gitService.ID,
 		Projects:               proj,
 		EndCursor:              loc.EndCursor,

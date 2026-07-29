@@ -124,7 +124,7 @@ func (s *Scanner) buildSecretSearchOptions() secrets.SecretSearchOptions {
 // computeFindingID generates a stable hash for a finding.
 func computeFindingID(rule, repo, file string, line, column int, checksum string) string {
 	hash := sha256.New()
-	fmt.Fprintf(hash, "%s:%s:%s:%d:%d:%s", rule, repo, file, line, column, checksum)
+	_, _ = fmt.Fprintf(hash, "%s:%s:%s:%d:%d:%s", rule, repo, file, line, column, checksum)
 	return fmt.Sprintf("%x", hash.Sum(nil))
 }
 

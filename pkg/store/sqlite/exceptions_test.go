@@ -13,7 +13,9 @@ func TestDB_Exceptions(t *testing.T) {
 	tempDir := t.TempDir()
 	db, err := New(tempDir)
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	exc := &store.Exception{
 		ID:        "exc_123",

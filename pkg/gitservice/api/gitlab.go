@@ -41,13 +41,15 @@ func discoverGitLab(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(gitlab.GitLabProjectSearchResult{
+	if err := json.NewEncoder(w).Encode(gitlab.GitLabProjectSearchResult{
 		InstanceID:             gitService.ID,
 		Projects:               proj,
 		EndCursor:              loc.EndCursor,
 		HasNextPage:            loc.HasNextPage,
 		RemainingProjectsCount: getCount(loc),
-	})
+	}); err != nil {
+		log.Printf("Error encoding response: %v\n", err)
+	}
 }
 
 func getCount(loc gitlab.GitLabCursorLocation) int64 {
@@ -93,7 +95,7 @@ func integrateGitLab(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	json.NewEncoder(w).Encode(listIntegrations(gitutils.GitLab))
+	_ = json.NewEncoder(w).Encode(listIntegrations(gitutils.GitLab))
 }
 
 func deleteGitLabIntegration(w http.ResponseWriter, r *http.Request) {

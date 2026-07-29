@@ -313,7 +313,9 @@ func downloadReport(w http.ResponseWriter, r *http.Request, path string) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 	attachment := fmt.Sprintf(`attachment; filename="%s"`, filepath.Base(file.Name()))
 	w.Header().Set("Content-Disposition", attachment)
 	cType := mime.TypeByExtension(filepath.Ext(file.Name()))
@@ -325,7 +327,7 @@ func downloadReport(w http.ResponseWriter, r *http.Request, path string) {
 	if stat, err := file.Stat(); err == nil {
 		w.Header().Set("Content-Length", fmt.Sprintf("%d", stat.Size()))
 	}
-	io.Copy(w, file)
+	_, _ = io.Copy(w, file)
 }
 
 func createCSVReport(w http.ResponseWriter, r *http.Request) (scanReport string, err error) {

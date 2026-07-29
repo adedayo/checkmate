@@ -12,7 +12,9 @@ func TestGitConfigManager_Empty(t *testing.T) {
 	tempDir := t.TempDir()
 	db, err := New(tempDir)
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	mgr := newGitConfigManager(db)
 
@@ -27,7 +29,9 @@ func TestGitConfigManager_SaveAndGet(t *testing.T) {
 	tempDir := t.TempDir()
 	db, err := New(tempDir)
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	mgr := newGitConfigManager(db)
 

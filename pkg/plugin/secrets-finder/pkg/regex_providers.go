@@ -439,7 +439,9 @@ func (xf *xmlSecretFinder) ConsumePath(rif util.RepositoryIndexedFile) {
 	if err != nil {
 		return
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	//Scanner opening the same file for navigating and seeking XML positions
 	scan, err := os.Open(path)
@@ -635,7 +637,7 @@ func processAssignment(match []int, providerID, source string, startIndex int64,
 			diagnostic.Source = &s
 		}
 
-		if !(sf.options.CalculateChecksum && sf.ShouldExcludeHash(*diagnostic.SHA256)) {
+		if !sf.options.CalculateChecksum || !sf.ShouldExcludeHash(*diagnostic.SHA256) {
 			sf.Broadcast(&diagnostic)
 		}
 
@@ -713,7 +715,7 @@ func processString(match []int, providerID, source string, startIndex int64,
 	if sf.provideSource {
 		diagnostic.Source = &s
 	}
-	if !(sf.options.CalculateChecksum && sf.ShouldExcludeHash(*diagnostic.SHA256)) {
+	if !sf.options.CalculateChecksum || !sf.ShouldExcludeHash(*diagnostic.SHA256) {
 		sf.Broadcast(&diagnostic)
 	}
 

@@ -45,7 +45,9 @@ func (d *DB) ValidateRefreshToken(tokenHash string) (string, error) {
 
 	if time.Now().After(expiresAt) {
 		// Clean up expired token asynchronously
-		go d.RevokeRefreshToken(tokenHash)
+		go func() {
+			_ = d.RevokeRefreshToken(tokenHash)
+		}()
 		return "", fmt.Errorf("refresh token expired")
 	}
 

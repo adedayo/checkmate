@@ -677,7 +677,7 @@ func (d *DB) persistFinding(ctx context.Context, finding *diagnostics.SecurityDi
 
 	// Build deterministic finding ID
 	hash := sha256.New()
-	fmt.Fprintf(hash, "%s:%s:%s:%d:%d:%s", ruleName, "", location, line, col, checksum)
+	_, _ = fmt.Fprintf(hash, "%s:%s:%s:%d:%d:%s", ruleName, "", location, line, col, checksum)
 	findingID := fmt.Sprintf("%x", hash.Sum(nil))
 
 	d.mu.Lock()
