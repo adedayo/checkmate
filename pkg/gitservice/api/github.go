@@ -33,7 +33,7 @@ func integrateGitHub(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(listIntegrations(gitutils.GitHub))
 }
 
-func GetGithubAppConfiguration(w http.ResponseWriter, r *http.Request) {
+func getGitHubIntegrations(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(listIntegrations(gitutils.GitHub))
 }
 
