@@ -44,8 +44,8 @@ changelog:
       - "^docs:"
       - "^test:"
 
-dockers_v2:
-  - images:
+dockers:
+  - image_templates:
       - "ghcr.io/adedayo/checkmate"
     tags:
       - "latest"
@@ -53,21 +53,7 @@ dockers_v2:
       - "v{{ .Major }}.{{ .Minor }}"
       - "{{ .Tag }}"
     dockerfile: Dockerfile
-    extra_files:
-      - dist/checkmate_linux_amd64_v1/checkmate
-  # - image_templates:
-  #     - "ghcr.io/adedayo/checkmate:latest"
-  #     - "ghcr.io/adedayo/checkmate:v{{ .Major }}"
-  #     - "ghcr.io/adedayo/checkmate:v{{ .Major }}.{{ .Minor }}"
-  #     - "ghcr.io/adedayo/checkmate:{{ .Tag }}"
-  #   dockerfile: Dockerfile.arm64
-  #   use: buildx
-  #   goos: linux
-  #   goarch: arm64
-  #   build_flag_templates:
-  #     - "--platform=linux/arm64"
-  #   extra_files:
-  #     - dist/checkmate_linux_arm64_v8.0/checkmate
+
 
 homebrew_casks:
   - repository:
