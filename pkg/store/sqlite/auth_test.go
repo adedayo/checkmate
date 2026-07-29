@@ -13,7 +13,7 @@ func setupTestDB(t *testing.T) (*DB, func()) {
 	tempDir := t.TempDir()
 	db, err := New(tempDir)
 	require.NoError(t, err)
-	return db, func() { db.Close() }
+	return db, func() { _ = db.Close() }
 }
 
 func TestDB_APIKeys(t *testing.T) {

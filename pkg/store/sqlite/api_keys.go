@@ -57,7 +57,9 @@ func (d *DB) ListAPIKeys() ([]*auth.APIKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("query api_keys: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var keys []*auth.APIKey
 	for rows.Next() {

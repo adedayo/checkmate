@@ -63,7 +63,7 @@ func main() {
 
 	// fmt.Printf("%#v\n", rr)
 
-	return
+
 
 	// project := pm.CreateProject(projects.ProjectDescription{
 	// 	Name: "Another New Project",
@@ -127,10 +127,4 @@ func main() {
 
 }
 
-//nolint:unused // kept for debugging
-type outConsumer struct {
-}
 
-func (outConsumer) ReceiveDiagnostic(diag *diagnostics.SecurityDiagnostic) {
-	// fmt.Printf("Diag: %v\n", diag)
-}

@@ -177,7 +177,9 @@ func (d *DB) SaveWorkspaces(wss *projects.Workspace) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() {
+		_ = tx.Rollback()
+	}()
 
 	for name := range wss.Details {
 		if _, err := tx.ExecContext(context.Background(),
@@ -611,7 +613,7 @@ func (d *DB) RunScan(
 	// Build summary
 	scanSummary := summariser(projectID, scanID, allFindings)
 	if scanSummary == nil {
-		scanSummary = &projects.ScanSummary{}
+		_ = scanSummary
 	}
 
 	// Update scan record with completion

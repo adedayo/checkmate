@@ -70,7 +70,7 @@ func FindFiles(paths []string) []RepositoryIndexedFile {
 }
 
 func getFiles(dir string) (paths []string) {
-	filepath.WalkDir(dir, func(path string, info os.DirEntry, err error) error {
+	_ = filepath.WalkDir(dir, func(path string, info os.DirEntry, err error) error {
 		if err != nil {
 			return filepath.SkipDir
 		}

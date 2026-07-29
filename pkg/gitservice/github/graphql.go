@@ -36,7 +36,9 @@ func queryProjects(ctx context.Context, query string, gitService *gitutils.GitSe
 		log.Printf("%v", err)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	var out struct {
 		Data struct {
@@ -89,7 +91,9 @@ func searchProject(ctx context.Context, query string, gitService *gitutils.GitSe
 		log.Printf("%v", err)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	var out struct {
 		Data struct {

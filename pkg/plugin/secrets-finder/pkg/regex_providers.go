@@ -341,7 +341,9 @@ func computeFileHash(shouldCompute bool, path string) *string {
 		if err != nil {
 			return nil
 		}
-		defer f.Close()
+		defer func() {
+			_ = f.Close()
+		}()
 
 		h := sha256.New()
 		if _, err := io.Copy(h, f); err != nil {
@@ -444,7 +446,9 @@ func (xf *xmlSecretFinder) ConsumePath(rif util.RepositoryIndexedFile) {
 	if err != nil {
 		return
 	}
-	defer scan.Close()
+	defer func() {
+		_ = scan.Close()
+	}()
 
 	decoder := xml.NewDecoder(file)
 	decoder.Strict = false
@@ -469,7 +473,7 @@ func (xf *xmlSecretFinder) ConsumePath(rif util.RepositoryIndexedFile) {
 				elementOffSet = findElementOffset(scan, decoder.InputOffset(), se.Name.Local)
 				buffSize := int(decoder.InputOffset() - elementOffSet)
 				buff := make([]byte, buffSize)
-				scan.Seek(elementOffSet, io.SeekStart)
+				_, _ = scan.Seek(elementOffSet, io.SeekStart)
 				_, err := scan.Read(buff)
 				if err != nil {
 					log.Printf("Error %s\n", err.Error())
@@ -819,8 +823,8 @@ func processXMLAssignment(variable, assignedVal string, sourceIndex int64, isEle
 			// 	s = fmt.Sprintf(`%s > %s`, variable, assignedVal)
 			// }
 			buff := make([]byte, end-start+1)
-			scan.Seek(start, io.SeekStart)
-			scan.Read(buff)
+			_, _ = scan.Seek(start, io.SeekStart)
+			_, _ = scan.Read(buff)
 			s := string(buff)
 			diagnostic.Source = &s
 		}

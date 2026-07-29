@@ -85,7 +85,7 @@ func search(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	if !(asJSON || sensitiveFiles || generateSampleExclusion) {
+	if !asJSON && !sensitiveFiles && !generateSampleExclusion {
 		fmt.Printf("Starting %s %s (https://github.com/adedayo/checkmate)\n", common.AppName, appVersion)
 	}
 
@@ -105,7 +105,7 @@ func search(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	var excludeDefinitions diagnostics.ExcludeDefinition = secrets.MakeCommonExclusions()
+	var excludeDefinitions = secrets.MakeCommonExclusions()
 
 	if exclusion != "" {
 		data, err := os.ReadFile(exclusion)

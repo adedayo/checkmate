@@ -38,7 +38,9 @@ func Do(config LDAPSyncConfig) (result LDAPRecords, err error) {
 	if err != nil {
 		return
 	}
-	defer l.Close()
+	defer func() {
+		_ = l.Close()
+	}()
 
 	if config.RequiresAuthentication {
 		err = l.Bind(config.SyncUserName, config.SyncPassword)
@@ -114,7 +116,9 @@ func Auth(data LDAPAuthData) (auth AuthResult, err error) {
 		auth.ErrorMessage = err.Error()
 		return
 	}
-	defer l.Close()
+	defer func() {
+		_ = l.Close()
+	}()
 
 	username := fmt.Sprintf("%s=%s,%s", data.UID, data.User, data.URDNs)
 

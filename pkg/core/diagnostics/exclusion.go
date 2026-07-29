@@ -172,7 +172,7 @@ func (wl *defaultExclusionProvider) cleanSerialisationConstructs() (err error) {
 				after = append(after, x) //append erroneous unmarshalled data?
 			}
 		}
-		after = sort.StringSlice(after)
+		sort.Strings(after)
 		wl.PerFileExcludedStrings[k] = after
 	}
 	return

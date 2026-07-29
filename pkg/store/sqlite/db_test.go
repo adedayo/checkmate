@@ -27,7 +27,9 @@ func TestDB_ProjectLifecycle(t *testing.T) {
 	tempDir := t.TempDir()
 	db, err := New(tempDir)
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	desc := projects.ProjectDescription{
 		Name:      "Test Project",
@@ -79,7 +81,9 @@ func TestDB_Workspaces(t *testing.T) {
 	tempDir := t.TempDir()
 	db, err := New(tempDir)
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	desc := projects.ProjectDescription{
 		Name:      "Proj 1",

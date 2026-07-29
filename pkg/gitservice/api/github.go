@@ -29,12 +29,12 @@ func integrateGitHub(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	config.AddService(&detail)
-	json.NewEncoder(w).Encode(listIntegrations(gitutils.GitHub))
+	_ = config.AddService(&detail)
+	_ = json.NewEncoder(w).Encode(listIntegrations(gitutils.GitHub))
 }
 
-func getGitHubIntegrations(w http.ResponseWriter, r *http.Request) {
-	json.NewEncoder(w).Encode(listIntegrations(gitutils.GitHub))
+func GetGithubAppConfiguration(w http.ResponseWriter, r *http.Request) {
+	_ = json.NewEncoder(w).Encode(listIntegrations(gitutils.GitHub))
 }
 
 func deleteGitHubIntegration(w http.ResponseWriter, r *http.Request) {
@@ -52,8 +52,8 @@ func deleteGitHubIntegration(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	delete(config.GitServices[gitutils.GitHub], id.ID)
-	configManager.SaveConfig(config)
-	json.NewEncoder(w).Encode(listIntegrations(gitutils.GitHub))
+	_ = configManager.SaveConfig(config)
+	_ = json.NewEncoder(w).Encode(listIntegrations(gitutils.GitHub))
 }
 
 func discoverGitHub(w http.ResponseWriter, r *http.Request) {

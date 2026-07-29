@@ -623,7 +623,9 @@ func (spm simpleProjectManager) GetScanResults(projID, scanID string) (results [
 	if err != nil {
 		return
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 	decoder := json.NewDecoder(file)
 	for {
 		if e := decoder.Decode(&results); e == io.EOF {
@@ -675,9 +677,11 @@ func (spm simpleProjectManager) GetScanResultSummary(projectID, scanID string) (
 		// log.Printf("Error loading scan summary: %s", err.Error())
 		return summary, err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
-	yaml.NewDecoder(file).Decode(&summary)
+	_ = yaml.NewDecoder(file).Decode(&summary)
 	return summary, nil
 }
 
@@ -837,7 +841,7 @@ func (spm simpleProjectManager) RunScan(ctx context.Context, projectID string,
 	//set "being-scanned" flag
 	if summary, err := spm.GetProjectSummary(projectID); err == nil {
 		summary.IsBeingScanned = true
-		spm.SaveProjectSummary(summary)
+		_ = spm.SaveProjectSummary(summary)
 	}
 	progressMonitor(diagnostics.Progress{
 		ProjectID:   projectID,
@@ -848,15 +852,17 @@ func (spm simpleProjectManager) RunScan(ctx context.Context, projectID string,
 	})
 	scanner.Scan(ctx, projectID, scanID, spm, repoStatusChecker, progressMonitor, consumers...)
 	scanEndTime := time.Now()
-	sdc.close(scanStartTime, scanEndTime)
+	_ = sdc.close(scanStartTime, scanEndTime)
 	if out, err := spm.summariseScanResults(projectID, scanID, summariser); err == nil {
-		spm.updateScanHistory(projectID, scanID, out, scannedCommits)
+		_, _ = spm.updateScanHistory(projectID, scanID, out, scannedCommits)
 		if project, e := spm.GetProject(projectID); e == nil {
-			spm.saveProject(project, projectStatus{scanned: true, scanID: scanID, scanTime: out.Score.TimeStamp})
+			_ = spm.saveProject(project, projectStatus{scanned: true, scanID: scanID, scanTime: out.Score.TimeStamp})
 			if wsSummariser != nil {
 				wss, err := wsSummariser(spm, []string{project.Workspace})
 				if err == nil {
-					go spm.SaveWorkspaces(wss)
+					go func() {
+						_ = spm.SaveWorkspaces(wss)
+					}()
 				} else {
 					log.Printf("UpdateProject: %v", err)
 				}
@@ -897,7 +903,7 @@ func RetrieveCommitsToBeScanned(projectID, scanID string, pm ProjectManager, pro
 						}
 
 						if cIter, err := gitRepo.Log(&git.LogOptions{Order: git.LogOrderCommitterTime}); err == nil {
-							cIter.ForEach(func(c *object.Commit) error {
+							_ = cIter.ForEach(func(c *object.Commit) error {
 								hash := c.Hash.String()
 								progressMonitor(diagnostics.Progress{
 									ProjectID:   projectID,
@@ -1066,7 +1072,9 @@ func (spm simpleProjectManager) UpdateProject(projectID string, projectDescripti
 		if wsChange && wsSummariser != nil {
 			wss, err := wsSummariser(spm, wspaces)
 			if err == nil {
-				go spm.SaveWorkspaces(wss)
+				go func() {
+					_ = spm.SaveWorkspaces(wss)
+				}()
 			} else {
 				log.Printf("UpdateProject: %v", err)
 			}
@@ -1085,7 +1093,9 @@ func (spm simpleProjectManager) SaveProjectSummary(summary *ProjectSummary) erro
 		log.Printf("saveProjectSummary1: %v", err)
 		return err
 	}
-	defer projSummaryFile.Close()
+	defer func() {
+		_ = projSummaryFile.Close()
+	}()
 
 	summaryData, err := yaml.Marshal(summary)
 	if err != nil {
@@ -1128,7 +1138,9 @@ func (spm simpleProjectManager) saveProject(project Project, status projectStatu
 		return
 	}
 
-	defer projFile.Close()
+	defer func() {
+		_ = projFile.Close()
+	}()
 	if _, err = projFile.Write(data); err != nil {
 		return
 	}
@@ -1144,7 +1156,7 @@ func (spm simpleProjectManager) saveProject(project Project, status projectStatu
 			ScanAndCommitHistories: make(map[string]map[string]RepositoryHistory),
 		}
 
-		spm.SaveProjectSummary(summary)
+		_ = spm.SaveProjectSummary(summary)
 	}
 
 	//update project summary on a new scan or modification
@@ -1180,7 +1192,7 @@ func (spm simpleProjectManager) saveProject(project Project, status projectStatu
 				summary.LastScanID = status.scanID
 				summary.LastModification = status.modifiedTime
 			}
-			spm.SaveProjectSummary(summary)
+			_ = spm.SaveProjectSummary(summary)
 		}
 	}
 
@@ -1197,7 +1209,7 @@ func (spm simpleProjectManager) createScan(projectID string, scanPolicy ScanPoli
 
 	scanID = util.NewRandomUUID().String()
 	proj.ScanIDs = append(proj.ScanIDs, scanID)
-	spm.saveProject(proj, projectStatus{newScan: true, scanID: scanID, modifiedTime: time.Now()})
+	_ = spm.saveProject(proj, projectStatus{newScan: true, scanID: scanID, modifiedTime: time.Now()})
 
 	policy := ScanPolicy{
 		ID:     scanID,
@@ -1227,7 +1239,9 @@ func (spm simpleProjectManager) saveScan(projID, scanID string, policy ScanPolic
 	if err != nil {
 		return err
 	}
-	defer scanConfigFile.Close()
+	defer func() {
+		_ = scanConfigFile.Close()
+	}()
 
 	if _, err = scanConfigFile.Write(data); err != nil {
 		return err

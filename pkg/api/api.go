@@ -333,8 +333,8 @@ func createCSVReport(w http.ResponseWriter, r *http.Request) (scanReport string,
 	projID := vars["projectID"]
 	scanID := vars["scanID"]
 
-	if !(validateID(projID) && validateID(scanID)) {
-		err = errors.New("Invalid Project or Scan ID")
+	if !validateID(projID) || !validateID(scanID) {
+		err = errors.New("invalid Project or Scan ID")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -417,8 +417,8 @@ func createPDFReport(w http.ResponseWriter, r *http.Request) (scanReport string,
 	vars := mux.Vars(r)
 	projID := vars["projectID"]
 	scanID := vars["scanID"]
-	if !(validateID(projID) && validateID(scanID)) {
-		err = errors.New("Invalid Project or Scan ID")
+	if !validateID(projID) || !validateID(scanID) {
+		err = errors.New("invalid Project or Scan ID")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -515,7 +515,7 @@ func generateWorkspaceIssuesReport(w http.ResponseWriter, r *http.Request) (repo
 
 	vars := mux.Vars(r)
 	workspace := vars["workspace"]
-	filtered := true
+	_ = true // merged or skipped
 	if workspace == "__cm_all" { //sent from web app to print project summaries for all workspaces
 		filtered = false
 	}
@@ -576,7 +576,7 @@ func generateWorkspaceIssuesReport(w http.ResponseWriter, r *http.Request) (repo
 				}
 			}
 			out = append(out, results...)
-			results = nil
+
 		}
 	}
 
@@ -592,7 +592,7 @@ func generateWorkspaceIssuesReport(w http.ResponseWriter, r *http.Request) (repo
 func generateWorkspaceReport(w http.ResponseWriter, r *http.Request) (reportLocation string, err error) {
 	vars := mux.Vars(r)
 	workspace := vars["workspace"]
-	filtered := true
+	_ = true // merged or skipped
 	if workspace == "__cm_all" { //sent from web app to print project summaries for all workspaces
 		filtered = false
 	}
@@ -666,7 +666,7 @@ func generateWorkspaceReport(w http.ResponseWriter, r *http.Request) (reportLoca
 				multierror.Append(err, e)
 				continue
 			}
-			results = nil
+
 		}
 	}
 

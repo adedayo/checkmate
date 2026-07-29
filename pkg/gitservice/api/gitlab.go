@@ -111,7 +111,7 @@ func deleteGitLabIntegration(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	delete(config.GitServices[gitutils.GitLab], id.ID)
-	configManager.SaveConfig(config)
+	_ = configManager.SaveConfig(config)
 	json.NewEncoder(w).Encode(listIntegrations(gitutils.GitLab))
 }
 

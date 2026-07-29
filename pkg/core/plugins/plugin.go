@@ -16,6 +16,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/adedayo/checkmate/pkg/core/diagnostics"
@@ -120,7 +121,7 @@ func (m *MicroService) Start() {
 	}()
 
 	m.ch = make(chan os.Signal)
-	signal.Notify(m.ch, os.Interrupt, os.Kill)
+	signal.Notify(m.ch, os.Interrupt, syscall.SIGTERM)
 	s := <-m.ch
 	log.Printf("Shutting Microservice down with signal %v", s)
 }

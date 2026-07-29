@@ -16,7 +16,9 @@ func Generate(reportLocation string, issues []*diagnostics.SecurityDiagnostic) e
 		return err
 	}
 
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	return WriteSecurityDiagnosticCSVReport(file, issues)
 }
@@ -25,9 +27,9 @@ func WriteSecurityDiagnosticCSVReport(out io.Writer, issues []*diagnostics.Secur
 	writer := csv.NewWriter(out)
 	extraHeaders := diagnostics.GetExtraHeaders(issues)
 	headers := append((&diagnostics.SecurityDiagnostic{}).CSVHeaders(), extraHeaders...)
-	writer.Write(headers)
+	_ = writer.Write(headers)
 	for _, issue := range issues {
-		writer.Write(issue.CSVValues(extraHeaders...))
+		_ = writer.Write(issue.CSVValues(extraHeaders...))
 	}
 	writer.Flush()
 	return writer.Error()

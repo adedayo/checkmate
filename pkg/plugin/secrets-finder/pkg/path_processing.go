@@ -223,7 +223,9 @@ func (pathBSF pathBasedSourceSecretFinder) ConsumePath(rif util.RepositoryIndexe
 
 	if _, present := common.TextFileExtensions[ext]; present || ext == "" { //now scan files without extensions
 		if f, err := os.Open(path); err == nil {
-			defer f.Close()
+			defer func() {
+				_ = f.Close()
+			}()
 			//don't scan files larger than cutOffSize, unless they are in recognisedFiles
 			//don't scan files without extension, unless they are smaller than cutOffSize and contain plaintext content
 			if _, present := recognisedFiles[ext]; !present {

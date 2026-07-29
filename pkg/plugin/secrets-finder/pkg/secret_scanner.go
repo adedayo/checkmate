@@ -150,7 +150,7 @@ func (scanner SecretScanner) Scan(ctx context.Context, projectID string, scanID 
 	//3. cleanup: delete checked out repositories if required
 	if proj.DeleteCheckedOutCode {
 		for _, r := range repositories {
-			os.RemoveAll(r.CloneDetail.Location)
+			_ = os.RemoveAll(r.CloneDetail.Location)
 		}
 	}
 }

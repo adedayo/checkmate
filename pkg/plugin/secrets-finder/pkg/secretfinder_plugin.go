@@ -131,7 +131,7 @@ func SearchSecretsOnPaths(paths []string, options SecretSearchOptions) (chan *di
 		defer func() {
 			//clean downloaded repositories
 			for _, r := range repositories {
-				os.RemoveAll(r.CloneDetail.Location)
+				_ = os.RemoveAll(r.CloneDetail.Location)
 			}
 			close(out)
 			pathsOut <- allFiles

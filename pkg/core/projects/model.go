@@ -21,7 +21,9 @@ type Workspace struct {
 }
 
 func (wss *Workspace) SetProjectSummary(ps *ProjectSummary, pm ProjectManager) {
-	defer pm.SaveWorkspaces(wss)
+	defer func() {
+		_ = pm.SaveWorkspaces(wss)
+	}()
 	workspace := ps.Workspace
 	if wss.Details == nil {
 		wss.Details = make(map[string]*WorkspaceDetail)

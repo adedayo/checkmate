@@ -65,7 +65,7 @@ func GetExtraHeaders(diags []*SecurityDiagnostic) []string {
 			}
 		}
 	}
-	diags = nil
+
 	keys := make([]string, 0, len(headers))
 	for k := range headers {
 		keys = append(keys, k)
@@ -323,7 +323,7 @@ func (sdp *DefaultSecurityDiagnosticsProvider) Broadcast(diagnostics *SecurityDi
 			log.Println(err)
 		} else {
 			*diagnostics.Source = string(data)
-			data = nil
+
 		}
 	}
 

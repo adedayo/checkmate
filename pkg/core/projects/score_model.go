@@ -290,7 +290,7 @@ func GenerateModel(fileCount int, showSource bool, issues []*diagnostics.Securit
 	}
 
 	model.ProdAndNonProdSecretReuse = rus
-	issues = nil
+
 	return &model
 }
 

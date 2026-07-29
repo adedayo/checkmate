@@ -32,7 +32,7 @@ POSSIBILITY OF SUCH DAMAGE.
 */
 
 import (
-	"io/ioutil"
+	"os"
 	"log"
 	"os"
 
@@ -60,7 +60,7 @@ var lspServeCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		var wld diagnostics.ExcludeDefinition
 		if lspExclusions != "" {
-			data, err := ioutil.ReadFile(lspExclusions)
+			data, err := os.ReadFile(lspExclusions)
 			if err != nil {
 				log.Printf("Warning: %s. Continuing with no exclusion", err.Error())
 			} else {
