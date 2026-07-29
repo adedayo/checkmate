@@ -1,6 +1,7 @@
 package secrets
 
 import (
+	"math"
 	"reflect"
 	"testing"
 
@@ -95,20 +96,20 @@ func Test_detectSecret(t *testing.T) {
 			secret: "gho_pTruZn7ntsbrTERIYU4sGx3Qq4689V2Jzoq1",
 			wantEvidence: diagnostics.Evidence{
 				Description: "Discovered a GitHub OAuth Access Token, posing a risk of compromised GitHub account integrations and data leaks.",
-				Confidence:  diagnostics.High},
+				Confidence:  diagnostics.Critical},
 		},
 		{
 			name:   "Slack Token",
 			secret: "xoxb-" + "333649436676-799261852869-clFJVVIaoJahpORboa3Ba2al",
 			wantEvidence: diagnostics.Evidence{
-				Description: "Slack Bot/User Token",
+				Description: "Identified a Slack Bot token, which may compromise bot integrations and communication channel security.",
 				Confidence:  diagnostics.Critical},
 		},
 		{
 			name:   "Stripe Token",
 			secret: "sk_test_" + "26PHem9AhJZvU623DfE1x4sd",
 			wantEvidence: diagnostics.Evidence{
-				Description: "Stripe/PayStack Token",
+				Description: "Found a Stripe Access Token, posing a risk to payment processing services and sensitive financial data.",
 				Confidence:  diagnostics.Critical},
 		},
 		{
@@ -179,7 +180,7 @@ func Test_getShannonEntropy(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := getShannonEntropy(tt.data); got != tt.want {
+			if got := getShannonEntropy(tt.data); math.Abs(got-tt.want) > 1e-9 {
 				t.Errorf("getShannonEntropy() = %v, want %v", got, tt.want)
 			}
 		})
