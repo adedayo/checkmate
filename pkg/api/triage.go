@@ -20,7 +20,7 @@ func triageFinding(w http.ResponseWriter, r *http.Request) {
 
 	// Return 202 Accepted immediately
 	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(triageResponse{
+	_ = json.NewEncoder(w).Encode(triageResponse{
 		Status:    "queued",
 		FindingID: findingID,
 	})

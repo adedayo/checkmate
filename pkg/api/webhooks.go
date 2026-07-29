@@ -34,7 +34,7 @@ func listWebhooks(w http.ResponseWriter, r *http.Request) {
 		webhooks = []*store.Webhook{}
 	}
 
-	json.NewEncoder(w).Encode(webhooks)
+	_ = json.NewEncoder(w).Encode(webhooks)
 }
 
 // createWebhook handles POST /v1/webhooks
@@ -81,7 +81,7 @@ func createWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(webhook)
+	_ = json.NewEncoder(w).Encode(webhook)
 }
 
 // deleteWebhook handles DELETE /v1/webhooks/{webhookId}
@@ -114,7 +114,7 @@ func testWebhook(w http.ResponseWriter, r *http.Request) {
 	// For now, we'll just return 202 Accepted.
 
 	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]string{
+	_ = json.NewEncoder(w).Encode(map[string]string{
 		"status": "Test event dispatched",
 	})
 }

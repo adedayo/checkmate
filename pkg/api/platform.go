@@ -14,7 +14,7 @@ import (
 // systemHealth returns the basic health of the API
 func systemHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
+	_ = json.NewEncoder(w).Encode(map[string]string{
 		"status": "ok",
 	})
 }
@@ -28,7 +28,7 @@ func systemReady(w http.ResponseWriter, r *http.Request) {
 
 	if err := pm.Ping(); err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"status": "unavailable",
 			"error":  err.Error(),
 		})
@@ -36,7 +36,7 @@ func systemReady(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
+	_ = json.NewEncoder(w).Encode(map[string]string{
 		"status": "ready",
 	})
 }
@@ -63,7 +63,7 @@ func searchFindings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(result)
+	_ = json.NewEncoder(w).Encode(result)
 }
 
 // listProjectScans retrieves paginated scans for a project
@@ -91,7 +91,7 @@ func listProjectScans(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(scans)
+	_ = json.NewEncoder(w).Encode(scans)
 }
 
 // scanSSEHandler streams scan events to the client using Server-Sent Events
@@ -199,7 +199,7 @@ func startProjectScan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]string{
+	_ = json.NewEncoder(w).Encode(map[string]string{
 		"scanId": scanID,
 		"status": "starting",
 	})

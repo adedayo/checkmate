@@ -273,7 +273,7 @@ func getProjectSummary(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	json.NewEncoder(w).Encode(summary)
+	_ = json.NewEncoder(w).Encode(summary)
 }
 
 func getScanSummary(w http.ResponseWriter, r *http.Request) {
@@ -286,7 +286,7 @@ func getScanSummary(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	json.NewEncoder(w).Encode(summary)
+	_ = json.NewEncoder(w).Encode(summary)
 }
 
 func getCSVScanReport(w http.ResponseWriter, r *http.Request) {
@@ -295,7 +295,7 @@ func getCSVScanReport(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	json.NewEncoder(w).Encode(scanReport)
+	_ = json.NewEncoder(w).Encode(scanReport)
 }
 
 func getPDFScanReportPath(w http.ResponseWriter, r *http.Request) {
@@ -304,7 +304,7 @@ func getPDFScanReportPath(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	json.NewEncoder(w).Encode(scanReport)
+	_ = json.NewEncoder(w).Encode(scanReport)
 }
 
 func downloadReport(w http.ResponseWriter, r *http.Request, path string) {
@@ -501,7 +501,7 @@ func getProject(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	json.NewEncoder(w).Encode(project)
+	_ = json.NewEncoder(w).Encode(project)
 }
 
 func projectSummaries(w http.ResponseWriter, r *http.Request) {
@@ -706,7 +706,7 @@ func getWorkspaceIssuesReportPath(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	json.NewEncoder(w).Encode(reportLocation)
+	_ = json.NewEncoder(w).Encode(reportLocation)
 
 }
 
@@ -716,7 +716,7 @@ func getWorkspaceReportPath(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	json.NewEncoder(w).Encode(reportLocation)
+	_ = json.NewEncoder(w).Encode(reportLocation)
 
 }
 
@@ -735,7 +735,7 @@ func deleteProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(id.ProjectID)
+	_ = json.NewEncoder(w).Encode(id.ProjectID)
 }
 
 func getIssues(w http.ResponseWriter, r *http.Request) {
@@ -751,7 +751,7 @@ func getIssues(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(issues)
+	_ = json.NewEncoder(w).Encode(issues)
 }
 
 func fixIssue(w http.ResponseWriter, r *http.Request) {
@@ -760,7 +760,7 @@ func fixIssue(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	json.NewEncoder(w).Encode(pm.RemediateIssue(fix))
+	_ = json.NewEncoder(w).Encode(pm.RemediateIssue(fix))
 }
 
 func getCodeContext(w http.ResponseWriter, r *http.Request) {
@@ -769,7 +769,7 @@ func getCodeContext(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	json.NewEncoder(w).Encode(pm.GetCodeContext(cnt))
+	_ = json.NewEncoder(w).Encode(pm.GetCodeContext(cnt))
 }
 
 func createProject(w http.ResponseWriter, r *http.Request) {
@@ -794,7 +794,7 @@ func createProject(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	json.NewEncoder(w).Encode(summary)
+	_ = json.NewEncoder(w).Encode(summary)
 }
 
 func updateProject(w http.ResponseWriter, r *http.Request) {
@@ -817,7 +817,7 @@ func updateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(proj)
+	_ = json.NewEncoder(w).Encode(proj)
 }
 
 func findSecrets(w http.ResponseWriter, r *http.Request) {
@@ -850,7 +850,7 @@ func findSecrets(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(diagnostics)
+	_ = json.NewEncoder(w).Encode(diagnostics)
 }
 
 func scanSecrets(w http.ResponseWriter, r *http.Request) {

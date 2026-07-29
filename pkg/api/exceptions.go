@@ -27,7 +27,7 @@ func listExceptions(w http.ResponseWriter, r *http.Request) {
 		exceptions = []*store.Exception{}
 	}
 
-	json.NewEncoder(w).Encode(exceptions)
+	_ = json.NewEncoder(w).Encode(exceptions)
 }
 
 // createException handles POST /v1/exceptions
@@ -69,7 +69,7 @@ func createException(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(req)
+	_ = json.NewEncoder(w).Encode(req)
 }
 
 // getException handles GET /v1/exceptions/{exceptionId}
@@ -88,7 +88,7 @@ func getException(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(exc)
+	_ = json.NewEncoder(w).Encode(exc)
 }
 
 // updateException handles PATCH /v1/exceptions/{exceptionId}
@@ -113,7 +113,7 @@ func updateException(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(exc)
+	_ = json.NewEncoder(w).Encode(exc)
 }
 
 // revokeException handles DELETE /v1/exceptions/{exceptionId}
@@ -156,7 +156,7 @@ func exportExceptions(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Disposition", "attachment; filename=checkmate.json")
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(activeExceptions)
+	_ = json.NewEncoder(w).Encode(activeExceptions)
 }
 
 // importExceptions handles POST /v1/exceptions/import
@@ -190,7 +190,7 @@ func importExceptions(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"imported": imported,
 		"skipped":  skipped,
 		"errors":   errors,
@@ -202,14 +202,14 @@ func validateExceptions(w http.ResponseWriter, r *http.Request) {
 	// Simple validation: just verify it parses as JSON array of exceptions
 	var exceptions []*store.Exception
 	if err := json.NewDecoder(r.Body).Decode(&exceptions); err != nil {
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"valid": false,
 			"errors": []string{err.Error()},
 		})
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"valid": true,
 		"errors": []string{},
 	})

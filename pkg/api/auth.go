@@ -154,7 +154,7 @@ func authLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"accessToken":  accessToken,
 		"refreshToken": refreshToken,
 		"expiresIn":    900, // 15 mins
@@ -188,7 +188,7 @@ func authRefresh(w http.ResponseWriter, r *http.Request) {
 	// Revoke the old refresh token (Rotate)
 	_ = pm.RevokeRefreshToken(tokenHash)
 
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"accessToken":  accessToken,
 		"refreshToken": newRefreshToken,
 		"expiresIn":    900,
@@ -213,7 +213,7 @@ func listAPIKeys(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to list API keys", http.StatusInternalServerError)
 		return
 	}
-	json.NewEncoder(w).Encode(keys)
+	_ = json.NewEncoder(w).Encode(keys)
 }
 
 const base62Chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -274,7 +274,7 @@ func createAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 	
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func revokeAPIKey(w http.ResponseWriter, r *http.Request) {
