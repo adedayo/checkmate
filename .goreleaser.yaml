@@ -46,10 +46,12 @@ changelog:
 
 dockers_v2:
   - images:
-      - "ghcr.io/adedayo/checkmate:latest"
-      - "ghcr.io/adedayo/checkmate:v{{ .Major }}"
-      - "ghcr.io/adedayo/checkmate:v{{ .Major }}.{{ .Minor }}"
-      - "ghcr.io/adedayo/checkmate:{{ .Tag }}"
+      - "ghcr.io/adedayo/checkmate"
+    tags:
+      - "latest"
+      - "v{{ .Major }}"
+      - "v{{ .Major }}.{{ .Minor }}"
+      - "{{ .Tag }}"
     dockerfile: Dockerfile
     extra_files:
       - dist/checkmate_linux_amd64_v1/checkmate
