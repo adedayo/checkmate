@@ -127,6 +127,7 @@ func main() {
 
 }
 
+//nolint:unused // kept for debugging
 type outConsumer struct {
 }
 

@@ -90,10 +90,10 @@ func MakeSimpleProjectManager(checkMateBaseDir string) ProjectManager {
 	}
 
 	//attempt to create the project location if it doesn't exist
-	os.MkdirAll(pm.projectsLocation, 0755)
+	_ = os.MkdirAll(pm.projectsLocation, 0755)
 	//create workspace file if it doesn't exist
 	if _, err := os.Stat(path.Join(pm.projectsLocation, defaultWorkspacesFile)); errors.Is(err, fs.ErrNotExist) {
-		pm.SaveWorkspaces(&Workspace{})
+		_ = pm.SaveWorkspaces(&Workspace{})
 	}
 
 	//create empty repo commits file if it doesn't exist
@@ -141,7 +141,7 @@ func MigrateYAMLWorkspace(spm *simpleProjectManager) {
 		}
 		log.Printf("Migrating %v", ws)
 		spm.workspaceFileMutex.Unlock()
-		spm.SaveWorkspaces(&ws)
+		_ = spm.SaveWorkspaces(&ws)
 	} else {
 		log.Printf("GetWorkspaces YAML ReadFile: %v", err)
 		spm.workspaceFileMutex.Unlock()
@@ -164,14 +164,14 @@ func (pm simpleProjectManager) DeleteProject(id string) error {
 
 	//remove project from workspaces
 	if ws, err := pm.GetWorkspaces(); err == nil {
-		ws.RemoveProjectSummary(proj, pm)
+		_ = ws.RemoveProjectSummary(proj, pm)
 	}
 	//delete project metadata
-	os.RemoveAll(pm.GetProjectLocation(id))
+	_ = os.RemoveAll(pm.GetProjectLocation(id))
 	//delete checked out code
 	for _, r := range proj.Repositories {
 		if r.IsGit() {
-			os.RemoveAll(r.GetCodeLocation(pm, id))
+			_ = os.RemoveAll(r.GetCodeLocation(pm, id))
 		}
 	}
 	return nil
@@ -256,7 +256,7 @@ func UpdatePolicy(exclude diagnostics.ExcludeRequirement, pm ProjectManager) (re
 			return
 		}
 
-		pm.UpdateProject(project.ID, ProjectDescription{
+		_ = pm.UpdateProject(project.ID, ProjectDescription{
 			Name:         project.Name,
 			Workspace:    project.Workspace,
 			Repositories: project.Repositories,
@@ -398,7 +398,7 @@ func appendUnique(xs []string, x string) []string {
 	for z := range m {
 		out = append(out, z)
 	}
-	out = sort.StringSlice(out)
+	sort.Strings(out)
 	return out
 }
 
@@ -439,7 +439,9 @@ func (spm simpleProjectManager) SaveWorkspaces(ws *Workspace) error {
 		log.Printf("SaveWorkspaces: %v\n", err)
 		return err
 	}
-	defer wsFile.Close()
+	defer func() {
+		_ = wsFile.Close()
+	}()
 
 	err = json.NewEncoder(wsFile).Encode(ws)
 	if err != nil {
@@ -651,7 +653,9 @@ func (spm simpleProjectManager) summariseScanResults(projectID, scanID string, s
 	if err != nil {
 		return out, err
 	}
-	defer scanSummaryFile.Close()
+	defer func() {
+		_ = scanSummaryFile.Close()
+	}()
 	return out, yaml.NewEncoder(scanSummaryFile).Encode(out)
 }
 
@@ -953,7 +957,7 @@ func RetrieveCommitsToBeScanned(projectID, scanID string, pm ProjectManager, pro
 		ScanID:      scanID,
 		Position:    1,
 		Total:       1,
-		CurrentFile: fmt.Sprintf("finished analysing repositories"),
+		CurrentFile: "finished analysing repositories",
 	})
 
 	return out

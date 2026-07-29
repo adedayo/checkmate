@@ -147,7 +147,9 @@ func directoryIsEmpty(dir string) bool {
 	if err != nil {
 		return false
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	_, err = f.Readdirnames(1)
 	return err == io.EOF

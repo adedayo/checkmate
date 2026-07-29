@@ -16,7 +16,7 @@ func NewSecurityServer(exclusionProvider core.ExclusionProvider) lsp.Server {
 	server := &SecurityServer{
 		ExclusionProvider: exclusionProvider,
 	}
-	server.DefaultServer.Init(server)
+	server.Init(server)
 	return server
 }
 

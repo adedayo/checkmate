@@ -98,7 +98,7 @@ type ProjectDescriptionWire struct {
 func (desc ProjectDescriptionWire) ToProjectDescription() (ProjectDescription, error) {
 
 	desc.Repositories = sanitiseRepositories(desc.Repositories)
-	var policy diagnostics.ExcludeDefinition = diagnostics.DefaultExclusion()
+	var policy = diagnostics.DefaultExclusion()
 	policyID := desc.ScanPolicy.ID
 	if policyID == "" {
 		policyID = util.NewRandomUUID().String()

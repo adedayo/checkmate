@@ -11,10 +11,12 @@ import (
 	"github.com/adedayo/go-lsp/pkg/lsp"
 )
 
+//nolint:unused // these may be used later
 var (
 	source = fmt.Sprintf("\n%s ", common.AppDisplayName)
 )
 
+//nolint:unused // these may be used later
 func convert(in *diagnostics.SecurityDiagnostic) lsp.Diagnostic {
 
 	reasons := []string{fmt.Sprintf("Problem: %s. Confidence Level: %s.",
@@ -34,6 +36,7 @@ func convert(in *diagnostics.SecurityDiagnostic) lsp.Diagnostic {
 	return out
 }
 
+//nolint:unused // these may be used later
 func copyCode(in code.Range) lspCode.Range {
 	out := lspCode.Range{}
 	out.Start.Line = int64(in.Start.Line)
@@ -44,6 +47,7 @@ func copyCode(in code.Range) lspCode.Range {
 	return out
 }
 
+//nolint:unused // these may be used later
 func convertConfidence(confidence diagnostics.Confidence) *lsp.DiagnosticSeverity {
 	var x lsp.DiagnosticSeverity = 4 //Hint
 	switch confidence {

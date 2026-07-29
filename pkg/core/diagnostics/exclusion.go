@@ -126,7 +126,7 @@ func CompileExcludes(container ExcludeContainer) (ExclusionProvider, error) {
 		ExcludeDefinition: container.ExcludeDef,
 		repositories:      container.Repositories,
 	}
-	wl.cleanSerialisationConstructs()
+	_ = wl.cleanSerialisationConstructs()
 	err := wl.compileRegExs()
 	return &wl, err
 }

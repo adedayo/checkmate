@@ -156,7 +156,9 @@ func (cm configManager) GetConfig() (*GitServiceConfig, error) {
 		log.Printf("Error opening Git Service Configuration: %v", err)
 		return conf, err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	if err := yaml.NewDecoder(file).Decode(conf); err != nil {
 		log.Printf("Error opening Git Service Configuration: %v", err)
@@ -171,10 +173,14 @@ func (cm configManager) SaveConfig(conf *GitServiceConfig) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	encoder := yaml.NewEncoder(file)
-	defer encoder.Close()
+	defer func() {
+		_ = encoder.Close()
+	}()
 	return encoder.Encode(conf)
 }
 
@@ -192,7 +198,7 @@ func NewGitConfigManager(baseDirectory string) GitConfigManager {
 	}
 
 	//attempt to create the project location if it doesn't exist
-	os.MkdirAll(location, 0755)
+	_ = os.MkdirAll(location, 0755)
 
 	return gitConfigManager
 }

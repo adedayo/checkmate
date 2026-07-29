@@ -94,7 +94,7 @@ func (dth diagnosticTransformHandler) transfromDiagnostics(w http.ResponseWriter
 			_ = r.Body.Close()
 		}()
 		d := dth.transformer.Transform(confD.Config, confD.Diagnostics...)
-		json.NewEncoder(w).Encode(d)
+		_ = json.NewEncoder(w).Encode(d)
 
 	default:
 		http.Error(w, errors.New("Only POST method is supported, but got "+r.Method).Error(), http.StatusBadRequest)
@@ -111,12 +111,12 @@ type MicroService struct {
 
 //shut down server and service
 func (m *MicroService) ShutDown() {
-	m.HTTPServer.Shutdown(context.Background())
+	_ = m.HTTPServer.Shutdown(context.Background())
 }
 
 func (m *MicroService) Start() {
 	go func() {
-		m.HTTPServer.ListenAndServe()
+		_ = m.HTTPServer.ListenAndServe()
 	}()
 
 	m.ch = make(chan os.Signal)
@@ -153,7 +153,9 @@ func (p pluginRunner) Transform(config *Config, diags ...*diagnostics.SecurityDi
 		return diags //noop
 	}
 
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	out := []*diagnostics.SecurityDiagnostic{}
 
 	err = json.NewDecoder(resp.Body).Decode(&out)
@@ -190,7 +192,7 @@ func NewDiagnosticTransformerPlugin(path string) (DiagnosticTransformerPlugin, i
 	}
 
 	go func() {
-		cmd.Wait()
+		_ = cmd.Wait()
 	}()
 
 	//read the first port:<number> output
@@ -198,12 +200,12 @@ func NewDiagnosticTransformerPlugin(path string) (DiagnosticTransformerPlugin, i
 		output := scanner.Text()
 		p := strings.Split(output, ":")
 		if len(p) != 2 {
-			return runner, pr, fmt.Errorf("Expecting output 'port:<number>' but got '%s'", output)
+			return runner, pr, fmt.Errorf("expecting output 'port:<number>' but got '%s'", output)
 		}
 
 		port, err := strconv.Atoi(strings.TrimSpace(p[1]))
 		if err != nil {
-			return runner, pr, fmt.Errorf("Expecting port as a number but got '%s'", p[1])
+			return runner, pr, fmt.Errorf("expecting port as a number but got '%s'", p[1])
 		}
 		runner.transformURL = fmt.Sprintf("http://localhost:%d/transform", port)
 	}
@@ -211,7 +213,7 @@ func NewDiagnosticTransformerPlugin(path string) (DiagnosticTransformerPlugin, i
 	//stream the rest of the result
 	go func() {
 		for scanner.Scan() {
-			pw.Write(scanner.Bytes())
+			_, _ = pw.Write(scanner.Bytes())
 		}
 	}()
 

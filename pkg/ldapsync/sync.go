@@ -18,7 +18,7 @@ func Do(config LDAPSyncConfig) (result LDAPRecords, err error) {
 	}
 
 	if config.TLS == "tls" {
-		l, err = ldap.DialTLS("tcp", config.GetDialAddr(), tlsConfig)
+		l, err = ldap.DialURL("ldaps://"+config.GetDialAddr(), ldap.DialWithTLSConfig(tlsConfig))
 		if err != nil {
 			return
 		}
@@ -90,7 +90,7 @@ func Auth(data LDAPAuthData) (auth AuthResult, err error) {
 	}
 
 	if data.TLS == "tls" {
-		l, err = ldap.DialTLS("tcp", dialURL, tlsConfig)
+		l, err = ldap.DialURL("ldaps://"+dialURL, ldap.DialWithTLSConfig(tlsConfig))
 		if err != nil {
 			auth.ErrorMessage = err.Error()
 			return
