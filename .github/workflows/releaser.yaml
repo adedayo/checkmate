@@ -12,6 +12,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
     steps:
       - name: Checkout repository
@@ -19,18 +21,11 @@ jobs:
         with:
           fetch-depth: 0 # Ensures that the full history is fetched
 
-      - name: Checkout dependencies
-        run: |
-          git clone https://github.com/adedayo/checkmate-core.git ../checkmate-core
-          git clone https://github.com/adedayo/ldap-sync.git ../ldap-sync
-          git clone https://github.com/adedayo/git-service-driver.git ../git-service-driver
-          git clone https://github.com/adedayo/checkmate-plugin.git ../checkmate-plugin
-          git clone https://github.com/adedayo/checkmate-badger-project-manager.git ../checkmate-badger-project-manager
-
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version-file: go.mod
+          cache: true
 
       - name: Set up Docker Buildx
         id: buildx
