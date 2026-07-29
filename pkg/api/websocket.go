@@ -54,7 +54,7 @@ func cleanClose(ws *websocket.Conn) {
 	ws.SetCloseHandler(socketCloseHandler(ws))
 	for {
 		if _, _, err := ws.NextReader(); err != nil {
-			ws.Close()
+			_ = ws.Close()
 			break
 		}
 	}
@@ -118,7 +118,7 @@ func runSecretScan(ctx context.Context, options ProjectScanOptions, ws *websocke
 		progressMon := func(progress diagnostics.Progress) {
 			paths = append(paths, progress.CurrentFile)
 			for _, ws := range GetListeningSocketsByProjectID(id) {
-				ws.WriteJSON(progress)
+				_ = ws.WriteJSON(progress)
 			}
 		}
 
@@ -162,7 +162,7 @@ func runSecretScan(ctx context.Context, options ProjectScanOptions, ws *websocke
 
 		if err == nil {
 			for _, ws := range GetListeningSocketsByProjectID(projID) {
-				ws.WriteJSON(projectSummary)
+				_ = ws.WriteJSON(projectSummary)
 				ws.WriteJSON(scanSummary)
 			}
 		}

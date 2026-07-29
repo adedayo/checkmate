@@ -132,7 +132,7 @@ func scanSSEHandler(w http.ResponseWriter, r *http.Request) {
 			// Client disconnected
 			return
 		case <-ticker.C:
-			fmt.Fprintf(w, ": keepalive\n\n")
+			_, _ = fmt.Fprintf(w, ": keepalive\n\n")
 			flusher.Flush()
 		case event, open := <-eventsCh:
 			if !open {
@@ -148,8 +148,8 @@ func scanSSEHandler(w http.ResponseWriter, r *http.Request) {
 			// SSE format:
 			// event: <type>
 			// data: <json>
-			fmt.Fprintf(w, "event: %s\n", event.Type)
-			fmt.Fprintf(w, "data: %s\n\n", string(dataBytes))
+			_, _ = fmt.Fprintf(w, "event: %s\n", event.Type)
+			_, _ = fmt.Fprintf(w, "data: %s\n\n", string(dataBytes))
 			flusher.Flush()
 			
 			if event.Type == store.EventComplete {

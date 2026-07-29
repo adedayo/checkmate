@@ -184,8 +184,8 @@ IAuthUserRequest,
 				}
 				gotResult = true
 				want := makeDiagnostic(tt.value, tt.evidences, tt.provider)
-				if !(got.Justification.Headline.Description == want.Justification.Headline.Description &&
-					got.Justification.Headline.Confidence == want.Justification.Headline.Confidence) &&
+				if (got.Justification.Headline.Description != want.Justification.Headline.Description ||
+					got.Justification.Headline.Confidence != want.Justification.Headline.Confidence) &&
 					!checkEqual(want.Justification.Reasons, got.Justification.Reasons) {
 					g, _ := json.MarshalIndent(got, "", " ")
 					w, _ := json.MarshalIndent(want, "", " ")

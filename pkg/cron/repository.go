@@ -90,7 +90,7 @@ func processProjectSummary(ctx context.Context, ps *projects.ProjectSummary, pm 
 
 		if hasChanged {
 			// save project summary
-			pm.SaveProjectSummary(ps)
+			_ = pm.SaveProjectSummary(ps)
 			//determine which commits to auto-scan, and launch scan job
 			scanNextUnscannedBranch(ctx, ps, pm, callback, config)
 		}

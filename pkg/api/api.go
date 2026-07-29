@@ -353,7 +353,7 @@ func createCSVReport(w http.ResponseWriter, r *http.Request) (scanReport string,
 
 	reports_dir := path.Join(pm.GetBaseDir(), "reports", projID)
 	// create the reports directory if it doesn't exist
-	os.MkdirAll(reports_dir, 0755)
+	_ = os.MkdirAll(reports_dir, 0755)
 	scanReport = path.Join(reports_dir, fmt.Sprintf("%s.csv", scanID))
 
 	//check if report already exists and send, otherwise generate and store
@@ -426,7 +426,7 @@ func createPDFReport(w http.ResponseWriter, r *http.Request) (scanReport string,
 	}
 	reports_dir := path.Join(pm.GetBaseDir(), "reports", projID)
 	// create the project reports directory if it doesn't exist
-	os.MkdirAll(reports_dir, 0755)
+	_ = os.MkdirAll(reports_dir, 0755)
 	scanReport = path.Join(reports_dir, fmt.Sprintf("%s.pdf", scanID))
 
 	//check if report already exists and send, otherwise generate and store
@@ -521,7 +521,7 @@ func generateWorkspaceIssuesReport(w http.ResponseWriter, r *http.Request) (repo
 
 	reports_dir := path.Join(pm.GetBaseDir(), "reports", "workspace")
 	// create the reports directory if it doesn't exist
-	os.MkdirAll(reports_dir, 0755)
+	_ = os.MkdirAll(reports_dir, 0755)
 	reportLocation = path.Join(reports_dir, fmt.Sprintf("WorkspaceSummaries_%d.csv", time.Now().Unix()))
 	file, err := os.Create(reportLocation)
 
@@ -530,7 +530,9 @@ func generateWorkspaceIssuesReport(w http.ResponseWriter, r *http.Request) (repo
 		return
 	}
 
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	projectSummaries := pm.ListProjectSummaries()
 
@@ -557,7 +559,7 @@ func generateWorkspaceIssuesReport(w http.ResponseWriter, r *http.Request) (repo
 			scanID := pSum.LastScanID
 			results, e := pm.GetScanResults(projectID, scanID)
 			if e != nil {
-				multierror.Append(err, e)
+				err = multierror.Append(err, e)
 				continue
 			}
 
@@ -581,7 +583,7 @@ func generateWorkspaceIssuesReport(w http.ResponseWriter, r *http.Request) (repo
 
 	e := csvreport.WriteSecurityDiagnosticCSVReport(file, out)
 	if e != nil {
-		multierror.Append(err, e)
+		err = multierror.Append(err, e)
 	}
 
 	return
@@ -604,20 +606,22 @@ func generateWorkspaceReport(w http.ResponseWriter, r *http.Request) (reportLoca
 		return
 	}
 
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 	writer := csv.NewWriter(file)
 
 	projectSummaries := pm.ListProjectSummaries()
 
 	//write summaries for each project in workspace
-	writer.Write((&projects.ProjectSummary{}).CSVHeaders())
+	_ = writer.Write((&projects.ProjectSummary{}).CSVHeaders())
 	for _, summary := range projectSummaries {
 		if !filtered || (filtered && workspace == summary.Workspace) {
-			writer.Write(summary.CSVValues())
+			_ = writer.Write(summary.CSVValues())
 		}
 	}
 
-	writer.Write([]string{}) //NL :-)
+	_ = writer.Write([]string{}) //NL :-)
 	writer.Write([]string{"Project Details"})
 
 	writer.Flush()
@@ -639,7 +643,7 @@ func generateWorkspaceReport(w http.ResponseWriter, r *http.Request) (reportLoca
 			writer.Flush()
 			e := writer.Error()
 			if e != nil {
-				multierror.Append(err, e)
+				err = multierror.Append(err, e)
 				continue
 			}
 			results, e := pm.GetScanResults(projectID, scanID)
@@ -675,7 +679,7 @@ type closableTransformer struct {
 }
 
 func (ct closableTransformer) Kill() {
-	ct.Plugin.ShutDown()
+	_ = ct.Plugin.ShutDown()
 }
 
 func downloadWorkspaceIssues(w http.ResponseWriter, r *http.Request) {

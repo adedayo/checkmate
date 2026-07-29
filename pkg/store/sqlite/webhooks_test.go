@@ -13,7 +13,9 @@ func TestDB_Webhooks(t *testing.T) {
 	tempDir := t.TempDir()
 	db, err := New(tempDir)
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	webhook := &store.Webhook{
 		ID:        "wh_123",

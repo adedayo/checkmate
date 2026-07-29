@@ -830,7 +830,7 @@ func processXMLAssignment(variable, assignedVal string, sourceIndex int64, isEle
 			s := string(buff)
 			diagnostic.Source = &s
 		}
-		if !(finder.options.CalculateChecksum && finder.ShouldExcludeHash(*diagnostic.SHA256)) {
+		if !finder.options.CalculateChecksum || !finder.ShouldExcludeHash(*diagnostic.SHA256) {
 			finder.Broadcast(&diagnostic)
 		}
 

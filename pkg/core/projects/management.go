@@ -1266,7 +1266,9 @@ func (sdc *simpleDiagnosticConsumer) close(start, end time.Time) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	if err := json.NewEncoder(file).Encode(sdc.diagnostics); err != nil {
 		return err

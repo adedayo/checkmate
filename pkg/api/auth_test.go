@@ -21,7 +21,7 @@ func setupAuthTest(t *testing.T) (*sqlite.DB, func()) {
 
 	pm = db
 
-	return db, func() { db.Close() }
+	return db, func() { _ = db.Close() }
 }
 
 func TestAPI_AuthLogin(t *testing.T) {

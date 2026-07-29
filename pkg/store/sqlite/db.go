@@ -138,7 +138,9 @@ func (d *DB) GetWorkspaces() (*projects.Workspace, error) {
 	if err != nil {
 		return nil, fmt.Errorf("query projects for workspaces: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	ws := &projects.Workspace{
 		Details: make(map[string]*projects.WorkspaceDetail),
@@ -201,7 +203,9 @@ func (d *DB) ListProjectSummaries() []*projects.ProjectSummary {
 		log.Printf("ListProjectSummaries: %v", err)
 		return nil
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var summaries []*projects.ProjectSummary
 	for rows.Next() {
@@ -379,7 +383,9 @@ func (d *DB) GetScanResults(projectID, scanID string) ([]*diagnostics.SecurityDi
 	if err != nil {
 		return nil, fmt.Errorf("query findings: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var results []*diagnostics.SecurityDiagnostic
 	for rows.Next() {

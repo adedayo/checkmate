@@ -29,7 +29,7 @@ func ScheduleReposiroryTracking(config Config) {
 
 func callback(projID string, data interface{}) {
 	for _, ws := range api.GetListeningSocketsByProjectID(projID) {
-		ws.WriteJSON(data)
+		_ = ws.WriteJSON(data)
 	}
 }
 
