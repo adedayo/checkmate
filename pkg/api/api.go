@@ -251,18 +251,18 @@ func getWorkspaces(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	json.NewEncoder(w).Encode(wss)
+	_ = json.NewEncoder(w).Encode(wss)
 }
 
 func version(w http.ResponseWriter, r *http.Request) {
-	json.NewEncoder(w).Encode(apiVersion)
+	_ = json.NewEncoder(w).Encode(apiVersion)
 }
 
 func getCapabilities(w http.ResponseWriter, r *http.Request) {
-	json.NewEncoder(w).Encode(caps)
+	_ = json.NewEncoder(w).Encode(caps)
 }
 func defaultPolicy(w http.ResponseWriter, r *http.Request) {
-	json.NewEncoder(w).Encode(diagnostics.GenerateSampleExclusion())
+	_ = json.NewEncoder(w).Encode(diagnostics.GenerateSampleExclusion())
 }
 
 func getProjectSummary(w http.ResponseWriter, r *http.Request) {

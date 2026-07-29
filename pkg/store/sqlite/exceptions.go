@@ -115,7 +115,9 @@ func (d *DB) ListExceptions() ([]*store.Exception, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var exceptions []*store.Exception
 	for rows.Next() {
@@ -142,7 +144,7 @@ func (d *DB) ListExceptions() ([]*store.Exception, error) {
 
 		exceptions = append(exceptions, &exc)
 	}
-	rows.Close() // Close rows to release the connection
+	_ = rows.Close() // Close rows to release the connection
 
 	// Fetch audit logs for all exceptions
 	for _, exc := range exceptions {
@@ -244,7 +246,9 @@ func (d *DB) getAuditLogsTx(db *sql.DB, resourceType, resourceID string) []*stor
 	if err != nil {
 		return nil
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var audits []*store.AuditEvent
 	for rows.Next() {
