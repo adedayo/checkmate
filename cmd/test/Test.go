@@ -1,8 +1,6 @@
 package main
 
-import (
-	"github.com/adedayo/checkmate/pkg/core/diagnostics"
-)
+
 
 func main() {
 

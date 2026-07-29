@@ -856,7 +856,7 @@ func (spm simpleProjectManager) RunScan(ctx context.Context, projectID string,
 	if out, err := spm.summariseScanResults(projectID, scanID, summariser); err == nil {
 		_, _ = spm.updateScanHistory(projectID, scanID, out, scannedCommits)
 		if project, e := spm.GetProject(projectID); e == nil {
-			_ = spm.saveProject(project, projectStatus{scanned: true, scanID: scanID, scanTime: out.Score.TimeStamp})
+			_, _ = spm.saveProject(project, projectStatus{scanned: true, scanID: scanID, scanTime: out.Score.TimeStamp})
 			if wsSummariser != nil {
 				wss, err := wsSummariser(spm, []string{project.Workspace})
 				if err == nil {
@@ -1209,7 +1209,7 @@ func (spm simpleProjectManager) createScan(projectID string, scanPolicy ScanPoli
 
 	scanID = util.NewRandomUUID().String()
 	proj.ScanIDs = append(proj.ScanIDs, scanID)
-	_ = spm.saveProject(proj, projectStatus{newScan: true, scanID: scanID, modifiedTime: time.Now()})
+	_, _ = spm.saveProject(proj, projectStatus{newScan: true, scanID: scanID, modifiedTime: time.Now()})
 
 	policy := ScanPolicy{
 		ID:     scanID,
