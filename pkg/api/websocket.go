@@ -163,7 +163,7 @@ func runSecretScan(ctx context.Context, options ProjectScanOptions, ws *websocke
 		if err == nil {
 			for _, ws := range GetListeningSocketsByProjectID(projID) {
 				_ = ws.WriteJSON(projectSummary)
-				ws.WriteJSON(scanSummary)
+				_ = ws.WriteJSON(scanSummary)
 			}
 		}
 

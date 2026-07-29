@@ -448,7 +448,9 @@ func (d *DB) GetIssues(paginated projects.PaginatedIssueSearch) (*projects.Paged
 	if err != nil {
 		return nil, fmt.Errorf("query issues: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var items []*diagnostics.SecurityDiagnostic
 	for rows.Next() {
@@ -835,7 +837,9 @@ func (d *DB) ListProjectScans(projectID string, limit, offset int) ([]*store.Sca
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var scans []*store.ScanRecord
 	for rows.Next() {
@@ -903,7 +907,9 @@ func (d *DB) SearchFindings(req store.FindingSearchRequest) (*store.FindingSearc
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var findings []*diagnostics.SecurityDiagnostic
 	for rows.Next() {

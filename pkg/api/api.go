@@ -219,7 +219,7 @@ func login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(result)
+	_ = json.NewEncoder(w).Encode(result)
 
 }
 
@@ -242,7 +242,7 @@ func ldapsync(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: persist the config and result in the DB
 
-	json.NewEncoder(w).Encode(result)
+	_ = json.NewEncoder(w).Encode(result)
 }
 
 func getWorkspaces(w http.ResponseWriter, r *http.Request) {
@@ -597,7 +597,7 @@ func generateWorkspaceReport(w http.ResponseWriter, r *http.Request) (reportLoca
 
 	reports_dir := path.Join(pm.GetBaseDir(), "reports", "workspace")
 	// create the reports directory if it doesn't exist
-	os.MkdirAll(reports_dir, 0755)
+	_ = os.MkdirAll(reports_dir, 0755)
 	reportLocation = path.Join(reports_dir, "ProjectSummaries.csv")
 	file, err := os.Create(reportLocation)
 
@@ -622,7 +622,7 @@ func generateWorkspaceReport(w http.ResponseWriter, r *http.Request) (reportLoca
 	}
 
 	_ = writer.Write([]string{}) //NL :-)
-	writer.Write([]string{"Project Details"})
+	_ = writer.Write([]string{"Project Details"})
 
 	writer.Flush()
 	err = writer.Error()
@@ -638,8 +638,8 @@ func generateWorkspaceReport(w http.ResponseWriter, r *http.Request) (reportLoca
 		if !filtered || (filtered && workspace == pSum.Workspace) {
 			projectID := pSum.ID
 			scanID := pSum.LastScanID
-			writer.Write([]string{}) //NL :-)
-			writer.Write([]string{fmt.Sprintf("Project: %s", pSum.Name)})
+			_ = writer.Write([]string{}) //NL :-)
+			_ = writer.Write([]string{fmt.Sprintf("Project: %s", pSum.Name)})
 			writer.Flush()
 			e := writer.Error()
 			if e != nil {
@@ -648,7 +648,7 @@ func generateWorkspaceReport(w http.ResponseWriter, r *http.Request) (reportLoca
 			}
 			results, e := pm.GetScanResults(projectID, scanID)
 			if e != nil {
-				multierror.Append(err, e)
+				err = multierror.Append(err, e)
 				continue
 			}
 			//enrich report results if there are relevant plugins
@@ -663,7 +663,7 @@ func generateWorkspaceReport(w http.ResponseWriter, r *http.Request) (reportLoca
 			}
 			e = csvreport.WriteSecurityDiagnosticCSVReport(file, results)
 			if e != nil {
-				multierror.Append(err, e)
+				err = multierror.Append(err, e)
 				continue
 			}
 
