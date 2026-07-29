@@ -1,7 +1,7 @@
 package api
 
 import (
-	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
+	secrets "github.com/adedayo/checkmate/pkg/plugin/secrets-finder/pkg"
 	"github.com/adedayo/checkmate/pkg/store"
 )
 

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/adedayo/checkmate-core/pkg/diagnostics"
-	"github.com/adedayo/checkmate-core/pkg/projects"
+	"github.com/adedayo/checkmate/pkg/core/diagnostics"
+	"github.com/adedayo/checkmate/pkg/core/projects"
 	"github.com/johnfercher/maroto/v2"
 	"github.com/johnfercher/maroto/v2/pkg/components/col"
 	"github.com/johnfercher/maroto/v2/pkg/components/image"

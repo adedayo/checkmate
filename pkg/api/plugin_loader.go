@@ -8,7 +8,7 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/adedayo/checkmate-core/pkg/plugins"
+	"github.com/adedayo/checkmate/pkg/core/plugins"
 )
 
 func loadReportPlugins() (out []closableTransformer) {

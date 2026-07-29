@@ -37,9 +37,9 @@ import (
 	"log"
 	"os"
 
-	common "github.com/adedayo/checkmate-core/pkg"
-	"github.com/adedayo/checkmate-core/pkg/diagnostics"
-	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
+	common "github.com/adedayo/checkmate/pkg/core"
+	"github.com/adedayo/checkmate/pkg/core/diagnostics"
+	secrets "github.com/adedayo/checkmate/pkg/plugin/secrets-finder/pkg"
 	"github.com/adedayo/checkmate/pkg/report"
 	"github.com/adedayo/checkmate/pkg/reports/pdf"
 	"github.com/spf13/cobra"

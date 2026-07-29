@@ -8,8 +8,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/adedayo/checkmate-core/pkg/diagnostics"
-	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
+	"github.com/adedayo/checkmate/pkg/core/diagnostics"
+	secrets "github.com/adedayo/checkmate/pkg/plugin/secrets-finder/pkg"
 	"gopkg.in/yaml.v3"
 )
 

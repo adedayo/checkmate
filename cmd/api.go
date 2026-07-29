@@ -35,7 +35,7 @@ import (
 	"fmt"
 	"log"
 
-	common "github.com/adedayo/checkmate-core/pkg"
+	common "github.com/adedayo/checkmate/pkg/core"
 	"github.com/adedayo/checkmate/pkg/api"
 	scheduler "github.com/adedayo/checkmate/pkg/cron"
 	"github.com/adedayo/checkmate/pkg/store/sqlite"

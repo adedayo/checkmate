@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/adedayo/checkmate-core/pkg/projects"
+	"github.com/adedayo/checkmate/pkg/core/projects"
 	"github.com/adedayo/checkmate/pkg/api"
 	"github.com/robfig/cron/v3"
 )

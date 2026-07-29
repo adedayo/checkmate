@@ -5,10 +5,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/adedayo/checkmate-core/pkg/diagnostics"
-	"github.com/adedayo/checkmate-core/pkg/projects"
-	secrets "github.com/adedayo/checkmate-plugin/secrets-finder/pkg"
-	"github.com/adedayo/git-service-driver/pkg/utils"
+	"github.com/adedayo/checkmate/pkg/core/diagnostics"
+	"github.com/adedayo/checkmate/pkg/core/projects"
+	secrets "github.com/adedayo/checkmate/pkg/plugin/secrets-finder/pkg"
+	"github.com/adedayo/checkmate/pkg/gitservice/utils"
 	"github.com/gorilla/websocket"
 )
 

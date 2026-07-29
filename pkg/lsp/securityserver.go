@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"os"
 
-	core "github.com/adedayo/checkmate-core/pkg/diagnostics"
+	core "github.com/adedayo/checkmate/pkg/core/diagnostics"
 
 	"github.com/adedayo/go-lsp/pkg/jsonrpc2"
 	"github.com/adedayo/go-lsp/pkg/lsp"

@@ -5,7 +5,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/adedayo/checkmate-core/pkg/diagnostics"
+	"github.com/adedayo/checkmate/pkg/core/diagnostics"
 )
 
 func Generate(reportLocation string, issues []*diagnostics.SecurityDiagnostic) error {

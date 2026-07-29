@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"log"
 
-	gitutils "github.com/adedayo/checkmate-core/pkg/git"
+	gitutils "github.com/adedayo/checkmate/pkg/core/git"
 )
 
 // gitConfigManager wraps the DB to implement gitutils.GitConfigManager.

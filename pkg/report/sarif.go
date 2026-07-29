@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/adedayo/checkmate-core/pkg/diagnostics"
+	"github.com/adedayo/checkmate/pkg/core/diagnostics"
 )
 
 // SarifLog represents the root of a SARIF 2.1.0 document

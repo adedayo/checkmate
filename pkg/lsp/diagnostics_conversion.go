@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	common "github.com/adedayo/checkmate-core/pkg"
-	"github.com/adedayo/checkmate-core/pkg/code"
-	"github.com/adedayo/checkmate-core/pkg/diagnostics"
+	common "github.com/adedayo/checkmate/pkg/core"
+	"github.com/adedayo/checkmate/pkg/core/code"
+	"github.com/adedayo/checkmate/pkg/core/diagnostics"
 	lspCode "github.com/adedayo/go-lsp/pkg/code"
 	"github.com/adedayo/go-lsp/pkg/lsp"
 )

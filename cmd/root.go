@@ -35,7 +35,7 @@ import (
 	"fmt"
 	"os"
 
-	common "github.com/adedayo/checkmate-core/pkg"
+	common "github.com/adedayo/checkmate/pkg/core"
 	"github.com/spf13/cobra"
 
 	homedir "github.com/mitchellh/go-homedir"

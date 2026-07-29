@@ -3,7 +3,7 @@ package sqlite
 import (
 	"testing"
 
-	gitutils "github.com/adedayo/checkmate-core/pkg/git"
+	gitutils "github.com/adedayo/checkmate/pkg/core/git"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

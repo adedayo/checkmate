@@ -3,8 +3,8 @@ package store
 import (
 	"time"
 
-	"github.com/adedayo/checkmate-core/pkg/diagnostics"
-	"github.com/adedayo/checkmate-core/pkg/projects"
+	"github.com/adedayo/checkmate/pkg/core/diagnostics"
+	"github.com/adedayo/checkmate/pkg/core/projects"
 	"github.com/adedayo/checkmate/pkg/auth"
 	"github.com/adedayo/checkmate/pkg/sdk"
 )

@@ -4,10 +4,10 @@ package report
 // 	"math"
 // 	"time"
 
-// 	"github.com/adedayo/checkmate-core/pkg/code"
-// 	"github.com/adedayo/checkmate-core/pkg/diagnostics"
-// 	"github.com/adedayo/checkmate-core/pkg/projects"
-// 	"github.com/adedayo/checkmate-core/pkg/scores"
+// 	"github.com/adedayo/checkmate/pkg/core/code"
+// 	"github.com/adedayo/checkmate/pkg/core/diagnostics"
+// 	"github.com/adedayo/checkmate/pkg/core/projects"
+// 	"github.com/adedayo/checkmate/pkg/core/scores"
 // )
 
 // // Model models the generated report

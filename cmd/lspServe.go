@@ -36,7 +36,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/adedayo/checkmate-core/pkg/diagnostics"
+	"github.com/adedayo/checkmate/pkg/core/diagnostics"
 	"github.com/adedayo/checkmate/pkg/lsp"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
