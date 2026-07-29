@@ -515,10 +515,7 @@ func generateWorkspaceIssuesReport(w http.ResponseWriter, r *http.Request) (repo
 
 	vars := mux.Vars(r)
 	workspace := vars["workspace"]
-	_ = true // merged or skipped
-	if workspace == "__cm_all" { //sent from web app to print project summaries for all workspaces
-		filtered = false
-	}
+	filtered := workspace != "__cm_all" //sent from web app to print project summaries for all workspaces
 
 	reports_dir := path.Join(pm.GetBaseDir(), "reports", "workspace")
 	// create the reports directory if it doesn't exist
@@ -592,10 +589,7 @@ func generateWorkspaceIssuesReport(w http.ResponseWriter, r *http.Request) (repo
 func generateWorkspaceReport(w http.ResponseWriter, r *http.Request) (reportLocation string, err error) {
 	vars := mux.Vars(r)
 	workspace := vars["workspace"]
-	_ = true // merged or skipped
-	if workspace == "__cm_all" { //sent from web app to print project summaries for all workspaces
-		filtered = false
-	}
+	filtered := workspace != "__cm_all" //sent from web app to print project summaries for all workspaces
 
 	reports_dir := path.Join(pm.GetBaseDir(), "reports", "workspace")
 	// create the reports directory if it doesn't exist
