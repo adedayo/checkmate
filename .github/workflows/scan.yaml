@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
       - name: Scan for Secrets
         uses: adedayo/checkmate@latest
@@ -21,7 +21,7 @@ jobs:
           path: "."
 
       - name: Upload Scan Results
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: checkmate-results-${{ github.sha }}
           path: results.json
