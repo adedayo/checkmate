@@ -46,14 +46,48 @@ changelog:
 
 dockers:
   - image_templates:
-      - "ghcr.io/adedayo/checkmate:latest"
-      - "ghcr.io/adedayo/checkmate:v{{ .Major }}"
-      - "ghcr.io/adedayo/checkmate:v{{ .Major }}.{{ .Minor }}"
-      - "ghcr.io/adedayo/checkmate:{{ .Tag }}"
+      - "ghcr.io/adedayo/checkmate:latest-amd64"
+      - "ghcr.io/adedayo/checkmate:v{{ .Major }}-amd64"
+      - "ghcr.io/adedayo/checkmate:v{{ .Major }}.{{ .Minor }}-amd64"
+      - "ghcr.io/adedayo/checkmate:{{ .Tag }}-amd64"
     dockerfile: Dockerfile
     use: buildx
+    goarch: amd64
     build_flag_templates:
-      - "--platform=linux/amd64,linux/arm64"
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+
+  - image_templates:
+      - "ghcr.io/adedayo/checkmate:latest-arm64"
+      - "ghcr.io/adedayo/checkmate:v{{ .Major }}-arm64"
+      - "ghcr.io/adedayo/checkmate:v{{ .Major }}.{{ .Minor }}-arm64"
+      - "ghcr.io/adedayo/checkmate:{{ .Tag }}-arm64"
+    dockerfile: Dockerfile
+    use: buildx
+    goarch: arm64
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.created={{ .Date }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+
+docker_manifests:
+  - name_template: "ghcr.io/adedayo/checkmate:{{ .Tag }}"
+    image_templates:
+      - "ghcr.io/adedayo/checkmate:{{ .Tag }}-amd64"
+      - "ghcr.io/adedayo/checkmate:{{ .Tag }}-arm64"
+  - name_template: "ghcr.io/adedayo/checkmate:v{{ .Major }}.{{ .Minor }}"
+    image_templates:
+      - "ghcr.io/adedayo/checkmate:v{{ .Major }}.{{ .Minor }}-amd64"
+      - "ghcr.io/adedayo/checkmate:v{{ .Major }}.{{ .Minor }}-arm64"
+  - name_template: "ghcr.io/adedayo/checkmate:v{{ .Major }}"
+    image_templates:
+      - "ghcr.io/adedayo/checkmate:v{{ .Major }}-amd64"
+      - "ghcr.io/adedayo/checkmate:v{{ .Major }}-arm64"
+  - name_template: "ghcr.io/adedayo/checkmate:latest"
+    image_templates:
+      - "ghcr.io/adedayo/checkmate:latest-amd64"
+      - "ghcr.io/adedayo/checkmate:latest-arm64"
 
 
 homebrew_casks:
