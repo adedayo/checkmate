@@ -46,13 +46,14 @@ changelog:
 
 dockers:
   - image_templates:
-      - "ghcr.io/adedayo/checkmate"
-    tags:
-      - "latest"
-      - "v{{ .Major }}"
-      - "v{{ .Major }}.{{ .Minor }}"
-      - "{{ .Tag }}"
+      - "ghcr.io/adedayo/checkmate:latest"
+      - "ghcr.io/adedayo/checkmate:v{{ .Major }}"
+      - "ghcr.io/adedayo/checkmate:v{{ .Major }}.{{ .Minor }}"
+      - "ghcr.io/adedayo/checkmate:{{ .Tag }}"
     dockerfile: Dockerfile
+    use: buildx
+    build_flag_templates:
+      - "--platform=linux/amd64,linux/arm64"
 
 
 homebrew_casks:
