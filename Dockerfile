@@ -9,11 +9,8 @@ RUN mkdir -p /var/lib/checkmate && mkdir -p /app/plugins
 # Install ca-certificates for secure HTTPS operations
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates git && rm -rf /var/lib/apt/lists/*
 
-ARG TARGETOS
-ARG TARGETARCH
-
 # Copy the prebuilt Checkmate binary
-COPY ${TARGETOS}/${TARGETARCH}/checkmate /app/checkmate
+COPY checkmate /app/checkmate
 
 # Set a non-root user for security
 USER 65532:65532
