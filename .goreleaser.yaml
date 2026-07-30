@@ -90,18 +90,24 @@ docker_manifests:
       - "ghcr.io/adedayo/checkmate:latest-arm64"
 
 
-homebrew_casks:
+brews:
   - repository:
       owner: adedayo
       name: homebrew-tap
+      branch: master
       token: "{{ .Env.HOMEBREW_GITHUB_TOKEN }}"
     commit_author:
       name: "Dayo Adetoye"
       email: dayo.dev@gmail.com
+    directory: "."
     caveats: "To get help running CheckMate please run: checkmate --help "
     homepage: "https://github.com/adedayo/checkmate"
     description: "CheckMate is a code security analysis tool."
     license: "BSD-3-Clause"
+    install: |
+      bin.install "checkmate"
+    test: |
+      system "#{bin}/checkmate", "--version"
 
 release:
   github:
