@@ -33,8 +33,9 @@ func init() {
 // AuthMiddleware intercepts requests to enforce authentication
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Bypass auth for system endpoints or token endpoints
-		if strings.HasPrefix(r.URL.Path, "/v1/system/") ||
+		// Bypass auth for legacy endpoints, system endpoints, or token endpoints
+		if strings.HasPrefix(r.URL.Path, "/api/") ||
+			strings.HasPrefix(r.URL.Path, "/v1/system/") ||
 			strings.HasPrefix(r.URL.Path, "/v1/auth/") {
 			next.ServeHTTP(w, r)
 			return

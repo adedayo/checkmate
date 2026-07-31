@@ -35,10 +35,6 @@ Key tables:
 
 Same physical secret across different scans always has the same `finding_id`. The `findings` table uses a composite primary key `(finding_id, scan_id)` so the same finding appears once per scan while remaining deduplicated by stable ID.
 
-## Migration from Badger
-
-A one-shot `checkmate migrate --from=badger --to=sqlite` command reads the existing Badger data directory and writes all projects, scans, and findings into the new SQLite database. The `ProjectManager` interface is unchanged — only the constructor in `cmd/` changes.
-
 ## Connection Settings
 
 ```go

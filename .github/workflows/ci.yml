@@ -42,3 +42,15 @@ jobs:
         with:
           name: coverage
           path: coverage.out
+
+  lint-openapi:
+    name: Spectral Lint OpenAPI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Spectral API Linter
+        uses: stoplightio/spectral-action@v0.8.10
+        with:
+          file_glob: 'openspec/changes/001-clean-slate-platform/specs/api-contract/openapi.yaml'
+          spectral_ruleset: '.spectral.yaml'

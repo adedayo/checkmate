@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -52,6 +55,13 @@ func TriageFinding(settings *store.AISettings, finding *sdk.Finding) (*sdk.AIAnn
 	mode := sdk.PromptMode(settings.DefaultPromptMode)
 	if mode == "" {
 		mode = sdk.PromptMode("REDACTED")
+	}
+
+	if mode == sdk.PromptMode("RAW_VALUE") {
+		allowRaw := os.Getenv("CHECKMATE_AI_ALLOW_RAW_VALUE") == "true"
+		if !allowRaw || !isLocalEndpoint(settings.BaseURL) {
+			mode = sdk.PromptMode("REDACTED")
+		}
 	}
 
 	reqBody := chatRequest{
@@ -132,4 +142,23 @@ func TriageFinding(settings *store.AISettings, finding *sdk.Finding) (*sdk.AIAnn
 	}
 
 	return ann, nil
+}
+
+func isLocalEndpoint(baseURL string) bool {
+	u, err := url.Parse(baseURL)
+	if err != nil {
+		return false
+	}
+	host := u.Hostname()
+
+	if host == "localhost" || host == "host.docker.internal" || host == "ollama" {
+		return true
+	}
+
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+
+	return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
 }

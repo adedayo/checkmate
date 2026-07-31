@@ -34,6 +34,7 @@ import (
 	secrets "github.com/adedayo/checkmate/pkg/plugin/secrets-finder/pkg"
 	"github.com/adedayo/checkmate/pkg/reports/pdf"
 	csvreport "github.com/adedayo/checkmate/pkg/reports/csv"
+	"github.com/adedayo/checkmate/pkg/report"
 	"github.com/adedayo/checkmate/pkg/store"
 
 	"github.com/gorilla/handlers"
@@ -167,41 +168,45 @@ func addRoutes() {
 	routes.HandleFunc("/api/ldap/login", login).Methods(http.MethodPost)
 
 	// Phase 1 API V1 Auth endpoints
-	routes.HandleFunc("/v1/auth/login", authLogin).Methods(http.MethodPost)
-	routes.HandleFunc("/v1/auth/refresh", authRefresh).Methods(http.MethodPost)
-	routes.HandleFunc("/v1/auth/logout", authLogout).Methods(http.MethodPost)
-	routes.HandleFunc("/v1/auth/keys", createAPIKey).Methods(http.MethodPost)
-	routes.HandleFunc("/v1/auth/keys", listAPIKeys).Methods(http.MethodGet)
-	routes.HandleFunc("/v1/auth/keys/{keyID}", revokeAPIKey).Methods(http.MethodDelete)
+	v1 := routes.PathPrefix("/v1").Subrouter()
+	v1.Use(AuthMiddleware)
+
+	v1.HandleFunc("/auth/login", authLogin).Methods(http.MethodPost)
+	v1.HandleFunc("/auth/refresh", authRefresh).Methods(http.MethodPost)
+	v1.HandleFunc("/auth/logout", authLogout).Methods(http.MethodPost)
+	v1.HandleFunc("/auth/keys", createAPIKey).Methods(http.MethodPost)
+	v1.HandleFunc("/auth/keys", listAPIKeys).Methods(http.MethodGet)
+	v1.HandleFunc("/auth/keys/{keyID}", revokeAPIKey).Methods(http.MethodDelete)
 
 	// Phase 1 API V1 Platform endpoints
-	routes.HandleFunc("/v1/system/health", systemHealth).Methods(http.MethodGet)
-	routes.HandleFunc("/v1/system/ready", systemReady).Methods(http.MethodGet)
-	routes.HandleFunc("/v1/findings/search", searchFindings).Methods(http.MethodPost)
-	routes.HandleFunc("/v1/findings/{findingId}/triage", triageFinding).Methods(http.MethodPost)
+	v1.HandleFunc("/system/health", systemHealth).Methods(http.MethodGet)
+	v1.HandleFunc("/system/ready", systemReady).Methods(http.MethodGet)
+	v1.HandleFunc("/findings/search", searchFindings).Methods(http.MethodPost)
+	v1.HandleFunc("/findings/{findingId}/triage", triageFinding).Methods(http.MethodPost)
 
 	// Settings
-	routes.HandleFunc("/v1/settings/ai", getAISettings).Methods(http.MethodGet)
-	routes.HandleFunc("/v1/settings/ai", updateAISettings).Methods(http.MethodPut)
-	routes.HandleFunc("/v1/projects/{projectId}/scans", listProjectScans).Methods(http.MethodGet)
-	routes.HandleFunc("/v1/projects/{projectId}/scans", startProjectScan).Methods(http.MethodPost)
-	routes.HandleFunc("/v1/projects/{projectId}/scans/{scanId}/events", scanSSEHandler).Methods(http.MethodGet)
+	v1.HandleFunc("/settings/ai", getAISettings).Methods(http.MethodGet)
+	v1.HandleFunc("/settings/ai", updateAISettings).Methods(http.MethodPut)
+	v1.HandleFunc("/projects/{projectId}/scans", listProjectScans).Methods(http.MethodGet)
+	v1.HandleFunc("/projects/{projectId}/scans", startProjectScan).Methods(http.MethodPost)
+	v1.HandleFunc("/projects/{projectId}/scans/{scanId}/events", scanSSEHandler).Methods(http.MethodGet)
+	v1.HandleFunc("/scans/{scanId}/report", downloadScanReportV1).Methods(http.MethodGet)
 
 	// Phase 2 API V1 Webhooks endpoints
-	routes.HandleFunc("/v1/webhooks", listWebhooks).Methods(http.MethodGet)
-	routes.HandleFunc("/v1/webhooks", createWebhook).Methods(http.MethodPost)
-	routes.HandleFunc("/v1/webhooks/{webhookId}", deleteWebhook).Methods(http.MethodDelete)
-	routes.HandleFunc("/v1/webhooks/{webhookId}/test", testWebhook).Methods(http.MethodPost)
+	v1.HandleFunc("/webhooks", listWebhooks).Methods(http.MethodGet)
+	v1.HandleFunc("/webhooks", createWebhook).Methods(http.MethodPost)
+	v1.HandleFunc("/webhooks/{webhookId}", deleteWebhook).Methods(http.MethodDelete)
+	v1.HandleFunc("/webhooks/{webhookId}/test", testWebhook).Methods(http.MethodPost)
 
 	// Phase 2 API V1 Exceptions endpoints
-	routes.HandleFunc("/v1/exceptions", listExceptions).Methods(http.MethodGet)
-	routes.HandleFunc("/v1/exceptions", createException).Methods(http.MethodPost)
-	routes.HandleFunc("/v1/exceptions/export", exportExceptions).Methods(http.MethodGet)
-	routes.HandleFunc("/v1/exceptions/import", importExceptions).Methods(http.MethodPost)
-	routes.HandleFunc("/v1/exceptions/validate", validateExceptions).Methods(http.MethodPost)
-	routes.HandleFunc("/v1/exceptions/{exceptionId}", getException).Methods(http.MethodGet)
-	routes.HandleFunc("/v1/exceptions/{exceptionId}", updateException).Methods(http.MethodPatch)
-	routes.HandleFunc("/v1/exceptions/{exceptionId}", revokeException).Methods(http.MethodDelete)
+	v1.HandleFunc("/exceptions", listExceptions).Methods(http.MethodGet)
+	v1.HandleFunc("/exceptions", createException).Methods(http.MethodPost)
+	v1.HandleFunc("/exceptions/export", exportExceptions).Methods(http.MethodGet)
+	v1.HandleFunc("/exceptions/import", importExceptions).Methods(http.MethodPost)
+	v1.HandleFunc("/exceptions/validate", validateExceptions).Methods(http.MethodPost)
+	v1.HandleFunc("/exceptions/{exceptionId}", getException).Methods(http.MethodGet)
+	v1.HandleFunc("/exceptions/{exceptionId}", updateException).Methods(http.MethodPatch)
+	v1.HandleFunc("/exceptions/{exceptionId}", revokeException).Methods(http.MethodDelete)
 }
 
 func login(w http.ResponseWriter, r *http.Request) {
@@ -893,6 +898,28 @@ func monitorProjectScan(w http.ResponseWriter, r *http.Request) {
 
 	addLongLivedSocket(r.Context(), options, ws)
 
+}
+
+func downloadScanReportV1(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	scanID := vars["scanId"]
+
+	accept := r.Header.Get("Accept")
+	if !strings.Contains(accept, "application/sarif+json") {
+		http.Error(w, "Only application/sarif+json is supported via this endpoint", http.StatusNotAcceptable)
+		return
+	}
+
+	results, err := pm.GetScanResults("", scanID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/sarif+json")
+	if err := report.GenerateSARIF(w, results); err != nil {
+		log.Printf("Failed to generate SARIF: %v", err)
+	}
 }
 
 // ServeAPI serves the analysis service on the specified port
