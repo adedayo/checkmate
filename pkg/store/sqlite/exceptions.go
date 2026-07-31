@@ -97,6 +97,10 @@ func (d *DB) GetException(id string) (*store.Exception, error) {
 	_ = json.Unmarshal([]byte(evidenceJSON), &exc.Evidence)
 	_ = json.Unmarshal([]byte(tagsJSON), &exc.Tags)
 
+	if exc.Status == "active" && exc.ExpiresAt != nil && exc.ExpiresAt.Before(time.Now()) {
+		exc.Status = "expired"
+	}
+
 	exc.AuditTrail = d.getAuditLogsTx(d.db, "exception", id)
 
 	return &exc, nil
@@ -141,6 +145,10 @@ func (d *DB) ListExceptions() ([]*store.Exception, error) {
 		_ = json.Unmarshal([]byte(scopeJSON), &exc.Scope)
 		_ = json.Unmarshal([]byte(evidenceJSON), &exc.Evidence)
 		_ = json.Unmarshal([]byte(tagsJSON), &exc.Tags)
+
+		if exc.Status == "active" && exc.ExpiresAt != nil && exc.ExpiresAt.Before(time.Now()) {
+			exc.Status = "expired"
+		}
 
 		exceptions = append(exceptions, &exc)
 	}

@@ -52,9 +52,9 @@
 - [x] Implement exception export (`GET /v1/exceptions/export`)
 - [x] Implement exception import (`POST /v1/exceptions/import`)
 - [x] Implement exception validate (`POST /v1/exceptions/validate`)
-- [ ] Wire exception matching into scan pipeline (auto-suppress matched findings)
-- [ ] Implement exception expiry checking (background or on-read)
-- [ ] Implement drift detection (compare evidence hash to current file state)
+- [x] Wire exception matching into scan pipeline (auto-suppress matched findings)
+- [x] Implement exception expiry checking (background or on-read)
+- [ ] Implement drift detection (compare evidence hash to current file state) - DEFERRED
 
 ## Phase 3 — AI Triage
 
@@ -64,9 +64,9 @@
 - [x] Implement `GET/PUT /v1/settings/ai`
 - [x] Implement `POST /v1/findings/{findingId}/triage`
 - [x] Create Ollama Docker Compose profile (`docker-compose.ollama.yml`)
-- [ ] Implement batch triage (background job for un-annotated findings)
-- [ ] Implement `isLocalEndpoint` URL validation for RAW_VALUE mode
-- [ ] Add token usage aggregation / cost tracking
+- [x] Implement batch triage (background job for un-annotated findings)
+- [x] Implement `isLocalEndpoint` URL validation for RAW_VALUE mode
+- [x] Add token usage aggregation / cost tracking
 
 ## Phase 4 — Webhooks & Integration
 
@@ -74,9 +74,9 @@
 - [x] Implement webhook API handlers (`pkg/api/webhooks.go`)
 - [x] Implement webhook secret generation (crypto/rand, 32 bytes)
 - [x] Implement test webhook endpoint (`POST /v1/webhooks/{webhookId}/test`)
-- [ ] Implement actual webhook delivery (HTTP POST with HMAC signature)
-- [ ] Implement delivery retry with exponential backoff
-- [ ] Implement delivery logging (attempt, response code, latency)
+- [x] Implement actual webhook delivery (HTTP POST with HMAC signature)
+- [x] Implement delivery retry with exponential backoff
+- [x] Implement delivery logging (attempt, response code, latency)
 
 ## Cross-Cutting
 

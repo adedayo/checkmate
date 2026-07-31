@@ -36,6 +36,7 @@ import (
 	csvreport "github.com/adedayo/checkmate/pkg/reports/csv"
 	"github.com/adedayo/checkmate/pkg/report"
 	"github.com/adedayo/checkmate/pkg/store"
+	"github.com/adedayo/checkmate/pkg/webhooks"
 
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -50,6 +51,7 @@ var (
 	idRegX = regexp.MustCompile(`[a-zA-Z0-9]{8}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{12}`) //see util.UUID.String()
 
 	pm             store.PlatformStore
+	webhookDispatcher *webhooks.Dispatcher
 	allowedOrigins = []string{
 		"localhost",
 		"checkmate-app",
@@ -184,11 +186,13 @@ func addRoutes() {
 	v1.HandleFunc("/findings/search", searchFindings).Methods(http.MethodPost)
 	v1.HandleFunc("/findings/{findingId}/triage", triageFinding).Methods(http.MethodPost)
 
-	// Settings
+	// Settings & AI
 	v1.HandleFunc("/settings/ai", getAISettings).Methods(http.MethodGet)
 	v1.HandleFunc("/settings/ai", updateAISettings).Methods(http.MethodPut)
+	v1.HandleFunc("/settings/ai/usage", getAITokenUsage).Methods(http.MethodGet)
 	v1.HandleFunc("/projects/{projectId}/scans", listProjectScans).Methods(http.MethodGet)
 	v1.HandleFunc("/projects/{projectId}/scans", startProjectScan).Methods(http.MethodPost)
+	v1.HandleFunc("/projects/{projectId}/scans/{scanId}/triage/batch", batchTriageFindings).Methods(http.MethodPost)
 	v1.HandleFunc("/projects/{projectId}/scans/{scanId}/events", scanSSEHandler).Methods(http.MethodGet)
 	v1.HandleFunc("/scans/{scanId}/report", downloadScanReportV1).Methods(http.MethodGet)
 
@@ -934,6 +938,9 @@ func ServeAPI(config Config) {
 	apiVersion = config.AppVersion
 
 	pm = config.Store
+	webhookDispatcher = webhooks.NewDispatcher(pm)
+	pm.SetWebhookDispatcher(webhookDispatcher.Dispatch)
+
 	if config.ServeGitService {
 		caps.GitServiceEnabled = true
 		gitConfManager, err := pm.GetGitConfigManager()

@@ -109,9 +109,26 @@ func testWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// In a real implementation, this would look up the webhook URL and signature
-	// and fire an HTTP POST to it with a mock payload.
-	// For now, we'll just return 202 Accepted.
+	if webhookDispatcher != nil {
+		// Just send a test event to this specific webhook directly.
+		// Wait, the dispatcher dispatches based on event type to ALL subscribed webhooks.
+		// For a test webhook, we should just fire it once to this webhook.
+		// Let's get the webhook from DB.
+		vars := mux.Vars(r)
+		webhookID := vars["webhookId"]
+		webhooks, err := pm.GetWebhooks()
+		if err == nil {
+			for _, wh := range webhooks {
+				if wh.ID == webhookID {
+					// We need the secret, but GetWebhooks now returns it internally
+					go webhookDispatcher.DispatchToWebhook(wh, "test.ping", map[string]interface{}{
+						"message": "This is a test event from CheckMate",
+					})
+					break
+				}
+			}
+		}
+	}
 
 	w.WriteHeader(http.StatusAccepted)
 	_ = json.NewEncoder(w).Encode(map[string]string{

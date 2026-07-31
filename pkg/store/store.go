@@ -44,10 +44,20 @@ type PlatformStore interface {
 	CreateWebhook(webhook *Webhook) error
 	GetWebhooks() ([]*Webhook, error)
 	DeleteWebhook(id string) error
+	RecordWebhookDelivery(log *WebhookDeliveryLog) error
+	SetWebhookDispatcher(dispatcher func(eventType string, data interface{}))
 
 	// Phase 3: AI Settings
 	GetAISettings() (*AISettings, error)
 	UpdateAISettings(settings *AISettings) error
+	GetUnannotatedFindings(scanID string) ([]string, error)
+	GetAITokenUsage() (*AITokenUsage, error)
+}
+
+// AITokenUsage aggregates the cost of AI triage
+type AITokenUsage struct {
+	PromptTokens     int `json:"promptTokens"`
+	CompletionTokens int `json:"completionTokens"`
 }
 
 // AISettings represents the Bring-Your-Own-Key AI configuration
@@ -137,4 +147,16 @@ type Webhook struct {
 	Events    []string  `json:"events"`
 	CreatedAt time.Time `json:"createdAt"`
 	Secret    string    `json:"secret,omitempty"`
+}
+
+// WebhookDeliveryLog tracks a delivery attempt
+type WebhookDeliveryLog struct {
+	ID            string    `json:"id"`
+	WebhookID     string    `json:"webhookId"`
+	EventType     string    `json:"eventType"`
+	AttemptNumber int       `json:"attemptNumber"`
+	ResponseCode  *int      `json:"responseCode,omitempty"`
+	LatencyMs     *int      `json:"latencyMs,omitempty"`
+	ErrorMessage  *string   `json:"errorMessage,omitempty"`
+	CreatedAt     time.Time `json:"createdAt"`
 }

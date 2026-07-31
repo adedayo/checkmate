@@ -31,3 +31,13 @@ func updateAISettings(w http.ResponseWriter, r *http.Request) {
 
 	_ = json.NewEncoder(w).Encode(settings)
 }
+
+func getAITokenUsage(w http.ResponseWriter, r *http.Request) {
+	usage, err := pm.GetAITokenUsage()
+	if err != nil {
+		http.Error(w, "Failed to retrieve AI token usage", http.StatusInternalServerError)
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(usage)
+}

@@ -187,8 +187,8 @@ CREATE TABLE IF NOT EXISTS webhooks (
     url             TEXT NOT NULL,
     -- JSON array of event strings
     events          TEXT NOT NULL DEFAULT '[]',
-    -- bcrypt hash of the HMAC signing secret
-    secret_hash     TEXT,
+    -- Plaintext secret used for HMAC signing
+    secret          TEXT,
     created_at      TEXT NOT NULL,
     last_delivered_at TEXT
 );

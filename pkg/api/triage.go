@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
 
@@ -50,4 +51,29 @@ func processTriage(findingID string) {
 
 	// 4. Update finding in DB
 	_ = pm.UpdateFindingAIAnnotation(findingID, ann)
+}
+
+func batchTriageFindings(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	scanID := vars["scanId"]
+
+	w.WriteHeader(http.StatusAccepted)
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"status": "batch_queued",
+		"scanId": scanID,
+	})
+
+	go processBatchTriage(scanID)
+}
+
+func processBatchTriage(scanID string) {
+	findingIDs, err := pm.GetUnannotatedFindings(scanID)
+	if err != nil || len(findingIDs) == 0 {
+		return
+	}
+
+	for _, id := range findingIDs {
+		processTriage(id)
+		time.Sleep(200 * time.Millisecond)
+	}
 }

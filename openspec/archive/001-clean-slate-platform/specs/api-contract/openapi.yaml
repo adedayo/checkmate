@@ -1,0 +1,1935 @@
+openapi: "3.1.0"
+
+info:
+  title: CheckMate Secrets Detection API
+  version: "1.0.0"
+  description: |
+    CheckMate is a self-hosted secrets detection platform. This API provides
+    real-time scanning, project management, exception handling, and AI-assisted
+    triage for hard-coded secrets in source code, configuration, and git history.
+
+    ## Authentication
+
+    Two mechanisms are supported:
+
+    - **JWT Bearer token**: Obtained via `POST /v1/auth/token`. Short-lived (15 min)
+      access tokens with refresh. Used for human/interactive sessions.
+    - **API Key**: Created via `POST /v1/auth/api-keys`. Scoped, long-lived keys
+      prefixed `cm_`. Used for CI/headless integration. Stored as bcrypt hashes —
+      shown once on creation, never retrievable again.
+
+    Both use `Authorization: Bearer <token>` header format.
+
+    In development mode (`CHECKMATE_DEV_MODE=true`), authentication is bypassed.
+
+  contact:
+    name: Dr. Adedayo Adetoye
+    url: https://github.com/adedayo/checkmate
+  license:
+    name: BSD 3-Clause
+    url: https://github.com/adedayo/checkmate/blob/master/LICENSE
+
+servers:
+  - url: http://localhost:17283
+    description: Local development environment
+    x-internal: true
+  - url: "{scheme}://{host}:{port}"
+    description: Self-hosted production environment
+    x-internal: false
+    variables:
+      scheme:
+        default: http
+        enum: [http, https]
+      host:
+        default: localhost
+      port:
+        default: "17283"
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "JWT Bearer authentication token supporting RFC8725 profile."
+
+  schemas:
+    # ─── Enums ────────────────────────────────────────────────────────────────
+
+    SecretType:
+      type: string
+      description: Structured secret type taxonomy
+      enum:
+        - aws.access_key
+        - aws.secret_key
+        - aws.session_token
+        - gcp.service_account_key
+        - azure.client_secret
+        - azure.sas_token
+        - github.personal_access_token
+        - github.fine_grained_token
+        - github.app_private_key
+        - gitlab.personal_access_token
+        - db.password
+        - db.connection_string
+        - crypto.rsa_private_key
+        - crypto.ec_private_key
+        - crypto.pkcs12
+        - crypto.pem_private_key
+        - crypto.ssh_private_key
+        - generic.high_entropy
+        - generic.password
+        - generic.api_key
+        - generic.token
+        - generic.jwt
+
+    Severity:
+      type: string
+      enum: [CRITICAL, HIGH, MEDIUM, LOW, INFO]
+
+    Confidence:
+      type: string
+      enum: [CONFIRMED, HIGH, MEDIUM, LOW]
+
+    ScanStatus:
+      type: string
+      enum: [queued, running, complete, failed, cancelled]
+
+    VerificationStatus:
+      type: string
+      enum: [NOT_CHECKED, ACTIVE, REVOKED, UNKNOWN]
+
+    PromptMode:
+      type: string
+      enum: [REDACTED, RAW_VALUE]
+
+    ExceptionScope:
+      type: string
+      enum: [value, line, file, directory, project, global]
+
+    ExceptionReason:
+      type: string
+      enum:
+        - test_fixture
+        - example_documentation
+        - placeholder_template
+        - already_rotated
+        - false_positive_pattern
+        - other
+
+    ExceptionStatus:
+      type: string
+      enum: [active, expired, revoked]
+
+    ApiKeyScope:
+      type: string
+      enum: [scan:read, scan:write, exception:read, exception:write, admin]
+
+    # ─── Core Models ──────────────────────────────────────────────────────────
+
+    Finding:
+      type: object
+      required:
+        - id
+        - ruleId
+        - secretType
+        - severity
+        - confidence
+        - file
+        - line
+        - column
+        - secretChecksum
+        - suppressed
+        - verificationStatus
+        - detectedAt
+      properties:
+        id:
+          type: string
+          description: >
+            Deterministic stable ID: sha256(ruleId + repoUrl + file + line + column + secretChecksum).
+            Same finding across different scans always has the same ID.
+          example: "sha256:a1b2c3d4e5f6..."
+        ruleId:
+          type: string
+          example: "HIGH_ENTROPY_STRING"
+        secretType:
+          $ref: "#/components/schemas/SecretType"
+        severity:
+          $ref: "#/components/schemas/Severity"
+        confidence:
+          $ref: "#/components/schemas/Confidence"
+        repositoryUrl:
+          type: string
+          nullable: true
+          example: "https://github.com/org/repo"
+        commitSha:
+          type: string
+          nullable: true
+          description: Git commit SHA. Null for filesystem scans.
+          example: "deadbeef1234"
+        branch:
+          type: string
+          nullable: true
+          example: "main"
+        file:
+          type: string
+          example: "src/config/database.go"
+        line:
+          type: integer
+          example: 42
+        column:
+          type: integer
+          example: 20
+        evidenceRedacted:
+          type: string
+          nullable: true
+          description: First 4 + last 4 characters of the detected value. Raw value never stored.
+          example: "xK9$...L3m"
+        secretChecksum:
+          type: string
+          description: sha256 of the raw secret value. Used for dedup and exception matching.
+          example: "sha256:1a2b3c4d..."
+        sourceContext:
+          type: string
+          nullable: true
+          description: Surrounding code with secret position replaced by ████.
+          example: "const dbPassword = \"████\"  // line 42"
+        suppressed:
+          type: boolean
+          default: false
+        exceptionId:
+          type: string
+          nullable: true
+        verificationStatus:
+          $ref: "#/components/schemas/VerificationStatus"
+        verifiedAt:
+          type: string
+          format: date-time
+          nullable: true
+        aiAnnotation:
+          $ref: "#/components/schemas/AIAnnotation"
+          nullable: true
+        detectedAt:
+          type: string
+          format: date-time
+
+    AIAnnotation:
+      type: object
+      required: [model, provider, promptMode, fpLikelihood, summary, generatedAt]
+      properties:
+        model:
+          type: string
+          example: "gpt-4o-mini"
+        provider:
+          type: string
+          example: "openai"
+        promptMode:
+          $ref: "#/components/schemas/PromptMode"
+        fpLikelihood:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: Estimated probability this finding is a false positive.
+        summary:
+          type: string
+          description: 1-2 sentence plain-English assessment.
+        remediationHint:
+          type: string
+          nullable: true
+        contextClues:
+          type: array
+          items:
+            type: string
+        generatedAt:
+          type: string
+          format: date-time
+        promptTokens:
+          type: integer
+        completionTokens:
+          type: integer
+
+    AISettings:
+      type: object
+      required: [enabled, provider, model, baseUrl, defaultPromptMode]
+      properties:
+        enabled:
+          type: boolean
+        provider:
+          type: string
+          example: "ollama"
+        model:
+          type: string
+          example: "llama3"
+        baseUrl:
+          type: string
+          example: "http://localhost:11434/v1"
+        apiKey:
+          type: string
+          nullable: true
+          example: "sk-..."
+        defaultPromptMode:
+          $ref: "#/components/schemas/PromptMode"
+
+    Exception:
+      type: object
+      required:
+        - id
+        - ruleId
+        - scope
+        - reason
+        - createdBy
+        - createdAt
+        - status
+      properties:
+        id:
+          type: string
+          example: "exc_a1b2c3d4"
+        ruleId:
+          type: string
+          description: Rule ID this exception applies to, or "*" for all rules at this scope.
+          example: "HIGH_ENTROPY_STRING"
+        scope:
+          $ref: "#/components/schemas/ExceptionScopeDetail"
+        reason:
+          $ref: "#/components/schemas/ExceptionReason"
+        justification:
+          type: string
+          nullable: true
+        createdBy:
+          type: string
+          example: "alice@example.com"
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Null means permanent (never expires).
+        status:
+          $ref: "#/components/schemas/ExceptionStatus"
+        evidence:
+          type: object
+          nullable: true
+          properties:
+            fileHash:
+              type: string
+              description: sha256 of the file at exception creation time. Used for drift detection.
+            commitSha:
+              type: string
+        tags:
+          type: array
+          items:
+            type: string
+        auditTrail:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEvent"
+
+    ExceptionScopeDetail:
+      type: object
+      required: [type]
+      properties:
+        type:
+          $ref: "#/components/schemas/ExceptionScope"
+        repoUrl:
+          type: string
+          nullable: true
+        path:
+          type: string
+          nullable: true
+          example: "src/config/database.go"
+        lineStart:
+          type: integer
+          nullable: true
+        lineEnd:
+          type: integer
+          nullable: true
+        secretChecksum:
+          type: string
+          nullable: true
+          description: sha256 of the secret value. Most specific scope — matches this exact value only.
+
+    CreateExceptionRequest:
+      type: object
+      required: [ruleId, scope, reason]
+      properties:
+        ruleId:
+          type: string
+        scope:
+          $ref: "#/components/schemas/ExceptionScopeDetail"
+        reason:
+          $ref: "#/components/schemas/ExceptionReason"
+        justification:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+
+    ScanRequest:
+      type: object
+      required: [targets]
+      properties:
+        targets:
+          type: array
+          items:
+            type: string
+          description: Local filesystem paths or git URLs to scan.
+          example:
+            - "/data/myrepo"
+            - "https://github.com/org/repo"
+        options:
+          $ref: "#/components/schemas/ScanOptions"
+
+    ScanOptions:
+      type: object
+      properties:
+        showSource:
+          type: boolean
+          default: true
+          description: Include surrounding source code in findings.
+        calculateChecksum:
+          type: boolean
+          default: true
+        excludeTestFiles:
+          type: boolean
+          default: false
+        sensitiveFilesOnly:
+          type: boolean
+          default: false
+          description: Only report sensitive file types (certs, keystores, etc).
+        excludePatterns:
+          type: array
+          items:
+            type: string
+          description: Glob patterns of paths to exclude.
+
+    ScanSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+          nullable: true
+        status:
+          $ref: "#/components/schemas/ScanStatus"
+        targets:
+          type: array
+          items:
+            type: string
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        durationMs:
+          type: integer
+          nullable: true
+        fileCount:
+          type: integer
+        totalFindings:
+          type: integer
+        findingsBySeverity:
+          type: object
+          additionalProperties:
+            type: integer
+          example:
+            CRITICAL: 0
+            HIGH: 3
+            MEDIUM: 7
+            LOW: 2
+            INFO: 0
+        score:
+          type: number
+          format: float
+          nullable: true
+          description: Aggregate security score 0.0–10.0 (10 = no issues).
+
+    Project:
+      type: object
+      required: [id, name, workspace, repositories, createdAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        workspace:
+          type: string
+        repositories:
+          type: array
+          items:
+            $ref: "#/components/schemas/Repository"
+        scanPolicy:
+          $ref: "#/components/schemas/ScanPolicy"
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastScanId:
+          type: string
+          nullable: true
+        lastScanAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    Repository:
+      type: object
+      required: [location, locationType]
+      properties:
+        location:
+          type: string
+          example: "https://github.com/org/repo"
+        locationType:
+          type: string
+          enum: [git, filesystem]
+        gitServiceId:
+          type: string
+          nullable: true
+        monitor:
+          type: boolean
+          default: false
+          description: If true, this repo is continuously monitored for new commits.
+
+    ScanPolicy:
+      type: object
+      properties:
+        id:
+          type: string
+        policyYaml:
+          type: string
+          description: Exclusion policy in CheckMate YAML format.
+
+    CreateProjectRequest:
+      type: object
+      required: [name, workspace, repositories]
+      properties:
+        name:
+          type: string
+        workspace:
+          type: string
+        repositories:
+          type: array
+          items:
+            $ref: "#/components/schemas/Repository"
+        scanPolicy:
+          $ref: "#/components/schemas/ScanPolicy"
+
+    Rule:
+      type: object
+      properties:
+        id:
+          type: string
+          example: "HIGH_ENTROPY_STRING"
+        secretType:
+          $ref: "#/components/schemas/SecretType"
+        description:
+          type: string
+        defaultSeverity:
+          $ref: "#/components/schemas/Severity"
+        example:
+          type: string
+          description: Example of what this rule detects (not a real secret).
+
+    Webhook:
+      type: object
+      required: [id, url, events, createdAt]
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          items:
+            type: string
+            enum:
+              - scan.completed
+              - scan.failed
+              - finding.new
+              - exception.created
+              - exception.expired
+        createdAt:
+          type: string
+          format: date-time
+        lastDeliveredAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    ApiKey:
+      type: object
+      description: API key metadata. The plaintext key is shown once on creation only.
+      required: [id, name, keyPrefix, scopes, createdAt]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        keyPrefix:
+          type: string
+          description: First 8 chars of the key for identification (e.g. "cm_a1b2c3")
+          example: "cm_a1b2c3"
+        scopes:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApiKeyScope"
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastUsedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    ApiKeyCreated:
+      allOf:
+        - $ref: "#/components/schemas/ApiKey"
+        - type: object
+          required: [key]
+          properties:
+            key:
+              type: string
+              description: Full API key — shown exactly ONCE. Store it now.
+              example: "cm_a1b2c3d4e5f6g7h8i9j0..."
+
+    AuditEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        actor:
+          type: string
+        action:
+          type: string
+          example: "exception.created"
+        resourceType:
+          type: string
+        resourceId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    PagedResult:
+      type: object
+      required: [items, total, page, limit]
+      properties:
+        items:
+          type: array
+          items: {}
+        total:
+          type: integer
+        page:
+          type: integer
+        limit:
+          type: integer
+
+    StreamEvent:
+      type: object
+      description: >
+        Event emitted on both WebSocket and SSE streams.
+        The `type` field discriminates between progress updates and findings.
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [progress, finding, scan_complete, scan_error]
+        progress:
+          type: object
+          nullable: true
+          properties:
+            currentFile:
+              type: string
+            filesScanned:
+              type: integer
+            totalFiles:
+              type: integer
+              nullable: true
+        finding:
+          $ref: "#/components/schemas/Finding"
+          nullable: true
+        scanSummary:
+          $ref: "#/components/schemas/ScanSummary"
+          nullable: true
+        error:
+          type: string
+          nullable: true
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: "SCAN_NOT_FOUND"
+        message:
+          type: string
+        details:
+          type: object
+          nullable: true
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: Authenticated but insufficient scope/permission
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    BadRequest:
+      description: Invalid request body or parameters
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+        minimum: 1
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 50
+        minimum: 1
+        maximum: 500
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Paths
+# ─────────────────────────────────────────────────────────────────────────────
+
+paths:
+
+  # ── System ─────────────────────────────────────────────────────────────────
+
+  /v1/system/version:
+    get:
+      operationId: getVersion
+      summary: Get version and build information
+      security: []
+      tags: [system]
+      responses:
+        "200":
+          description: Version info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version:
+                    type: string
+                  buildSha:
+                    type: string
+                  goVersion:
+                    type: string
+
+  /v1/system/health:
+    get:
+      operationId: healthCheck
+      summary: Liveness check — always 200 if process is up
+      security: []
+      tags: [system]
+      responses:
+        "200":
+          description: Healthy
+
+  /v1/system/ready:
+    get:
+      operationId: readinessCheck
+      summary: Readiness check — 200 only when DB is connected
+      security: []
+      tags: [system]
+      responses:
+        "200":
+          description: Ready
+        "503":
+          description: Not ready (DB unavailable)
+
+  /v1/system/capabilities:
+    get:
+      operationId: getCapabilities
+      summary: Which integrations are configured
+      tags: [system]
+      responses:
+        "200":
+          description: Capabilities
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  gitHubEnabled:
+                    type: boolean
+                  gitLabEnabled:
+                    type: boolean
+                  aiEnabled:
+                    type: boolean
+                  ldapEnabled:
+                    type: boolean
+
+  /v1/settings/ai:
+    get:
+      operationId: getAISettings
+      summary: Retrieve the current AI triage configuration
+      tags: [system, settings]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AISettings"
+    put:
+      operationId: updateAISettings
+      summary: Update AI triage configuration
+      tags: [system, settings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AISettings"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AISettings"
+
+  # ── Authentication ──────────────────────────────────────────────────────────
+
+  /v1/auth/token:
+    post:
+      operationId: login
+      summary: Login and obtain JWT access + refresh tokens
+      security: []
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+                  format: password
+      responses:
+        "200":
+          description: Tokens issued
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accessToken, refreshToken, expiresIn]
+                properties:
+                  accessToken:
+                    type: string
+                  refreshToken:
+                    type: string
+                  expiresIn:
+                    type: integer
+                    description: Access token TTL in seconds (900 = 15 min)
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/auth/refresh:
+    post:
+      operationId: refreshToken
+      summary: Exchange refresh token for a new access token
+      security: []
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        "200":
+          description: New access token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+                  expiresIn:
+                    type: integer
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /v1/auth/logout:
+    post:
+      operationId: logout
+      summary: Revoke refresh token
+      tags: [auth]
+      responses:
+        "204":
+          description: Logged out
+
+  /v1/auth/ldap/sync:
+    post:
+      operationId: ldapSync
+      summary: Sync LDAP users and groups
+      tags: [auth]
+      responses:
+        "200":
+          description: Sync result
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /v1/auth/api-keys:
+    get:
+      operationId: listApiKeys
+      summary: List API keys (metadata only — never plaintext)
+      tags: [auth]
+      responses:
+        "200":
+          description: API keys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ApiKey"
+    post:
+      operationId: createApiKey
+      summary: Create an API key — shown ONCE, never retrievable again
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, scopes]
+              properties:
+                name:
+                  type: string
+                scopes:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/ApiKeyScope"
+                expiresAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                ipAllowlist:
+                  type: array
+                  items:
+                    type: string
+                  description: Optional CIDR ranges to restrict key usage.
+      responses:
+        "201":
+          description: Key created — store the `key` field now, it will not be shown again
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyCreated"
+
+  /v1/auth/api-keys/{keyId}:
+    delete:
+      operationId: revokeApiKey
+      summary: Revoke an API key
+      tags: [auth]
+      parameters:
+        - name: keyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Revoked
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── Ad-hoc Scans ───────────────────────────────────────────────────────────
+
+  /v1/scans:
+    post:
+      operationId: createScan
+      summary: Trigger an ad-hoc scan (no project required)
+      tags: [scans]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScanRequest"
+      responses:
+        "202":
+          description: Scan queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanSummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /v1/scans/{scanId}:
+    get:
+      operationId: getScan
+      summary: Poll scan status
+      tags: [scans]
+      parameters:
+        - name: scanId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Scan summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanSummary"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      operationId: deleteScan
+      summary: Cancel a running scan or delete a completed scan
+      tags: [scans]
+      parameters:
+        - name: scanId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Cancelled or deleted
+
+  /v1/scans/{scanId}/findings:
+    get:
+      operationId: getScanFindings
+      summary: Paginated list of findings for a scan
+      tags: [scans]
+      parameters:
+        - name: scanId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - name: severity
+          in: query
+          schema:
+            type: array
+            items:
+              $ref: "#/components/schemas/Severity"
+          style: form
+          explode: false
+        - name: secretType
+          in: query
+          schema:
+            type: array
+            items:
+              $ref: "#/components/schemas/SecretType"
+          style: form
+          explode: false
+        - name: suppressed
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Findings page
+          headers:
+            X-Total-Count:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Finding"
+
+  /v1/scans/{scanId}/report:
+    get:
+      operationId: getScanReport
+      summary: Download scan report (format driven by Accept header)
+      tags: [scans]
+      parameters:
+        - name: scanId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Report file
+          content:
+            application/sarif+json:
+              schema:
+                type: object
+                description: SARIF 2.1.0 document
+            text/csv:
+              schema:
+                type: string
+            text/html:
+              schema:
+                type: string
+
+  /v1/scans/{scanId}/stream:
+    get:
+      operationId: streamScanWebSocket
+      summary: Stream scan events via WebSocket upgrade
+      description: |
+        Upgrade to WebSocket. Emits `StreamEvent` objects as the scan progresses.
+        Connection closes when the scan completes or fails.
+      tags: [scans]
+      parameters:
+        - name: scanId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "101":
+          description: WebSocket upgrade
+
+  /v1/scans/{scanId}/stream/sse:
+    get:
+      operationId: streamScanSSE
+      summary: Stream scan events via Server-Sent Events (no WebSocket required)
+      description: |
+        Returns `text/event-stream`. Each event is a JSON-encoded `StreamEvent`.
+        Suitable for environments that cannot WebSocket-upgrade (serverless proxies,
+        Next.js server components, restricted corporate networks).
+      tags: [scans]
+      parameters:
+        - name: scanId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  # ── Projects ────────────────────────────────────────────────────────────────
+
+  /v1/projects:
+    get:
+      operationId: listProjects
+      summary: List all projects
+      tags: [projects]
+      parameters:
+        - name: workspace
+          in: query
+          schema:
+            type: string
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Projects
+          headers:
+            X-Total-Count:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Project"
+    post:
+      operationId: createProject
+      summary: Create a new project
+      tags: [projects]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProjectRequest"
+      responses:
+        "201":
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+
+  /v1/projects/{projectId}:
+    get:
+      operationId: getProject
+      summary: Get project detail
+      tags: [projects]
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateProject
+      summary: Update project (repos, policy, monitor flag)
+      tags: [projects]
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProjectRequest"
+      responses:
+        "200":
+          description: Updated project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+    delete:
+      operationId: deleteProject
+      summary: Delete project and all scan history
+      tags: [projects]
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /v1/projects/{projectId}/scans:
+    post:
+      operationId: triggerProjectScan
+      summary: Trigger a scan for a project
+      tags: [projects]
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScanOptions"
+      responses:
+        "202":
+          description: Scan queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanSummary"
+    get:
+      operationId: listProjectScans
+      summary: List scans for a project (newest first)
+      tags: [projects]
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Scans
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ScanSummary"
+
+  /v1/projects/{projectId}/scans/{scanId}:
+    get:
+      operationId: getProjectScan
+      summary: Get scan summary for a project scan
+      tags: [projects]
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: scanId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Scan summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanSummary"
+
+  /v1/projects/{projectId}/scans/{scanId}/findings:
+    get:
+      operationId: getProjectScanFindings
+      summary: Paginated findings for a project scan
+      tags: [projects]
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: scanId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+        - name: severity
+          in: query
+          schema:
+            type: array
+            items:
+              $ref: "#/components/schemas/Severity"
+          style: form
+          explode: false
+        - name: suppressed
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Findings
+          headers:
+            X-Total-Count:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Finding"
+
+  /v1/projects/{projectId}/scans/{scanId}/report:
+    get:
+      operationId: getProjectScanReport
+      summary: Download report (format driven by Accept header)
+      tags: [projects]
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: scanId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Report
+          content:
+            application/sarif+json:
+              schema:
+                type: object
+            text/csv:
+              schema:
+                type: string
+            text/html:
+              schema:
+                type: string
+
+  /v1/projects/{projectId}/scans/{scanId}/stream:
+    get:
+      operationId: streamProjectScanWebSocket
+      summary: Stream project scan events via WebSocket
+      tags: [projects]
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: scanId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "101":
+          description: WebSocket upgrade
+
+  /v1/projects/{projectId}/scans/{scanId}/stream/sse:
+    get:
+      operationId: streamProjectScanSSE
+      summary: Stream project scan events via SSE
+      tags: [projects]
+      parameters:
+        - name: projectId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: scanId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  # ── Findings ────────────────────────────────────────────────────────────────
+
+  /v1/findings/search:
+    post:
+      operationId: searchFindings
+      summary: Filtered cross-project finding search
+      tags: [findings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                projectIds:
+                  type: array
+                  items:
+                    type: string
+                severity:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Severity"
+                secretTypes:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/SecretType"
+                suppressed:
+                  type: boolean
+                page:
+                  type: integer
+                  default: 1
+                limit:
+                  type: integer
+                  default: 50
+      responses:
+        "200":
+          description: Findings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Finding"
+
+  /v1/findings/{findingId}:
+    get:
+      operationId: getFinding
+      summary: Get single finding detail
+      tags: [findings]
+      parameters:
+        - name: findingId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Finding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Finding"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /v1/findings/{findingId}/suppress:
+    post:
+      operationId: suppressFinding
+      summary: Create an exception for this finding (exception wizard API)
+      tags: [findings]
+      parameters:
+        - name: findingId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExceptionRequest"
+      responses:
+        "201":
+          description: Exception created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Exception"
+
+  /v1/findings/{findingId}/triage:
+    post:
+      operationId: triageFinding
+      summary: Request AI triage for this finding
+      tags: [findings]
+      parameters:
+        - name: findingId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Triage queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [queued]
+                  findingId:
+                    type: string
+
+  # ── Exceptions ──────────────────────────────────────────────────────────────
+
+  /v1/exceptions:
+    get:
+      operationId: listExceptions
+      summary: List all exceptions
+      tags: [exceptions]
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/ExceptionStatus"
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/LimitParam"
+      responses:
+        "200":
+          description: Exceptions
+          headers:
+            X-Total-Count:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Exception"
+    post:
+      operationId: createException
+      summary: Create a new exception
+      tags: [exceptions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateExceptionRequest"
+      responses:
+        "201":
+          description: Exception created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Exception"
+
+  /v1/exceptions/{exceptionId}:
+    get:
+      operationId: getException
+      summary: Get exception detail and audit history
+      tags: [exceptions]
+      parameters:
+        - name: exceptionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Exception
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Exception"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      operationId: updateException
+      summary: Update exception (extend expiry, change scope)
+      tags: [exceptions]
+      parameters:
+        - name: exceptionId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                expiresAt:
+                  type: string
+                  format: date-time
+                  nullable: true
+                justification:
+                  type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "200":
+          description: Updated exception
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Exception"
+    delete:
+      operationId: revokeException
+      summary: Revoke exception (soft delete — audit trail preserved)
+      tags: [exceptions]
+      parameters:
+        - name: exceptionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Revoked
+
+  /v1/exceptions/export:
+    get:
+      operationId: exportExceptions
+      summary: Export all active exceptions as .checkmate.yaml
+      tags: [exceptions]
+      responses:
+        "200":
+          description: YAML policy file
+          content:
+            application/yaml:
+              schema:
+                type: string
+
+  /v1/exceptions/import:
+    post:
+      operationId: importExceptions
+      summary: Import exceptions from .checkmate.yaml
+      tags: [exceptions]
+      requestBody:
+        required: true
+        content:
+          application/yaml:
+            schema:
+              type: string
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Import result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  imported:
+                    type: integer
+                  skipped:
+                    type: integer
+                  errors:
+                    type: array
+                    items:
+                      type: string
+
+  /v1/exceptions/validate:
+    post:
+      operationId: validatePolicy
+      summary: Validate a .checkmate.yaml without importing
+      tags: [exceptions]
+      requestBody:
+        required: true
+        content:
+          application/yaml:
+            schema:
+              type: string
+      responses:
+        "200":
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                  errors:
+                    type: array
+                    items:
+                      type: string
+
+  # ── Rules ────────────────────────────────────────────────────────────────────
+
+  /v1/rules:
+    get:
+      operationId: listRules
+      summary: List all active detection rules
+      tags: [rules]
+      responses:
+        "200":
+          description: Rules
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Rule"
+
+  /v1/rules/{ruleId}:
+    get:
+      operationId: getRule
+      summary: Get rule detail
+      tags: [rules]
+      parameters:
+        - name: ruleId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Rule
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rule"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ── Webhooks ─────────────────────────────────────────────────────────────────
+
+  /v1/webhooks:
+    get:
+      operationId: listWebhooks
+      summary: List registered webhooks
+      tags: [webhooks]
+      responses:
+        "200":
+          description: Webhooks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Webhook"
+    post:
+      operationId: createWebhook
+      summary: Register a webhook
+      tags: [webhooks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, events]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                events:
+                  type: array
+                  items:
+                    type: string
+                secret:
+                  type: string
+                  description: HMAC-SHA256 signing secret for payload verification.
+      responses:
+        "201":
+          description: Webhook registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Webhook"
+
+  /v1/webhooks/{webhookId}:
+    delete:
+      operationId: deleteWebhook
+      summary: Delete a webhook
+      tags: [webhooks]
+      parameters:
+        - name: webhookId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Deleted
+
+  /v1/webhooks/{webhookId}/test:
+    post:
+      operationId: testWebhook
+      summary: Send a test event to a webhook
+      tags: [webhooks]
+      parameters:
+        - name: webhookId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Test event sent
+
+  # ── Workspaces ───────────────────────────────────────────────────────────────
+
+  /v1/workspaces:
+    get:
+      operationId: listWorkspaces
+      summary: List all workspaces
+      tags: [workspaces]
+      responses:
+        "200":
+          description: Workspace names
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /v1/workspaces/{workspace}/report:
+    get:
+      operationId: getWorkspaceReport
+      summary: Workspace-level summary report (Accept-header driven format)
+      tags: [workspaces]
+      parameters:
+        - name: workspace
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Report
+          content:
+            text/csv:
+              schema:
+                type: string
+            text/html:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+
+tags:
+  - name: system
+    description: Health, version, and capability endpoints
+  - name: auth
+    description: Authentication, JWT tokens, and API key management
+  - name: scans
+    description: Ad-hoc (project-independent) scan management
+  - name: projects
+    description: Persistent project and repository management
+  - name: findings
+    description: Finding retrieval, suppression, and AI triage
+  - name: exceptions
+    description: Exception (false-positive suppression) management
+  - name: rules
+    description: Detection rule introspection
+  - name: webhooks
+    description: Push notification webhook management
+  - name: workspaces
+    description: Workspace-level aggregation and reporting

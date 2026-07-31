@@ -123,7 +123,7 @@ services:
 
 This enables zero-configuration local triage with `base_url: http://ollama:11434/v1` inside Docker Compose.
 
-## Deferred
+## Additional Features
 
-- **Batch triage:** Background job that triages all un-annotated findings in bulk. Will be added once the on-demand flow is validated.
-- **Cost tracking:** Token usage is recorded per annotation but not yet aggregated into a dashboard.
+- **Batch triage:** Background job that triages all un-annotated findings in bulk. 
+- **Cost tracking:** Token usage is recorded per annotation and aggregated into a usage endpoint.

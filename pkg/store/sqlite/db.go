@@ -34,11 +34,18 @@ var migrationsFS embed.FS
 // interface from checkmate-core, so it is a drop-in replacement for the Badger
 // implementation without any changes to call sites.
 type DB struct {
-	db          *sql.DB
-	baseDir     string
-	codeBaseDir string
-	mu          sync.RWMutex
-	broker      *store.ScanEventBroker
+	db                *sql.DB
+	baseDir           string
+	codeBaseDir       string
+	mu                sync.RWMutex
+	broker            *store.ScanEventBroker
+	webhookDispatcher func(eventType string, data interface{})
+}
+
+func (d *DB) SetWebhookDispatcher(dispatcher func(eventType string, data interface{})) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	d.webhookDispatcher = dispatcher
 }
 
 const (
@@ -523,6 +530,50 @@ func (d *DB) GetGitConfigManager() (gitutils.GitConfigManager, error) {
 	return newGitConfigManager(d), nil
 }
 
+// matchException evaluates a finding against a list of active exceptions.
+func matchException(finding *diagnostics.SecurityDiagnostic, exceptions []*store.Exception) (bool, string) {
+	if finding == nil {
+		return false, ""
+	}
+	
+	ruleName := finding.Justification.Headline.Description
+	
+	for _, exc := range exceptions {
+		if exc.RuleID != "*" && exc.RuleID != ruleName {
+			continue
+		}
+
+		if exc.Scope == nil {
+			continue
+		}
+
+		switch exc.Scope.Type {
+		case "global", "project":
+			return true, exc.ID
+		case "directory":
+			if finding.Location != nil && strings.HasPrefix(*finding.Location, exc.Scope.Path) {
+				return true, exc.ID
+			}
+		case "file":
+			if finding.Location != nil && *finding.Location == exc.Scope.Path {
+				return true, exc.ID
+			}
+		case "line":
+			if finding.Location != nil && *finding.Location == exc.Scope.Path {
+				line := int(finding.Range.Start.Line + 1)
+				if exc.Scope.LineStart != nil && exc.Scope.LineEnd != nil && line >= *exc.Scope.LineStart && line <= *exc.Scope.LineEnd {
+					return true, exc.ID
+				}
+			}
+		case "value":
+			if finding.SHA256 != nil && *finding.SHA256 == exc.Scope.SecretChecksum {
+				return true, exc.ID
+			}
+		}
+	}
+	return false, ""
+}
+
 // RunScan executes a full scan for a project, persisting findings and summary.
 func (d *DB) RunScan(
 	ctx context.Context,
@@ -597,11 +648,30 @@ func (d *DB) RunScan(
 	startTime := time.Now()
 	var allFindings []*diagnostics.SecurityDiagnostic
 
+	// Fetch active exceptions
+	allExceptions, _ := d.ListExceptions()
+	var activeExceptions []*store.Exception
+	nowT := time.Now()
+	for _, exc := range allExceptions {
+		if exc.Status != "active" {
+			continue
+		}
+		if exc.ExpiresAt != nil && exc.ExpiresAt.Before(nowT) {
+			continue
+		}
+		activeExceptions = append(activeExceptions, exc)
+	}
+
 	for finding := range findingsCh {
+		suppressed, excID := matchException(finding, activeExceptions)
+		if suppressed {
+			finding.Excluded = true
+		}
+
 		allFindings = append(allFindings, finding)
 
 		// Persist finding
-		go d.persistFinding(ctx, finding, scanID, projectID)
+		go d.persistFinding(ctx, finding, scanID, projectID, suppressed, excID)
 
 		// Notify consumers (e.g. WebSocket broadcaster)
 		for _, c := range consumers {
@@ -653,17 +723,40 @@ func (d *DB) RunScan(
 		Type:   store.EventComplete,
 		Data:   map[string]interface{}{"status": "complete"},
 	})
+
+	if d.webhookDispatcher != nil {
+		go d.webhookDispatcher("scan.completed", map[string]interface{}{
+			"projectId":     projectID,
+			"scanId":        scanID,
+			"status":        "complete",
+			"totalFindings": len(allFindings),
+			"duration":      durationMs,
+		})
+	}
 }
 
 func (d *DB) markScanFailed(ctx context.Context, scanID string) {
 	d.mu.Lock()
-	defer d.mu.Unlock()
 	_, _ = d.db.ExecContext(ctx,
 		`UPDATE scans SET status = 'failed', completed_at = ? WHERE id = ?`,
 		time.Now().UTC().Format(time.RFC3339), scanID)
+	d.mu.Unlock()
+
+	d.broker.Publish(store.ScanEvent{
+		ScanID: scanID,
+		Type:   store.EventComplete,
+		Data:   map[string]interface{}{"status": "failed"},
+	})
+
+	if d.webhookDispatcher != nil {
+		go d.webhookDispatcher("scan.completed", map[string]interface{}{
+			"scanId": scanID,
+			"status": "failed",
+		})
+	}
 }
 
-func (d *DB) persistFinding(ctx context.Context, finding *diagnostics.SecurityDiagnostic, scanID, projectID string) {
+func (d *DB) persistFinding(ctx context.Context, finding *diagnostics.SecurityDiagnostic, scanID, projectID string, suppressed bool, exceptionID string) {
 	if finding == nil {
 		return
 	}
@@ -702,23 +795,42 @@ func (d *DB) persistFinding(ctx context.Context, finding *diagnostics.SecurityDi
 		source = *finding.Source
 	}
 
+	suppressedInt := 0
+	if suppressed {
+		suppressedInt = 1
+	}
+	var excID interface{} = nil
+	if exceptionID != "" {
+		excID = exceptionID
+	}
+
 	_, err := d.db.ExecContext(ctx, `
 		INSERT OR IGNORE INTO findings(
 			finding_id, scan_id, project_id,
 			rule_id, secret_type, severity, confidence,
 			repo_url, commit_sha, branch, file_path, line_number, column_number,
 			evidence_redacted, secret_checksum, source_context,
-			suppressed, verification_status, detected_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'NOT_CHECKED', ?)`,
+			suppressed, exception_id, verification_status, detected_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NOT_CHECKED', ?)`,
 		findingID, scanID, projectID,
 		ruleName, "generic.high_entropy", finding.Justification.Headline.Confidence.String(), finding.Justification.Headline.Confidence.String(),
 		"", "", "", location, line,
 		col,
 		evidenceRedacted, checksum, source,
-		now,
+		suppressedInt, excID, now,
 	)
 	if err != nil {
 		log.Printf("persistFinding: %v", err)
+	}
+
+	if !suppressed && d.webhookDispatcher != nil {
+		go d.webhookDispatcher("finding.detected", map[string]interface{}{
+			"findingId":  findingID,
+			"secretType": "generic.high_entropy",
+			"severity":   finding.Justification.Headline.Confidence.String(),
+			"file":       location,
+			"line":       line,
+		})
 	}
 }
 

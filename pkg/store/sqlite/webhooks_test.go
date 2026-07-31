@@ -36,8 +36,8 @@ func TestDB_Webhooks(t *testing.T) {
 	assert.Equal(t, "wh_123", fetched.ID)
 	assert.Equal(t, "https://example.com/webhook", fetched.URL)
 	assert.Equal(t, []string{"scan.completed"}, fetched.Events)
-	// Secret is hashed and not returned by GetWebhooks
-	assert.Equal(t, "", fetched.Secret)
+	// Secret is stored in plaintext for HMAC signing
+	assert.Equal(t, "supersecret", fetched.Secret)
 
 	err = db.DeleteWebhook("wh_123")
 	require.NoError(t, err)

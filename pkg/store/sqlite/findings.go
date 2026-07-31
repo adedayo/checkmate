@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/adedayo/checkmate/pkg/sdk"
+	"github.com/adedayo/checkmate/pkg/store"
 )
 
 func (s *DB) GetFinding(findingID string) (*sdk.Finding, error) {
@@ -79,4 +80,42 @@ func (s *DB) UpdateFindingAIAnnotation(findingID string, annotation *sdk.AIAnnot
 		WHERE finding_id = ?
 	`, string(b), findingID)
 	return err
+}
+
+func (s *DB) GetUnannotatedFindings(scanID string) ([]string, error) {
+	rows, err := s.db.Query(`
+		SELECT finding_id
+		FROM findings
+		WHERE scan_id = ? AND ai_annotation IS NULL
+	`, scanID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err == nil {
+			ids = append(ids, id)
+		}
+	}
+	return ids, rows.Err()
+}
+
+func (s *DB) GetAITokenUsage() (*store.AITokenUsage, error) {
+	row := s.db.QueryRow(`
+		SELECT 
+			COALESCE(SUM(json_extract(ai_annotation, '$.promptTokens')), 0),
+			COALESCE(SUM(json_extract(ai_annotation, '$.completionTokens')), 0)
+		FROM findings 
+		WHERE ai_annotation IS NOT NULL
+	`)
+
+	var usage store.AITokenUsage
+	err := row.Scan(&usage.PromptTokens, &usage.CompletionTokens)
+	if err != nil {
+		return nil, err
+	}
+	return &usage, nil
 }
