@@ -48,13 +48,25 @@ func (s *DB) GetFinding(findingID string) (*sdk.Finding, error) {
 	f.VerificationStatus = sdk.VerificationStatus(verificationStatus)
 	f.Suppressed = suppressed > 0
 
-	if repoURL.Valid { f.RepositoryURL = repoURL.String }
-	if commitSHA.Valid { f.CommitSHA = commitSHA.String }
-	if branch.Valid { f.Branch = branch.String }
-	if evidenceRedacted.Valid { f.EvidenceRedacted = evidenceRedacted.String }
-	if sourceContext.Valid { f.SourceContext = sourceContext.String }
-	if exceptionID.Valid { f.ExceptionID = exceptionID.String }
-	
+	if repoURL.Valid {
+		f.RepositoryURL = repoURL.String
+	}
+	if commitSHA.Valid {
+		f.CommitSHA = commitSHA.String
+	}
+	if branch.Valid {
+		f.Branch = branch.String
+	}
+	if evidenceRedacted.Valid {
+		f.EvidenceRedacted = evidenceRedacted.String
+	}
+	if sourceContext.Valid {
+		f.SourceContext = sourceContext.String
+	}
+	if exceptionID.Valid {
+		f.ExceptionID = exceptionID.String
+	}
+
 	if parsedTime, err := time.Parse(time.RFC3339Nano, detectedAt); err == nil {
 		f.DetectedAt = parsedTime
 	}
@@ -91,7 +103,13 @@ func (s *DB) GetUnannotatedFindings(scanID string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		err := rows.Close()
+		if err != nil {
+			return
+		}
+
+	}()
 
 	var ids []string
 	for rows.Next() {

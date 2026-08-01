@@ -76,13 +76,13 @@ func (d *Dispatcher) DispatchToWebhook(wh *store.Webhook, eventType string, data
 
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		startTime := time.Now()
-		
+
 		req, err := http.NewRequest("POST", wh.URL, bytes.NewReader(payloadBytes))
 		if err != nil {
 			d.recordLog(wh.ID, eventType, attempt, nil, nil, err)
 			break // malformed request, don't retry
 		}
-		
+
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-CheckMate-Signature", signature)
 
@@ -92,9 +92,9 @@ func (d *Dispatcher) DispatchToWebhook(wh *store.Webhook, eventType string, data
 		if err != nil {
 			d.recordLog(wh.ID, eventType, attempt, nil, &latency, err)
 		} else {
-			io.Copy(io.Discard, resp.Body)
-			resp.Body.Close()
-			
+			_, _ = io.Copy(io.Discard, resp.Body)
+			_ = resp.Body.Close()
+
 			d.recordLog(wh.ID, eventType, attempt, &resp.StatusCode, &latency, nil)
 
 			if resp.StatusCode >= 200 && resp.StatusCode < 300 {

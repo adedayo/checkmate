@@ -19,6 +19,7 @@ func TestDB_Exceptions(t *testing.T) {
 
 	exc := &store.Exception{
 		ID:        "exc_123",
+		ProjectID: "project_123",
 		RuleID:    "TEST_RULE",
 		Scope:     &store.ExceptionScopeDetail{Type: "repository", RepoURL: "https://github.com/test/repo"},
 		Reason:    "false_positive",
@@ -55,7 +56,7 @@ func TestDB_Exceptions(t *testing.T) {
 	assert.Equal(t, "exception.updated", updated.AuditTrail[0].Action)
 
 	// Test List
-	list, err := db.ListExceptions()
+	list, err := db.ListExceptions(exc.ProjectID)
 	require.NoError(t, err)
 	assert.Len(t, list, 1)
 

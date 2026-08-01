@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/adedayo/checkmate/pkg/core"
+	common "github.com/adedayo/checkmate/pkg/core"
 	"github.com/adedayo/checkmate/pkg/core/diagnostics"
 	gitutils "github.com/adedayo/checkmate/pkg/core/git"
 	"github.com/adedayo/checkmate/pkg/core/projects"
@@ -469,7 +469,7 @@ func (d *DB) DeleteProjectScans(projectID string) error {
 	if err != nil {
 		return err
 	}
-	
+
 	// Remove scan IDs from project
 	var dataStr string
 	err = d.db.QueryRowContext(context.Background(), `SELECT data FROM projects WHERE id = ?`, projectID).Scan(&dataStr)
@@ -480,12 +480,15 @@ func (d *DB) DeleteProjectScans(projectID string) error {
 			proj.LastScanID = ""
 			proj.LastScan = time.Time{}
 			updatedData, _ := json.Marshal(proj)
-			d.db.ExecContext(context.Background(),
+			_, err = d.db.ExecContext(context.Background(),
 				`UPDATE projects SET data = ?, updated_at = ? WHERE id = ?`,
 				string(updatedData), time.Now().UTC().Format(time.RFC3339), projectID)
+			if err != nil {
+				return err
+			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -658,9 +661,9 @@ func matchException(finding *diagnostics.SecurityDiagnostic, exceptions []*store
 	if finding == nil {
 		return false, ""
 	}
-	
+
 	ruleName := finding.Justification.Headline.Description
-	
+
 	for _, exc := range exceptions {
 		if exc.RuleID != "*" && exc.RuleID != ruleName {
 			continue
@@ -790,7 +793,6 @@ func (d *DB) RunScan(
 		activeExceptions = append(activeExceptions, exc)
 	}
 
-
 	for finding := range findingsCh {
 		allFindings = append(allFindings, finding)
 
@@ -919,14 +921,14 @@ func (d *DB) persistFinding(ctx context.Context, finding *diagnostics.SecurityDi
 	if finding.SHA256 != nil {
 		checksum = *finding.SHA256
 	}
-	
+
 	location := ""
 	if finding.Location != nil {
 		location = *finding.Location
 	}
-	
+
 	ruleName := finding.Justification.Headline.Description
-	
+
 	line := finding.Range.Start.Line + 1
 	col := finding.Range.Start.Character + 1
 
@@ -939,7 +941,7 @@ func (d *DB) persistFinding(ctx context.Context, finding *diagnostics.SecurityDi
 	defer d.mu.Unlock()
 
 	now := time.Now().UTC().Format(time.RFC3339)
-	
+
 	// Since checkmate-core SecurityDiagnostic lacks standard fields like branch/commit,
 	// we map what we can for the relational columns and store the rest as JSON (if needed).
 	// In the future, findings might include an evidence redacted string.
@@ -1125,7 +1127,7 @@ func (d *DB) ListProjectScans(projectID string, limit, offset int) ([]*store.Sca
 			ProjectID: projID,
 			Status:    status,
 		}
-		
+
 		if startedAt.Valid && startedAt.String != "" {
 			sTime, _ := time.Parse(time.RFC3339, startedAt.String)
 			record.StartedAt = sTime
@@ -1157,12 +1159,12 @@ func (d *DB) SearchFindings(req store.FindingSearchRequest) (*store.FindingSearc
 		where = append(where, fmt.Sprintf("project_id IN (%s)", strings.Join(placeholders, ",")))
 	}
 
-	// For severity and secretType, we would match them against rule_id/confidence/severity 
+	// For severity and secretType, we would match them against rule_id/confidence/severity
 	// stored in the finding. Currently rule_id is stored in findings table.
-	// We'll implement basic filtering here. For a full implementation, we need to map SDK 
+	// We'll implement basic filtering here. For a full implementation, we need to map SDK
 	// SecretType back to rule_ids or store secret_type directly in the findings table.
 	// Assuming finding schema supports this or we do basic LIKE queries for now.
-	
+
 	// Ensure limit/offset
 	limit := req.Limit
 	if limit <= 0 || limit > 100 {

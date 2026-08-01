@@ -1,0 +1,1 @@
+go build ./... && echo "\nBuild succeeds. Testing\n" && go test ./... && echo "\nTesting succeeds. Linting\n" && golangci-lint run

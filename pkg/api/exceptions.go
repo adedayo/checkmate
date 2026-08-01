@@ -17,7 +17,10 @@ func listExceptions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	exceptions, err := pm.ListExceptions()
+	vars := mux.Vars(r)
+	projectID := vars["projectId"]
+
+	exceptions, err := pm.ListExceptions(projectID)
 	if err != nil {
 		http.Error(w, "Failed to list exceptions", http.StatusInternalServerError)
 		return
@@ -51,7 +54,7 @@ func createException(w http.ResponseWriter, r *http.Request) {
 	req.ID = "exc_" + uuid.New().String()[:12]
 	req.CreatedAt = time.Now()
 	req.Status = "active"
-	
+
 	// Default createdBy since auth context is mocked/basic right now
 	if req.CreatedBy == "" {
 		req.CreatedBy = "system"
@@ -141,7 +144,10 @@ func exportExceptions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	exceptions, err := pm.ListExceptions()
+	vars := mux.Vars(r)
+	projectID := vars["projectId"]
+
+	exceptions, err := pm.ListExceptions(projectID)
 	if err != nil {
 		http.Error(w, "Failed to export exceptions", http.StatusInternalServerError)
 		return
@@ -181,7 +187,7 @@ func importExceptions(w http.ResponseWriter, r *http.Request) {
 		if exc.ID == "" {
 			exc.ID = "exc_" + uuid.New().String()[:12]
 		}
-		
+
 		if err := pm.CreateException(exc); err != nil {
 			skipped++
 			errors = append(errors, err.Error())
@@ -203,14 +209,14 @@ func validateExceptions(w http.ResponseWriter, r *http.Request) {
 	var exceptions []*store.Exception
 	if err := json.NewDecoder(r.Body).Decode(&exceptions); err != nil {
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
-			"valid": false,
+			"valid":  false,
 			"errors": []string{err.Error()},
 		})
 		return
 	}
 
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"valid": true,
+		"valid":  true,
 		"errors": []string{},
 	})
 }
