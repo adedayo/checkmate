@@ -103,7 +103,7 @@ docker pull ghcr.io/adedayo/checkmate
 ```
 
 ### Desktop Application
-A graphical desktop version of CheckMate is available: [CheckMate Desktop Application](https://github.com/adedayo/checkmate-app/releases).
+A graphical desktop version of CheckMate is available: [CheckMate Desktop Application](https://github.com/adedayo/checkmate-app).
 
 ---
 
