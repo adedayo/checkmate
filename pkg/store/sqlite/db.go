@@ -431,6 +431,64 @@ func (d *DB) GetScanResultSummary(projectID, scanID string) (projects.ScanSummar
 	return summary, err
 }
 
+// GetScanMetrics returns the metrics for a specific scan.
+func (d *DB) GetScanMetrics(projectID, scanID string) (*store.ScanMetrics, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	var fileCount, totalFindings int
+	var findingsBySeverityJSON sql.NullString
+	var score sql.NullFloat64
+
+	err := d.db.QueryRowContext(context.Background(),
+		`SELECT file_count, total_findings, findings_by_severity, score
+		 FROM scans WHERE id = ? AND project_id = ?`, scanID, projectID).
+		Scan(&fileCount, &totalFindings, &findingsBySeverityJSON, &score)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("scan not found: %s/%s", projectID, scanID)
+	}
+
+	metrics := &store.ScanMetrics{
+		TotalFindings:      totalFindings,
+		Score:              score.Float64,
+		FindingsBySeverity: make(map[string]int),
+	}
+	if findingsBySeverityJSON.Valid && findingsBySeverityJSON.String != "" && findingsBySeverityJSON.String != "{}" {
+		_ = json.Unmarshal([]byte(findingsBySeverityJSON.String), &metrics.FindingsBySeverity)
+	}
+	return metrics, err
+}
+
+// DeleteProjectScans removes all historical scans for a project.
+func (d *DB) DeleteProjectScans(projectID string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	_, err := d.db.ExecContext(context.Background(),
+		`DELETE FROM scans WHERE project_id = ?`, projectID)
+	if err != nil {
+		return err
+	}
+	
+	// Remove scan IDs from project
+	var dataStr string
+	err = d.db.QueryRowContext(context.Background(), `SELECT data FROM projects WHERE id = ?`, projectID).Scan(&dataStr)
+	if err == nil {
+		var proj projects.ProjectSummary
+		if json.Unmarshal([]byte(dataStr), &proj) == nil {
+			proj.ScanIDs = nil
+			proj.LastScanID = ""
+			proj.LastScan = time.Time{}
+			updatedData, _ := json.Marshal(proj)
+			d.db.ExecContext(context.Background(),
+				`UPDATE projects SET data = ?, updated_at = ? WHERE id = ?`,
+				string(updatedData), time.Now().UTC().Format(time.RFC3339), projectID)
+		}
+	}
+	
+	return nil
+}
+
 // GetIssues returns a filtered, paginated set of findings.
 func (d *DB) GetIssues(paginated projects.PaginatedIssueSearch) (*projects.PagedResult, error) {
 	d.mu.RLock()
@@ -493,13 +551,14 @@ func (d *DB) RemediateIssue(exclude diagnostics.ExcludeRequirement) diagnostics.
 	}
 
 	scopeJSON, _ := json.Marshal(map[string]interface{}{
+		"type":           "globalHash",
 		"secretChecksum": fingerprint,
 	})
 
 	_, err := d.db.ExecContext(context.Background(), `
-		INSERT INTO exceptions(id, rule_id, scope_type, scope_json, reason, created_by, created_at, status)
-		VALUES (?, ?, 'value', ?, 'false_positive_pattern', 'system', ?, 'active')`,
-		id, exclude.What, string(scopeJSON), now)
+		INSERT INTO exceptions(id, project_id, rule_id, scope_type, scope_json, reason, created_by, created_at, status)
+		VALUES (?, ?, ?, 'globalHash', ?, 'false_positive_pattern', 'system', ?, 'active')`,
+		id, exclude.ProjectID, exclude.What, string(scopeJSON), now)
 
 	if err != nil {
 		log.Printf("RemediateIssue: %v", err)
@@ -528,6 +587,70 @@ func (d *DB) GetProjectLocation(projID string) string {
 // GetGitConfigManager returns the git service configuration manager.
 func (d *DB) GetGitConfigManager() (gitutils.GitConfigManager, error) {
 	return newGitConfigManager(d), nil
+}
+
+// BuildExclusionProvider constructs an ExclusionProvider for a project based on active exceptions.
+func (d *DB) BuildExclusionProvider(projectID string) (diagnostics.ExclusionProvider, error) {
+	allExceptions, err := d.ListExceptions(projectID)
+	if err != nil {
+		return nil, err
+	}
+
+	def := &diagnostics.ExcludeDefinition{
+		GloballyExcludedRegExs:  []string{},
+		GloballyExcludedStrings: []string{},
+		GloballyExcludedHashes:  []string{},
+		PathExclusionRegExs:     []string{},
+		PerFileExcludedStrings:  make(map[string][]string),
+		PerFileExcludedHashes:   make(map[string][]string),
+		PathRegexExcludedRegExs: make(map[string][]string),
+	}
+
+	for _, exc := range allExceptions {
+		if exc.Status != "active" {
+			continue
+		}
+		if exc.Scope == nil {
+			continue
+		}
+
+		scope := exc.Scope
+		switch scope.Type {
+		case "globalHash", "value": // "value" is legacy from my previous hardcoded scope
+			if scope.SecretChecksum != "" {
+				def.GloballyExcludedHashes = append(def.GloballyExcludedHashes, scope.SecretChecksum)
+			}
+		case "globalString":
+			if scope.StringMatch != "" {
+				def.GloballyExcludedStrings = append(def.GloballyExcludedStrings, scope.StringMatch)
+			}
+		case "globalRegex":
+			if scope.RegexMatch != "" {
+				def.GloballyExcludedRegExs = append(def.GloballyExcludedRegExs, scope.RegexMatch)
+			}
+		case "pathRegex":
+			if scope.RegexMatch != "" {
+				def.PathExclusionRegExs = append(def.PathExclusionRegExs, scope.RegexMatch)
+			}
+		case "pathString":
+			if scope.Path != "" && scope.StringMatch != "" {
+				def.PerFileExcludedStrings[scope.Path] = append(def.PerFileExcludedStrings[scope.Path], scope.StringMatch)
+			}
+		case "pathHash":
+			if scope.Path != "" && scope.SecretChecksum != "" {
+				def.PerFileExcludedHashes[scope.Path] = append(def.PerFileExcludedHashes[scope.Path], scope.SecretChecksum)
+			}
+		case "pathRegexRegex":
+			if scope.Path != "" && scope.RegexMatch != "" {
+				def.PathRegexExcludedRegExs[scope.Path] = append(def.PathRegexExcludedRegExs[scope.Path], scope.RegexMatch)
+			}
+		}
+	}
+
+	container := diagnostics.ExcludeContainer{
+		ExcludeDef: def,
+	}
+	return diagnostics.CompileExcludes(container)
 }
 
 // matchException evaluates a finding against a list of active exceptions.
@@ -593,9 +716,9 @@ func (d *DB) RunScan(
 	// Create scan record
 	d.mu.Lock()
 	_, err := d.db.ExecContext(ctx, `
-		INSERT INTO scans(id, project_id, status, created_at)
-		VALUES (?, ?, 'running', ?)`,
-		scanID, projectID, now)
+		INSERT INTO scans(id, project_id, status, started_at, created_at)
+		VALUES (?, ?, 'running', ?, ?)`,
+		scanID, projectID, now, now)
 	d.mu.Unlock()
 	if err != nil {
 		log.Printf("RunScan: create scan record: %v", err)
@@ -643,13 +766,18 @@ func (d *DB) RunScan(
 		}
 	}
 
+	// ALWAYS apply the database exclusion provider so it overrides or supplements native exclusions
+	if exProvider, err := d.BuildExclusionProvider(projectID); err == nil && exProvider != nil {
+		secOptions.Exclusions = exProvider
+	}
+
 	findingsCh, pathsCh := secrets.SearchSecretsOnPaths(targets, secOptions)
 
 	startTime := time.Now()
 	var allFindings []*diagnostics.SecurityDiagnostic
 
 	// Fetch active exceptions
-	allExceptions, _ := d.ListExceptions()
+	allExceptions, _ := d.ListExceptions(projectID)
 	var activeExceptions []*store.Exception
 	nowT := time.Now()
 	for _, exc := range allExceptions {
@@ -662,13 +790,14 @@ func (d *DB) RunScan(
 		activeExceptions = append(activeExceptions, exc)
 	}
 
+
 	for finding := range findingsCh {
+		allFindings = append(allFindings, finding)
+
 		suppressed, excID := matchException(finding, activeExceptions)
 		if suppressed {
 			finding.Excluded = true
 		}
-
-		allFindings = append(allFindings, finding)
 
 		// Persist finding
 		go d.persistFinding(ctx, finding, scanID, projectID, suppressed, excID)
@@ -694,6 +823,27 @@ func (d *DB) RunScan(
 		_ = scanSummary
 	}
 
+	// Aggregate findings by severity
+	severityCounts := make(map[string]int)
+	for _, f := range allFindings {
+		sev := f.Justification.Headline.Confidence.String()
+		severityCounts[sev]++
+	}
+	severityJSON, _ := json.Marshal(severityCounts)
+
+	// Compute a simple score: higher is worse (0-10 scale)
+	var scanScore float64
+	if len(allFindings) > 0 {
+		critical := severityCounts["Critical"] + severityCounts["CRITICAL"]
+		high := severityCounts["High"] + severityCounts["HIGH"]
+		medium := severityCounts["Medium"] + severityCounts["MEDIUM"]
+		low := severityCounts["Low"] + severityCounts["LOW"]
+		scanScore = float64(critical*10+high*5+medium*2+low) / float64(len(allFindings))
+		if scanScore > 10 {
+			scanScore = 10
+		}
+	}
+
 	// Update scan record with completion
 	durationMs := time.Since(startTime).Milliseconds()
 	d.mu.Lock()
@@ -702,15 +852,19 @@ func (d *DB) RunScan(
 			status = 'complete',
 			file_count = ?,
 			total_findings = ?,
+			findings_by_severity = ?,
+			score = ?,
 			duration_ms = ?,
 			completed_at = ?
 		WHERE id = ?`,
-		len(files), len(allFindings), durationMs,
+		len(files), len(allFindings), string(severityJSON), scanScore, durationMs,
 		time.Now().UTC().Format(time.RFC3339), scanID)
 	d.mu.Unlock()
 
 	// Update project with last scan ID
 	proj.ScanIDs = append(proj.ScanIDs, scanID)
+	proj.LastScanID = scanID
+	proj.LastScan = time.Now().UTC()
 	data, _ := json.Marshal(proj)
 	d.mu.Lock()
 	_, _ = d.db.ExecContext(ctx,
@@ -858,6 +1012,11 @@ func (d *DB) scanProjectSummaryFromRow(row rowScanner) (*projects.ProjectSummary
 	ps.ID = id
 	ps.Name = name
 	ps.Workspace = workspace
+
+	if ps.LastScanID == "" && len(ps.ScanIDs) > 0 {
+		ps.LastScanID = ps.ScanIDs[len(ps.ScanIDs)-1]
+	}
+
 	return &ps, nil
 }
 
@@ -955,18 +1114,21 @@ func (d *DB) ListProjectScans(projectID string, limit, offset int) ([]*store.Sca
 
 	var scans []*store.ScanRecord
 	for rows.Next() {
-		var id, projID, status, startedAt string
-		var completedAt sql.NullString
+		var id, projID, status string
+		var startedAt, completedAt sql.NullString
 		if err := rows.Scan(&id, &projID, &status, &startedAt, &completedAt); err != nil {
 			return nil, err
 		}
 
-		sTime, _ := time.Parse(time.RFC3339, startedAt)
 		record := &store.ScanRecord{
 			ID:        id,
 			ProjectID: projID,
 			Status:    status,
-			StartedAt: sTime,
+		}
+		
+		if startedAt.Valid && startedAt.String != "" {
+			sTime, _ := time.Parse(time.RFC3339, startedAt.String)
+			record.StartedAt = sTime
 		}
 
 		if completedAt.Valid && completedAt.String != "" {

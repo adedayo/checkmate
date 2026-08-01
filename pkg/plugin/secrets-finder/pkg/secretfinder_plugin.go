@@ -3,6 +3,7 @@ package secrets
 import (
 	"fmt"
 	"os"
+	"sync"
 
 	common "github.com/adedayo/checkmate/pkg/core"
 	diagnostics "github.com/adedayo/checkmate/pkg/core/diagnostics"
@@ -65,6 +66,9 @@ func SearchSecretsOnPaths(paths []string, options SecretSearchOptions) (chan *di
 	for _, r := range repositories {
 		paths = append(paths, r.CloneDetail.Location)
 	}
+	fileBuffers := make(map[string][]*diagnostics.SecurityDiagnostic)
+	var mu sync.Mutex
+
 	collector := func(diagnostic *diagnostics.SecurityDiagnostic) {
 		// location := *diagnostic.Location
 		// for loc, repo := range repoMapper {
@@ -93,7 +97,10 @@ func SearchSecretsOnPaths(paths []string, options SecretSearchOptions) (chan *di
 		}
 
 		diagnostic.Location = &location
-		out <- diagnostic
+		
+		mu.Lock()
+		fileBuffers[location] = append(fileBuffers[location], diagnostic)
+		mu.Unlock()
 	}
 
 	var pathConsumers []util.PathConsumer
@@ -140,6 +147,21 @@ func SearchSecretsOnPaths(paths []string, options SecretSearchOptions) (chan *di
 		allFiles = util.FindFiles(paths)
 		for _, path := range allFiles {
 			mux.ConsumePath(path)
+			
+			// Flush and subsume findings for this file
+			location, _, _ := pathTransposer(path)
+			
+			mu.Lock()
+			diags := fileBuffers[location]
+			delete(fileBuffers, location)
+			mu.Unlock()
+			
+			if len(diags) > 0 {
+				subsumed := diagnostics.SubsumeOverlapping(diags)
+				for _, d := range subsumed {
+					out <- d
+				}
+			}
 		}
 	}()
 

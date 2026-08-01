@@ -74,16 +74,20 @@ type WorkspaceDetail struct {
 type Project struct {
 	ID                   string       `yaml:"ID"`                   //unique
 	Name                 string       `yaml:"Name"`                 //human-friendly
+	Description          string       `yaml:"Description,omitempty" json:"Description,omitempty"`
 	Workspace            string       `yaml:"Workspace"`            //Used to group related projects
 	DeleteCheckedOutCode bool         `yaml:"DeleteCheckedOutCode"` //whether to delete code checked out after scan is complete
 	Repositories         []Repository `yaml:"Repositories,omitempty"`
 	ScanIDs              []string     `yaml:"ScanIDs"`
 	ScanPolicy           ScanPolicy   `yaml:"ScanPolicy"`
+	LastScanID           string       `yaml:"LastScanID" json:"LastScanID,omitempty"`
+	LastScan             time.Time    `yaml:"LastScan" json:"LastScan,omitempty"`
 }
 
 // ProjectDescription used to create new/update projects
 type ProjectDescription struct {
 	Name         string       `yaml:"Name"` //human-friendly
+	Description  string       `yaml:"Description,omitempty"`
 	Repositories []Repository `yaml:"Repositories,omitempty"`
 	Workspace    string       `yaml:"Workspace"` //Used to group related projects
 	ScanPolicy   ScanPolicy   `yaml:"ScanPolicy"`
@@ -92,6 +96,7 @@ type ProjectDescription struct {
 // ProjectDescriptionWire used to create new/update projects (wire representation)
 type ProjectDescriptionWire struct {
 	Name         string         `yaml:"Name"` //human-friendly
+	Description  string         `yaml:"Description,omitempty"`
 	Repositories []Repository   `yaml:"Repositories,omitempty"`
 	Workspace    string         `yaml:"Workspace"` //Used to group related projects
 	ScanPolicy   ScanPolicyWire `yaml:"ScanPolicy"`
@@ -107,6 +112,7 @@ func (desc ProjectDescriptionWire) ToProjectDescription() (ProjectDescription, e
 	}
 	pDesc := ProjectDescription{
 		Name:         desc.Name,
+		Description:  desc.Description,
 		Repositories: desc.Repositories,
 		Workspace:    desc.Workspace,
 		ScanPolicy: ScanPolicy{
@@ -123,6 +129,7 @@ func (desc ProjectDescriptionWire) ToProjectDescription() (ProjectDescription, e
 		log.Printf("Error parsing scan exclusion, reverting to default: %s", err.Error())
 		return ProjectDescription{
 			Name:         desc.Name,
+			Description:  desc.Description,
 			Repositories: desc.Repositories,
 			Workspace:    desc.Workspace,
 			ScanPolicy: ScanPolicy{
@@ -242,6 +249,7 @@ type RepositoryHistory struct {
 type ProjectSummary struct {
 	ID           string       `yaml:"ID" json:"ID"`
 	Name         string       `yaml:"Name" json:"Name"`
+	Description  string       `yaml:"Description,omitempty" json:"Description,omitempty"`
 	Workspace    string       `yaml:"Workspace" json:"Workspace"` //Used to group related projects
 	Repositories []Repository `yaml:"Repositories,omitempty" json:"Repositories,omitempty"`
 	//From RepoLocation -> branch -> RepoHistory
@@ -262,6 +270,7 @@ func (p ProjectSummary) ToProject() Project {
 	return Project{
 		ID:           p.ID,
 		Name:         p.Name,
+		Description:  p.Description,
 		Workspace:    p.Workspace,
 		Repositories: p.Repositories,
 		ScanIDs:      p.ScanIDs,

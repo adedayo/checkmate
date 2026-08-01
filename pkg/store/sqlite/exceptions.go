@@ -25,10 +25,10 @@ func (d *DB) CreateException(exc *store.Exception) error {
 
 	_, err := d.db.Exec(`
 		INSERT INTO exceptions (
-			id, rule_id, scope_type, scope_json, reason, justification, created_by,
+			id, project_id, rule_id, scope_type, scope_json, reason, justification, created_by,
 			created_at, expires_at, status, evidence_json, tags
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, exc.ID, exc.RuleID, scopeType, string(scopeJSON), exc.Reason, exc.Justification, exc.CreatedBy,
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`, exc.ID, exc.ProjectID, exc.RuleID, scopeType, string(scopeJSON), exc.Reason, exc.Justification, exc.CreatedBy,
 		exc.CreatedAt.Format(time.RFC3339), timePtrToStr(exc.ExpiresAt), exc.Status, string(evidenceJSON), string(tagsJSON))
 
 	if err == nil && len(exc.AuditTrail) > 0 {
@@ -65,7 +65,7 @@ func (d *DB) GetException(id string) (*store.Exception, error) {
 	defer d.mu.RUnlock()
 
 	row := d.db.QueryRow(`
-		SELECT id, rule_id, scope_json, reason, justification, created_by,
+		SELECT id, project_id, rule_id, scope_json, reason, justification, created_by,
 		       created_at, expires_at, status, evidence_json, tags
 		FROM exceptions
 		WHERE id = ?
@@ -76,7 +76,7 @@ func (d *DB) GetException(id string) (*store.Exception, error) {
 	var justification, expiresAt, createdAt sql.NullString
 
 	err := row.Scan(
-		&exc.ID, &exc.RuleID, &scopeJSON, &exc.Reason, &justification, &exc.CreatedBy,
+		&exc.ID, &exc.ProjectID, &exc.RuleID, &scopeJSON, &exc.Reason, &justification, &exc.CreatedBy,
 		&createdAt, &expiresAt, &exc.Status, &evidenceJSON, &tagsJSON,
 	)
 
@@ -106,16 +106,17 @@ func (d *DB) GetException(id string) (*store.Exception, error) {
 	return &exc, nil
 }
 
-// ListExceptions retrieves all exceptions.
-func (d *DB) ListExceptions() ([]*store.Exception, error) {
+// ListExceptions retrieves all exceptions for a project.
+func (d *DB) ListExceptions(projectID string) ([]*store.Exception, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
 	rows, err := d.db.Query(`
-		SELECT id, rule_id, scope_json, reason, justification, created_by,
+		SELECT id, project_id, rule_id, scope_json, reason, justification, created_by,
 		       created_at, expires_at, status, evidence_json, tags
 		FROM exceptions
-	`)
+		WHERE project_id = ?
+	`, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +131,7 @@ func (d *DB) ListExceptions() ([]*store.Exception, error) {
 		var justification, expiresAt, createdAt sql.NullString
 
 		if err := rows.Scan(
-			&exc.ID, &exc.RuleID, &scopeJSON, &exc.Reason, &justification, &exc.CreatedBy,
+			&exc.ID, &exc.ProjectID, &exc.RuleID, &scopeJSON, &exc.Reason, &justification, &exc.CreatedBy,
 			&createdAt, &expiresAt, &exc.Status, &evidenceJSON, &tagsJSON,
 		); err != nil {
 			return nil, err

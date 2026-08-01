@@ -18,6 +18,12 @@ type PlatformStore interface {
 	// ListProjectScans returns paginated scans for a project, newest first.
 	ListProjectScans(projectID string, limit, offset int) ([]*ScanRecord, error)
 
+	// GetScanMetrics returns the metrics for a specific scan.
+	GetScanMetrics(projectID, scanID string) (*ScanMetrics, error)
+	
+	// DeleteProjectScans removes all historical scans for a project.
+	DeleteProjectScans(projectID string) error
+
 	// SearchFindings searches findings across projects using dynamic filters.
 	SearchFindings(req FindingSearchRequest) (*FindingSearchResult, error)
 
@@ -36,9 +42,10 @@ type PlatformStore interface {
 	// Phase 2: Exceptions
 	CreateException(exc *Exception) error
 	GetException(id string) (*Exception, error)
-	ListExceptions() ([]*Exception, error)
+	ListExceptions(projectID string) ([]*Exception, error)
 	UpdateException(id string, updates ExceptionUpdate) (*Exception, error)
 	DeleteException(id string) error
+	BuildExclusionProvider(projectID string) (diagnostics.ExclusionProvider, error)
 
 	// Phase 2: Webhooks
 	CreateWebhook(webhook *Webhook) error
@@ -79,6 +86,13 @@ type ScanRecord struct {
 	CompletedAt *time.Time `json:"completedAt,omitempty"`
 }
 
+// ScanMetrics holds summary information about findings from a scan.
+type ScanMetrics struct {
+	TotalFindings      int            `json:"totalFindings"`
+	FindingsBySeverity map[string]int `json:"findingsBySeverity"`
+	Score              float64        `json:"score"`
+}
+
 // FindingSearchRequest defines the criteria for searching findings.
 type FindingSearchRequest struct {
 	ProjectIDs  []string
@@ -100,6 +114,7 @@ type FindingSearchResult struct {
 // Exception models a suppression rule.
 type Exception struct {
 	ID            string                `json:"id"`
+	ProjectID     string                `json:"projectId,omitempty"`
 	RuleID        string                `json:"ruleId"`
 	Scope         *ExceptionScopeDetail `json:"scope"`
 	Reason        string                `json:"reason"`
@@ -114,12 +129,14 @@ type Exception struct {
 }
 
 type ExceptionScopeDetail struct {
-	Type           string `json:"type"`
+	Type           string `json:"type"` // e.g. "globalHash", "globalString", "globalRegex", "pathRegex", "pathHash", "pathString"
 	RepoURL        string `json:"repoUrl,omitempty"`
 	Path           string `json:"path,omitempty"`
 	LineStart      *int   `json:"lineStart,omitempty"`
 	LineEnd        *int   `json:"lineEnd,omitempty"`
 	SecretChecksum string `json:"secretChecksum,omitempty"`
+	StringMatch    string `json:"stringMatch,omitempty"`
+	RegexMatch     string `json:"regexMatch,omitempty"`
 }
 
 type ExceptionEvidence struct {
