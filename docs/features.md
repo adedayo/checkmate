@@ -26,16 +26,23 @@ curl -X POST http://localhost:8080/v1/webhooks \
 
 ---
 
-## 2. Bring-Your-Own-Key (BYOK) AI Triage
+## 2. Bring-Your-Own-Key (BYOK) AI Triage & Auto-Suppression Engine
 
 **Capabilities:**
-Instead of relying on human analysts to triage every single potential false positive, CheckMate integrates natively with OpenAI-compatible endpoints. You can hook it up to a local Ollama instance (e.g. `llama3` or `mistral`) or cloud LLMs. The AI analyzes the surrounding code context and provides a `fpLikelihood` (false positive probability) and a brief summary.
+Instead of relying on human analysts to manually review every potential finding, CheckMate integrates natively with **any OpenAI-compatible or Anthropic endpoint**, as well as local air-gapped models via [Ollama](https://ollama.com/), DeepSeek, and custom LLM providers. 
+
+The AI engine analyzes code context, structural evidence, and entropy to evaluate findings:
+- **`fpLikelihood` Score:** False positive probability rating (0% to 100%).
+- **Plain-Language Summary & Remediation Hints:** Detailed analysis explaining why a secret is genuine or a false positive (e.g. test mock, public hash, placeholder).
+- **Automated Auto-Suppression:** When `autoTriage` is enabled, findings exceeding your configured confidence threshold (e.g., `fpLikelihood >= 80%`) are automatically suppressed with auto-generated exception records.
+- **Privacy & Token Control:** Choose between `REDACTED` (masks sensitive values before sending) and `FULL` context modes. When paired with local models (Ollama), **zero code or tokens leave your network**.
+- **Human-in-the-Loop & Decision Memory:** If an analyst deletes an AI suppression or clicks **"Mark as True Positive"**, CheckMate sets `UserOverridden = true`. CheckMate's persistent database remembers user overrides across scans, ensuring **the AI engine never re-suppresses a user-confirmed finding on subsequent scans**.
 
 **Usage Documentation:**
 Configure your AI endpoint via the settings API:
 
 ```bash
-# Configure for a local Ollama instance
+# Configure for a local Ollama instance with Auto-Suppression at 80% threshold
 curl -X PUT http://localhost:8080/v1/settings/ai \
   -H "Authorization: Bearer <JWT_TOKEN>" \
   -H "Content-Type: application/json" \
@@ -44,7 +51,9 @@ curl -X PUT http://localhost:8080/v1/settings/ai \
     "provider": "ollama",
     "model": "llama3",
     "baseUrl": "http://localhost:11434/v1",
-    "defaultPromptMode": "REDACTED"
+    "confidenceThreshold": 0.8,
+    "defaultPromptMode": "REDACTED",
+    "autoTriage": true
   }'
 ```
 
@@ -53,7 +62,13 @@ Request an async AI Triage on a specific finding:
 curl -X POST http://localhost:8080/v1/findings/<FINDING_ID>/triage \
   -H "Authorization: Bearer <JWT_TOKEN>"
 ```
-*This responds with `202 Accepted`. Check the finding later to see the attached `aiAnnotation`.*
+
+Trigger Bulk AI Triage across all un-triaged findings in a project:
+```bash
+curl -X POST http://localhost:8080/v1/projects/<PROJECT_ID>/ai-triage \
+  -H "Authorization: Bearer <JWT_TOKEN>"
+```
+*Responds with `202 Accepted`. Findings are triaged asynchronously in the background. High-confidence false positives are auto-suppressed.*
 
 ---
 
