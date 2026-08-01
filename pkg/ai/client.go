@@ -89,7 +89,7 @@ func TriageFinding(settings *store.AISettings, finding *sdk.Finding) (*sdk.AIAnn
 		req.Header.Set("Authorization", "Bearer "+settings.APIKey)
 	}
 
-	client := &http.Client{Timeout: 60 * time.Second}
+	client := &http.Client{Timeout: 5 * time.Minute}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err

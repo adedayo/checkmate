@@ -108,7 +108,6 @@ func (s *DB) GetUnannotatedFindings(scanID string) ([]string, error) {
 		if err != nil {
 			return
 		}
-
 	}()
 
 	var ids []string

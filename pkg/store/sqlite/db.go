@@ -960,20 +960,38 @@ func (d *DB) persistFinding(ctx context.Context, finding *diagnostics.SecurityDi
 		excID = exceptionID
 	}
 
+	var prevAIAnnotation, prevVerificationStatus sql.NullString
+	_ = d.db.QueryRowContext(ctx, `
+		SELECT ai_annotation, verification_status
+		FROM findings
+		WHERE project_id = ? AND finding_id = ? AND (ai_annotation IS NOT NULL OR (verification_status IS NOT NULL AND verification_status != 'NOT_CHECKED'))
+		ORDER BY rowid DESC LIMIT 1
+	`, projectID, findingID).Scan(&prevAIAnnotation, &prevVerificationStatus)
+
+	initialVerifStatus := "NOT_CHECKED"
+	if prevVerificationStatus.Valid && prevVerificationStatus.String != "" {
+		initialVerifStatus = prevVerificationStatus.String
+	}
+
+	var aiAnnotationVal interface{} = nil
+	if prevAIAnnotation.Valid && prevAIAnnotation.String != "" {
+		aiAnnotationVal = prevAIAnnotation.String
+	}
+
 	_, err := d.db.ExecContext(ctx, `
 		INSERT OR IGNORE INTO findings(
 			finding_id, scan_id, project_id,
 			rule_id, secret_type, severity, confidence,
 			repo_url, commit_sha, branch, file_path, line_number, column_number,
 			evidence_redacted, secret_checksum, source_context,
-			suppressed, exception_id, verification_status, detected_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NOT_CHECKED', ?)`,
+			suppressed, exception_id, verification_status, ai_annotation, detected_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		findingID, scanID, projectID,
 		ruleName, "generic.high_entropy", finding.Justification.Headline.Confidence.String(), finding.Justification.Headline.Confidence.String(),
 		"", "", "", location, line,
 		col,
 		evidenceRedacted, checksum, source,
-		suppressedInt, excID, now,
+		suppressedInt, excID, initialVerifStatus, aiAnnotationVal, now,
 	)
 	if err != nil {
 		log.Printf("persistFinding: %v", err)
@@ -1047,6 +1065,7 @@ func (d *DB) scanFindingRow(row rowScanner) (*diagnostics.SecurityDiagnostic, er
 	}
 
 	diag := &diagnostics.SecurityDiagnostic{
+		ID: findingID,
 		Justification: diagnostics.Justification{
 			Headline: diagnostics.Evidence{
 				Description: ruleID,
@@ -1066,6 +1085,13 @@ func (d *DB) scanFindingRow(row rowScanner) (*diagnostics.SecurityDiagnostic, er
 		diag.Range.Start.Character = int64(columnNumber - 1)
 	} else {
 		diag.Range.Start.Character = int64(columnNumber)
+	}
+
+	if aiAnnotationJSON.Valid && aiAnnotationJSON.String != "" {
+		var ann interface{}
+		if err := json.Unmarshal([]byte(aiAnnotationJSON.String), &ann); err == nil {
+			diag.AIAnnotation = ann
+		}
 	}
 
 	return diag, nil

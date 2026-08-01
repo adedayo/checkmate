@@ -115,7 +115,7 @@ func (d *DB) ListExceptions(projectID string) ([]*store.Exception, error) {
 		SELECT id, project_id, rule_id, scope_json, reason, justification, created_by,
 		       created_at, expires_at, status, evidence_json, tags
 		FROM exceptions
-		WHERE project_id = ?
+		WHERE project_id = ? AND status != 'revoked'
 	`, projectID)
 	if err != nil {
 		return nil, err
@@ -207,33 +207,27 @@ func (d *DB) UpdateException(id string, updates store.ExceptionUpdate) (*store.E
 	return exc, nil
 }
 
-// DeleteException performs a soft delete by marking status as revoked.
+// DeleteException permanently removes an exception and its audit trail from the database.
 func (d *DB) DeleteException(id string) error {
-	exc, err := d.GetException(id)
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	// Remove associated audit log entries first
+	_, err := d.db.Exec(`DELETE FROM audit_log WHERE resource_type = 'exception' AND resource_id = ?`, id)
 	if err != nil {
 		return err
 	}
 
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	exc.Status = "revoked"
-	audit := &store.AuditEvent{
-		Action:    "exception.revoked",
-		Timestamp: time.Now(),
-		User:      "system",
-		Details:   "Exception revoked via API",
+	// Hard-delete the exception row
+	res, err := d.db.Exec(`DELETE FROM exceptions WHERE id = ?`, id)
+	if err != nil {
+		return err
 	}
-	exc.AuditTrail = append(exc.AuditTrail, audit)
-	_ = d.insertAuditLogTx(d.db, audit, "exception", id)
-
-	_, err = d.db.Exec(`
-		UPDATE exceptions
-		SET status = ?
-		WHERE id = ?
-	`, exc.Status, id)
-
-	return err
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("exception not found")
+	}
+	return nil
 }
 
 func (d *DB) insertAuditLogTx(db *sql.DB, audit *store.AuditEvent, resourceType, resourceID string) error {

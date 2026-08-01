@@ -147,6 +147,9 @@ type AIAnnotation struct {
 	GeneratedAt      time.Time
 	PromptTokens     int
 	CompletionTokens int
+
+	UserOverridden bool   `json:"userOverridden,omitempty"`
+	UserDecision   string `json:"userDecision,omitempty"` // "true_positive" or "false_positive"
 }
 
 // PromptMode records what was sent to the AI model about the detected secret.

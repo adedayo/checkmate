@@ -60,13 +60,14 @@ func TestDB_Exceptions(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, list, 1)
 
-	// Test Delete
+	// Test Delete (Hard Delete)
 	err = db.DeleteException("exc_123")
 	require.NoError(t, err)
 
-	deleted, err := db.GetException("exc_123")
+	_, err = db.GetException("exc_123")
+	require.Error(t, err)
+
+	listAfterDelete, err := db.ListExceptions(exc.ProjectID)
 	require.NoError(t, err)
-	assert.Equal(t, "revoked", deleted.Status)
-	assert.Len(t, deleted.AuditTrail, 2)
-	assert.Equal(t, "exception.revoked", deleted.AuditTrail[1].Action)
+	assert.Len(t, listAfterDelete, 0)
 }

@@ -20,6 +20,7 @@ var (
 
 // SecurityDiagnostic describes a security issue
 type SecurityDiagnostic struct {
+	ID             string        `json:"id,omitempty"`
 	Justification  Justification `json:"justification,omitempty"`
 	Range          code.Range    `json:"range,omitempty"`
 	RawRange       CharRange     `json:"rawRange,omitempty"`
@@ -32,10 +33,11 @@ type SecurityDiagnostic struct {
 	//Location is an optional value that could contain filepath or URI of resource that this diagnostic applies to
 	Location *string `json:"location,omitempty"`
 	//used for identifying the source of the diagnostics
-	ProviderID      *string   `json:"providerID,omitempty"`
-	Excluded        bool      //indicates whether or not this diagnostics has been excluded
-	Tags            *[]string `json:"tags,omitempty"` //optionally annotate diagnostic with tags, e.g. "test"
-	RepositoryIndex int       `json:"-"`              //used to track issue repository internally, not serialised
+	ProviderID      *string     `json:"providerID,omitempty"`
+	Excluded        bool        //indicates whether or not this diagnostics has been excluded
+	Tags            *[]string   `json:"tags,omitempty"` //optionally annotate diagnostic with tags, e.g. "test"
+	AIAnnotation    interface{} `json:"aiAnnotation,omitempty"`
+	RepositoryIndex int         `json:"-"` //used to track issue repository internally, not serialised
 }
 
 func (sd *SecurityDiagnostic) CSVHeaders(extraHeaders ...string) []string {
