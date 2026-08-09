@@ -579,8 +579,13 @@ func TestPruneDirsEnvironmentOverride(t *testing.T) {
 			if tc.set {
 				t.Setenv("CHECKMATE_PRUNE_DIRS", tc.env)
 			} else {
+				// t.Setenv first so the original value is restored on cleanup,
+				// then unset so resolvePruneDirNames sees genuinely-absent
+				// rather than empty-string.
 				t.Setenv("CHECKMATE_PRUNE_DIRS", "")
-				os.Unsetenv("CHECKMATE_PRUNE_DIRS")
+				if err := os.Unsetenv("CHECKMATE_PRUNE_DIRS"); err != nil {
+					t.Fatalf("unsetenv: %v", err)
+				}
 			}
 
 			set := resolvePruneDirNames()

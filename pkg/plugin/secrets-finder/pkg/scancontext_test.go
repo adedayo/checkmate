@@ -195,7 +195,7 @@ func providerIDsOf(t *testing.T, provider MatchProvider) []string {
 
 func finderIdentity(f any) string {
 	v := reflect.ValueOf(f)
-	for v.Kind() == reflect.Ptr && !v.IsNil() {
+	for v.Kind() == reflect.Pointer && !v.IsNil() {
 		v = v.Elem()
 	}
 	name := reflect.TypeOf(f).String()
@@ -221,5 +221,5 @@ func extName(ext string) string {
 	if ext == "" {
 		return "no-extension"
 	}
-	return fmt.Sprintf("%s", strings.TrimPrefix(ext, "."))
+	return strings.TrimPrefix(ext, ".")
 }

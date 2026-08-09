@@ -30,7 +30,7 @@ This file is read by AI coding agents working in this repo (OpenSpec convention)
 
 - **Route namespace:** All new routes under `/v1/…`. The old `/api/…` routes are removed (clean break, no legacy compat).
 - **OpenSpec:** Capability specs live under `openspec/changes/<id>/specs/<capability>/spec.md`. When a change is complete, specs merge into `openspec/specs/` and the change folder moves to `openspec/archive/`.
-- **OpenAPI spec:** `openspec/changes/001-clean-slate-platform/specs/api-contract/openapi.yaml` is the single source of truth for the API. The spec is linted by Spectral in CI on every change.
+- **OpenAPI spec:** `openspec/specs/api-contract/openapi.yaml` is the single source of truth for the API. The spec is linted by Spectral in CI on every change.
 - **SQLite store:** `pkg/store/sqlite/` implements `projects.ProjectManager`. Schema migrations live in `pkg/store/sqlite/migrations/` as versioned `.sql` files managed by `golang-migrate`.
 - **SDK:** Public Go library surface is `pkg/sdk/` — importable by any Go program without spawning a subprocess or hitting HTTP.
 - **Exception model:** Exceptions are first-class DB entities in the `exceptions` table, not raw YAML file entries. Export/import `.checkmate.yaml` is available but not the primary storage.
