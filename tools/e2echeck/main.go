@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/adedayo/checkmate/pkg/core/diagnostics"
@@ -89,9 +90,21 @@ func main() {
 	runtime.ReadMemStats(&before)
 	start := time.Now()
 
+	// Progress is counted here rather than discarded: a scan that reports no
+	// progress looks hung in the UI regardless of how fast it is, and that
+	// defect (005) went unnoticed precisely because this harness ignored it.
+	var progressMu sync.Mutex
+	var progressEvents int
+	var lastProgress diagnostics.Progress
+
 	db.RunScan(context.Background(), proj.ID, summary.ScanPolicy,
 		secrets.MakeSecretScanner(secOptions), scanIDC,
-		utils.GitRepositoryStatusChecker, func(diagnostics.Progress) {},
+		utils.GitRepositoryStatusChecker, func(p diagnostics.Progress) {
+			progressMu.Lock()
+			defer progressMu.Unlock()
+			progressEvents++
+			lastProgress = p
+		},
 		summariser, projects.SimpleWorkspaceSummariser, c)
 
 	elapsed := time.Since(start)
@@ -100,6 +113,11 @@ func main() {
 	fmt.Printf("elapsed=%s findings=%s streamedToUI=%d peakHeap=%.1fMB\n",
 		elapsed.Round(time.Millisecond), fmtInt(c.n), streamed,
 		float64(after.HeapSys)/(1<<20))
+
+	progressMu.Lock()
+	fmt.Printf("progressEvents=%d finalPosition=%d finalTotal=%d\n",
+		progressEvents, lastProgress.Position, lastProgress.Total)
+	progressMu.Unlock()
 
 	if scanSummary != nil && scanSummary.AdditionalInfo != nil {
 		i := scanSummary.AdditionalInfo

@@ -57,6 +57,24 @@ import (
 // SearchSecretsOnPaths searches for secrets on indicated paths (may include local paths and git repositories)
 // Streams back security diagnostics and paths
 func SearchSecretsOnPaths(paths []string, options SecretSearchOptions) (chan *diagnostics.SecurityDiagnostic, chan []util.RepositoryIndexedFile) {
+	return SearchSecretsOnPathsWithProgress(paths, options, "", "", nil)
+}
+
+// SearchSecretsOnPathsWithProgress is SearchSecretsOnPaths with progress
+// reporting.
+//
+// It exists because callers that drive a scan directly through this function
+// rather than through SecretScanner.Scan — the SQLite store, most importantly —
+// had no way to report progress at all, and so reported none. A nil callback
+// makes this exactly equivalent to SearchSecretsOnPaths, which is what the CLI
+// and SDK paths pass.
+//
+// Progress is coalesced onto the same ticker used everywhere else (see
+// progress.go); it is deliberately not emitted per file, because on a large
+// corpus that is a callback storm fanning out to WebSocket and database writes.
+func SearchSecretsOnPathsWithProgress(paths []string, options SecretSearchOptions,
+	projectID, scanID string,
+	progressCallback func(diagnostics.Progress)) (chan *diagnostics.SecurityDiagnostic, chan []util.RepositoryIndexedFile) {
 	out := make(chan *diagnostics.SecurityDiagnostic)
 	pathsOut := make(chan []util.RepositoryIndexedFile)
 
@@ -81,9 +99,19 @@ func SearchSecretsOnPaths(paths []string, options SecretSearchOptions) (chan *di
 	//stayed in that map until the process exited — all go away together.
 	transpose := repoTagger(registry)
 
+	//Coalesced onto a ticker rather than emitted per file. A nil callback
+	//yields a reporter that counts but emits nothing, so the non-progress
+	//callers pay only the counter.
+	reporter := newProgressReporter(projectID, scanID,
+		resolveProgressInterval(options), progressCallback)
+
 	go func() {
 		allFiles := []util.RepositoryIndexedFile{}
 		defer func() {
+			//Close emits the final, exact completion event. It must run before
+			//the caller observes the paths channel closing, since that is the
+			//signal callers use to treat the scan as finished.
+			reporter.Close()
 			//clean downloaded repositories
 			for _, location := range registry.cloneLocations() {
 				_ = os.RemoveAll(location)
@@ -97,12 +125,28 @@ func SearchSecretsOnPaths(paths []string, options SecretSearchOptions) (chan *di
 		//has to be accumulated. Streaming still buys the important half:
 		//scanning starts on the first file instead of after the last
 		//directory has been read. Phase 8 addresses the accumulation itself.
-		files, _ := util.WalkRoots(ctx, roots, util.WalkOptions{
+		files, walkStats := util.WalkRoots(ctx, roots, util.WalkOptions{
 			PruneDirs: exclusionPruneDirs(options.Exclusions),
 		})
 
+		//The total is not known until the walk finishes, so it is the running
+		//discovered count and becomes exact when it does. The reporter clamps
+		//it up to the position so progress can never exceed 100%.
+		statsDone := make(chan struct{})
+		go func() {
+			defer close(statsDone)
+			for s := range walkStats {
+				reporter.SetTotal(s.DiscoveredSoFar)
+			}
+		}()
+
 		runScanPipeline(ctx, options, files, func(result fileScanResult) {
 			allFiles = append(allFiles, result.File)
+
+			//Completion, not commencement — see FileDone. Recorded for every
+			//file, including those with no findings, or the count would track
+			//findings rather than work done.
+			reporter.FileDone(result.File.File)
 
 			if len(result.Diagnostics) == 0 {
 				return
@@ -116,6 +160,10 @@ func SearchSecretsOnPaths(paths []string, options SecretSearchOptions) (chan *di
 				out <- d
 			}
 		})
+
+		//Wait for the stats goroutine before the deferred Close emits the
+		//final event, so the total it reports is the exact one.
+		<-statsDone
 
 		//Files complete in whichever order the pool finishes them, so the list
 		//is sorted before it is handed over. Callers treat it as the set of
