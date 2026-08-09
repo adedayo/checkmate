@@ -24,5 +24,5 @@ jobs:
       - name: Lint OpenAPI spec
         run: |
           spectral lint \
-            openspec/changes/001-clean-slate-platform/specs/api-contract/openapi.yaml \
+            openspec/specs/api-contract/openapi.yaml \
             --fail-severity error

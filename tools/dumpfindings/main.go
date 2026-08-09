@@ -44,9 +44,17 @@ func main() {
 	sort.Strings(lines)
 
 	w := bufio.NewWriter(os.Stdout)
-	defer w.Flush()
 	for _, l := range lines {
-		fmt.Fprintln(w, l)
+		if _, err := fmt.Fprintln(w, l); err != nil {
+			fmt.Fprintf(os.Stderr, "write: %v\n", err)
+			os.Exit(1)
+		}
+	}
+	// A silently-dropped flush would truncate the dump, and a truncated dump
+	// compares as a difference. Fail loudly rather than emit a wrong diff.
+	if err := w.Flush(); err != nil {
+		fmt.Fprintf(os.Stderr, "flush: %v\n", err)
+		os.Exit(1)
 	}
 	fmt.Fprintf(os.Stderr, "total=%d\n", len(lines))
 }
