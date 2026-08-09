@@ -45,4 +45,13 @@ This file is read by AI coding agents working in this repo (OpenSpec convention)
 - On completing a change, archive it: merge spec deltas into `openspec/specs/` and move the change folder to `openspec/archive/`
 - Accepted capabilities: `ai-triage`, `api-contract`, `authentication`, `data-store`, `exception-management`, `sarif-export`, `scan-engine`, `sdk`, `webhooks`
 - Archived changes: `001-clean-slate-platform`, `003-scan-engine-performance`
-- Current active change: `changes/002-app-modernisation/`
+- Current active changes:
+  - `changes/002-app-modernisation/` — in progress
+  - `changes/004-chunk-boundary-minimisation/` — scaffolded, not started. Reduces
+    the offset-dependence exception accepted in 003 to a committed reproducing
+    fixture. **Phase 1 is time-sensitive:** the only known reproducer lives in an
+    uncommitted `node_modules` tree and does not survive `npm ci`.
+  - `changes/005-sqlite-progress-reporting/` — scaffolded, not started.
+    `sqlite.DB.RunScan` accepts `progressMonitor` and never calls it, so the
+    WebSocket scan summary reports `fileCount: 0`. Pre-existing, verified at the
+    pre-003 commit.
