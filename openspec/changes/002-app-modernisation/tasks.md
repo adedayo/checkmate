@@ -10,7 +10,11 @@
 ## Phase 2: CheckMate Go Backend Integration
 - `[/]` Modify Wails `main.go` and `app.go` to import and wrap the `checkmate` Go packages (`pkg/api`, `pkg/store`, `pkg/sdk`).
 - `[/]` Export critical Go structs and methods to the frontend via the Wails `App` struct.
-- [ ] Implement Wails Events to broadcast streaming progress data for scans.
+- `[x]` Implement Wails Events to broadcast streaming progress data for scans.
+  `progressMon` previously logged to stdout only, so the frontend had no
+  progress source at all. It now emits a `scan-progress` event consumed by
+  `project-detail.component.ts`. Depends on checkmate v1.4.0, which is where
+  the SQLite store first emitted progress at all.
 
 ## Phase 3: Core UI Framework
 - `[x]` Implement global Sidebar and Layout components.
