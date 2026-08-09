@@ -1,11 +1,10 @@
 package secrets
 
 import (
-	"fmt"
+	"context"
 	"os"
-	"sync"
+	"sort"
 
-	common "github.com/adedayo/checkmate/pkg/core"
 	diagnostics "github.com/adedayo/checkmate/pkg/core/diagnostics"
 	"github.com/adedayo/checkmate/pkg/core/util"
 )
@@ -60,109 +59,75 @@ import (
 func SearchSecretsOnPaths(paths []string, options SecretSearchOptions) (chan *diagnostics.SecurityDiagnostic, chan []util.RepositoryIndexedFile) {
 	out := make(chan *diagnostics.SecurityDiagnostic)
 	pathsOut := make(chan []util.RepositoryIndexedFile)
-	repositories, local := determineAndCloneRepositories(paths)
-	pathTransposer := locationTransposer(toPathsandLocationIDs(local, repositories))
-	paths = local
-	for _, r := range repositories {
-		paths = append(paths, r.CloneDetail.Location)
-	}
-	fileBuffers := make(map[string][]*diagnostics.SecurityDiagnostic)
-	var mu sync.Mutex
 
-	collector := func(diagnostic *diagnostics.SecurityDiagnostic) {
-		// location := *diagnostic.Location
-		// for loc, repo := range repoMapper {
-		// 	location = strings.Replace(location, loc, repo, 1)
-		// }
-		// diagnostic.Location = &location
-		// if repo, present := repoMapper[*diagnostic.Location]; present {
-		// 	diagnostic.Location = &repo
-		// }
+	//Git URLs are cloned concurrently and each root is scanned as soon as it
+	//is available; local paths need no acquisition and go first. Indices come
+	//from the caller's argument order, so a finding's repository no longer
+	//depends on which of two independently-randomised map iterations happened
+	//to agree — which is what decided it before.
+	ctx := context.Background()
+	registry, roots := acquirePaths(ctx, paths, options)
 
-		location, branch, cloneDetail := pathTransposer(util.RepositoryIndexedFile{
-			RepositoryIndex: diagnostic.RepositoryIndex,
-			File:            *diagnostic.Location,
-		})
-		//add branch as a tag, if it exists
-		if branch != "" {
-			diagnostic.AddTag(fmt.Sprintf("branch=%s", branch))
-		}
-
-		//add other tags from attributes found about the repository
-		if cloneDetail != nil && cloneDetail.Repository != nil && cloneDetail.Repository.Attributes != nil {
-			attrs := *cloneDetail.Repository.Attributes
-			for k, v := range attrs {
-				diagnostic.AddTag(fmt.Sprintf("%s=%v", k, v))
-			}
-		}
-
-		diagnostic.Location = &location
-		
-		mu.Lock()
-		fileBuffers[location] = append(fileBuffers[location], diagnostic)
-		mu.Unlock()
-	}
-
-	var pathConsumers []util.PathConsumer
-	if options.ConfidentialFilesOnly {
-		pathConsumers = []util.PathConsumer{
-			&confidentialFilesFinder{
-				ExclusionProvider: options.Exclusions,
-				options:           options,
-			},
-		}
-	} else {
-		pathConsumers = []util.PathConsumer{
-			&confidentialFilesFinder{
-				ExclusionProvider: options.Exclusions,
-				options:           options,
-			},
-			&pathBasedSourceSecretFinder{
-				showSource:        options.ShowSource,
-				ExclusionProvider: options.Exclusions,
-				options:           options,
-			},
-		}
-
-	}
-	providers := []diagnostics.SecurityDiagnosticsProvider{}
-	for _, c := range pathConsumers {
-		providers = append(providers, c.(diagnostics.SecurityDiagnosticsProvider))
-	}
-	common.RegisterDiagnosticsConsumer(collector, providers...)
-
-	mux := util.NewPathMultiplexer(pathConsumers...)
+	//transpose rewrites a diagnostic's location from the local checkout back
+	//to the repository it came from, and tags it with whatever the clone told
+	//us about that repository.
+	//
+	//It used to be registered as the finders' diagnostic consumer, which meant
+	//it ran on whichever goroutine happened to be broadcasting and had to
+	//stash its output in a mutex-guarded map keyed by location, to be picked
+	//up again once the file finished. The pool already returns findings
+	//grouped by file, so the map, the mutex and the possibility of a
+	//diagnostic whose location never matched its file's — and which therefore
+	//stayed in that map until the process exited — all go away together.
+	transpose := repoTagger(registry)
 
 	go func() {
 		allFiles := []util.RepositoryIndexedFile{}
 		defer func() {
 			//clean downloaded repositories
-			for _, r := range repositories {
-				_ = os.RemoveAll(r.CloneDetail.Location)
+			for _, location := range registry.cloneLocations() {
+				_ = os.RemoveAll(location)
 			}
 			close(out)
 			pathsOut <- allFiles
 			close(pathsOut)
 		}()
-		allFiles = util.FindFiles(paths)
-		for _, path := range allFiles {
-			mux.ConsumePath(path)
-			
-			// Flush and subsume findings for this file
-			location, _, _ := pathTransposer(path)
-			
-			mu.Lock()
-			diags := fileBuffers[location]
-			delete(fileBuffers, location)
-			mu.Unlock()
-			
-			if len(diags) > 0 {
-				subsumed := diagnostics.SubsumeOverlapping(diags)
-				for _, d := range subsumed {
-					out <- d
-				}
+
+		//This signature promises the caller the full file list, so the slice
+		//has to be accumulated. Streaming still buys the important half:
+		//scanning starts on the first file instead of after the last
+		//directory has been read. Phase 8 addresses the accumulation itself.
+		files, _ := util.WalkRoots(ctx, roots, util.WalkOptions{
+			PruneDirs: exclusionPruneDirs(options.Exclusions),
+		})
+
+		runScanPipeline(ctx, options, files, func(result fileScanResult) {
+			allFiles = append(allFiles, result.File)
+
+			if len(result.Diagnostics) == 0 {
+				return
 			}
-		}
+
+			for _, d := range result.Diagnostics {
+				transpose(d)
+			}
+
+			for _, d := range diagnostics.SubsumeOverlapping(result.Diagnostics) {
+				out <- d
+			}
+		})
+
+		//Files complete in whichever order the pool finishes them, so the list
+		//is sorted before it is handed over. Callers treat it as the set of
+		//files scanned, but it is also what the perf harness counts and what a
+		//caller could reasonably persist, and a set that reorders itself
+		//between identical runs is a diff nobody can act on.
+		sort.Slice(allFiles, func(i, j int) bool {
+			if allFiles[i].RepositoryIndex != allFiles[j].RepositoryIndex {
+				return allFiles[i].RepositoryIndex < allFiles[j].RepositoryIndex
+			}
+			return allFiles[i].File < allFiles[j].File
+		})
 	}()
 
 	return out, pathsOut

@@ -1,18 +1,16 @@
 package secrets
 
 import (
-	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 
 	common "github.com/adedayo/checkmate/pkg/core"
 	"github.com/adedayo/checkmate/pkg/core/diagnostics"
-	gitutils "github.com/adedayo/checkmate/pkg/core/git"
 	util "github.com/adedayo/checkmate/pkg/core/util"
 )
 
@@ -23,29 +21,10 @@ var (
 	TenMB                           = int64(1024 * 1000 * 10) // 10Mb
 )
 
-// determineAndCloneRepositories returns local paths after cloning git URLs. A map of git URL to the local map is the first argument
-// and the second argument are non-git local paths
-func determineAndCloneRepositories(paths []string) (map[string]repoCloneAndDetail, []string) {
-	fmt.Println("TESTING COMPILATION determineAndCloneRepositories")
-	repoMap := make(map[string]repoCloneAndDetail)
-	local := []string{}
-	for _, p := range paths {
-		if !gitURL.MatchString(p) {
-			local = append(local, p)
-		} else {
-			if _, present := repoMap[p]; !present {
-				if repo, err := gitutils.Clone(context.Background(), p, &gitutils.GitCloneOptions{}); err == nil {
-					repoMap[p] = repoCloneAndDetail{
-						CloneDetail: repo,
-					}
-				} else {
-					log.Printf("Failed to clone repository %s: %s\n", p, err.Error())
-				}
-			}
-		}
-	}
-	return repoMap, local
-}
+// determineAndCloneRepositories was replaced by acquirePaths in roots.go: it
+// cloned serially, and it keyed the result by URL in a map whose iteration
+// order then decided each repository's index — independently of the second map
+// iteration that built the walk roots, so the two could disagree.
 
 type confidentialFilesFinder struct {
 	diagnostics.DefaultSecurityDiagnosticsProvider
@@ -54,9 +33,13 @@ type confidentialFilesFinder struct {
 }
 
 func (cff confidentialFilesFinder) ConsumePath(rif util.RepositoryIndexedFile) {
+	cff.consumePathGated(rif, newPathGate(rif, cff.ExclusionProvider))
+}
+
+func (cff confidentialFilesFinder) consumePathGated(rif util.RepositoryIndexedFile, gate *pathGate) {
 	path := rif.File
-	isTestFile := testFile.MatchString(path)
-	if confidential, why := common.IsConfidentialFile(path); confidential {
+	isTestFile := gate.IsTestFile
+	if confidential, why := gate.Confidential, gate.ConfidentialWhy; confidential {
 
 		if cff.options.Verbose {
 			log.Printf("Processing file: %s\n", path)
@@ -89,7 +72,7 @@ func (cff confidentialFilesFinder) ConsumePath(rif util.RepositoryIndexedFile) {
 			}
 		}
 
-		if cff.ShouldExcludePath(path) {
+		if gate.ExcludedPath {
 			if cff.options.Verbose {
 				log.Printf("Skipping excluded path %s\n", path)
 			}
@@ -153,12 +136,33 @@ type pathBasedSourceSecretFinder struct {
 	diagnostics.ExclusionProvider
 	showSource bool
 	options    SecretSearchOptions
+	// scanContext holds the finder set reused across every file this consumer
+	// handles. It replaces the previous per-file GetFinderForFileType call.
+	// The path multiplexer drives each consumer sequentially, so a single
+	// context per consumer is safe; a parallel walker must give each worker
+	// its own consumer (and hence its own context).
+	scanContext *ScanContext
+}
+
+// newPathBasedSourceSecretFinder builds the consumer together with its
+// reusable ScanContext.
+func newPathBasedSourceSecretFinder(options SecretSearchOptions) *pathBasedSourceSecretFinder {
+	return &pathBasedSourceSecretFinder{
+		showSource:        options.ShowSource,
+		ExclusionProvider: options.Exclusions,
+		options:           options,
+		scanContext:       NewScanContext(options),
+	}
 }
 
 func (pathBSF pathBasedSourceSecretFinder) ConsumePath(rif util.RepositoryIndexedFile) {
+	pathBSF.consumePathGated(rif, newPathGate(rif, pathBSF.ExclusionProvider))
+}
+
+func (pathBSF pathBasedSourceSecretFinder) consumePathGated(rif util.RepositoryIndexedFile, gate *pathGate) {
 
 	path := rif.File
-	isTestFile := testFile.MatchString(path)
+	isTestFile := gate.IsTestFile
 
 	if pathBSF.options.Verbose {
 		log.Printf("Processing file: %s\n", path)
@@ -191,7 +195,7 @@ func (pathBSF pathBasedSourceSecretFinder) ConsumePath(rif util.RepositoryIndexe
 		}
 	}
 
-	if pathBSF.ShouldExcludePath(path) {
+	if gate.ExcludedPath {
 
 		if pathBSF.options.Verbose {
 			log.Printf("Skipping excluded path %s\n", path)
@@ -218,7 +222,7 @@ func (pathBSF pathBasedSourceSecretFinder) ConsumePath(rif util.RepositoryIndexe
 		}
 		return
 	}
-	ext := filepath.Ext(path)
+	ext := gate.Ext
 	cutOffSize := TenMB
 
 	if _, present := common.TextFileExtensions[ext]; present || ext == "" { //now scan files without extensions
@@ -261,9 +265,31 @@ func (pathBSF pathBasedSourceSecretFinder) ConsumePath(rif util.RepositoryIndexe
 						//we found a non-textual file with no extension, skip scanning
 						return
 					}
+
+					//The sniff consumed the first 512 bytes of the handle, and
+					//the handle is what the scanner reads next. Left as it was,
+					//every extensionless text file was scanned from byte 512
+					//onwards: its first 512 bytes were never searched for
+					//secrets, and every finding after them was reported at an
+					//offset 512 too low, which puts the wrong line number on
+					//the finding and — since position feeds the finding ID —
+					//gives it the wrong identity too.
+					//
+					//Rewinding costs one lseek against an already-open handle
+					//and restores the whole file to the scanner, which also
+					//keeps it on the *os.File whole-file read path. Reusing the
+					//sniffed bytes via io.MultiReader would save re-reading 512
+					//bytes that are certainly still in the page cache, at the
+					//cost of hiding the file size from readAll and pushing
+					//every extensionless file onto the chunked path — a bad
+					//trade.
+					if _, err := f.Seek(0, io.SeekStart); err != nil {
+						return
+					}
 				}
 			}
-			for issue := range FindSecret(rif, f, GetFinderForFileType(ext, rif, pathBSF.options), pathBSF.options.ShowSource) {
+			var source io.Reader = f
+			for _, issue := range pathBSF.scanContext.FindSecretsInFile(rif, source, ext, pathBSF.options.ShowSource) {
 				issue.Location = &path
 				if isTestFile {
 					issue.AddTag("test")

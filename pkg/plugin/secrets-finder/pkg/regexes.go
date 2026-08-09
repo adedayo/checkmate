@@ -3,6 +3,7 @@ package secrets
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/adedayo/checkmate/pkg/core/diagnostics"
@@ -101,24 +102,56 @@ func setupVendorSecrets() {
 		// Only add it if we don't already have our own rule for it
 		// to prevent duplicates or overriding Checkmate specific rules.
 		if _, exists := vendorSecrets[desc]; !exists {
-			// We already compiled it inside loadGitleaksPatterns to check if Go supports it, 
+			// We already compiled it inside loadGitleaksPatterns to check if Go supports it,
 			// so MustCompile here is safe.
 			vendorSecrets[desc] = regexp.MustCompile(regexStr)
 		}
 	}
+
+	// Compute the deterministic vendor rule evaluation order once, after the
+	// rule set is fully populated. Both isVendorSecret (first-match-wins) and
+	// vendor finder construction consume this, so they always agree on
+	// precedence between rules that match the same value.
+	sortedVendorSecretIDs = make([]string, 0, len(vendorSecrets))
+	for id := range vendorSecrets {
+		sortedVendorSecretIDs = append(sortedVendorSecretIDs, id)
+	}
+	sort.Strings(sortedVendorSecretIDs)
 }
 
 func setupSecretStringsIndicators() string {
-	for _, v := range indexedEncodedSecretPatterns {
-		encodedSecretPatterns = append(encodedSecretPatterns, v)
+	// Iterate in sorted key order. These patterns are joined into an
+	// alternation that becomes part of `secretStringIndicators`, which is
+	// interpolated into the `secretStrings`, `secretTagValues` and
+	// `secretUnquotedTextRegex` patterns. Go's regexp alternation is
+	// leftmost-first, so a randomised branch order can change the extent of a
+	// match — meaning map iteration order was altering the compiled regexes
+	// themselves between runs.
+	encodedKeys := make([]string, 0, len(indexedEncodedSecretPatterns))
+	for k := range indexedEncodedSecretPatterns {
+		encodedKeys = append(encodedKeys, k)
 	}
+	sort.Strings(encodedKeys)
+
+	// Assign rather than append. This function's result is cached in the
+	// `secretStringIndicators` package variable, so in production it runs
+	// exactly once — but appending to a package-level slice made it
+	// non-idempotent, silently duplicating every pattern on any second call.
+	// Assignment makes it safe to invoke repeatedly (as the determinism tests
+	// do) and removes a trap for future callers.
+	patterns := make([]string, 0, len(encodedKeys))
+	for _, k := range encodedKeys {
+		patterns = append(patterns, indexedEncodedSecretPatterns[k])
+	}
+	encodedSecretPatterns = patterns
+
 	indicators := []string{}
 	indicators = append(indicators, commonSecretPatterns...)
 	indicators = append(indicators, encodedSecretPatterns...)
 	return strings.Join(indicators, "|")
 }
 
-//MakeCommonExclusions creates an ExcludeDefinition that contains common patterns of files that do not contain secrets
+// MakeCommonExclusions creates an ExcludeDefinition that contains common patterns of files that do not contain secrets
 func MakeCommonExclusions() diagnostics.ExcludeDefinition {
 
 	return diagnostics.ExcludeDefinition{
@@ -161,15 +194,24 @@ func MergeExclusions(defs ...diagnostics.ExcludeDefinition) (excl diagnostics.Ex
 	return
 }
 
+// unique removes duplicates while preserving first-occurrence order.
+//
+// It previously returned map-iteration order, which is randomised by Go on
+// every run. The result feeds ExcludeDefinition fields that are serialised
+// into persisted scan configurations, so identical inputs produced configs
+// that differed only by ordering — noisy to diff and impossible to compare.
+// Order preservation is both deterministic and the least surprising
+// behaviour; membership is unchanged.
 func unique(xs []string) []string {
 	var nothing struct{}
-	m := make(map[string]struct{})
-	for _, x := range xs {
-		m[x] = nothing
-	}
+	seen := make(map[string]struct{}, len(xs))
 
 	out := []string{}
-	for x := range m {
+	for _, x := range xs {
+		if _, dup := seen[x]; dup {
+			continue
+		}
+		seen[x] = nothing
 		out = append(out, x)
 	}
 	return out

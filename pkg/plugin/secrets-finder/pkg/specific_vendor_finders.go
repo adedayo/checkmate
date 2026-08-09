@@ -3,10 +3,10 @@ package secrets
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	common "github.com/adedayo/checkmate/pkg/core"
-	"github.com/adedayo/checkmate/pkg/core/util"
 )
 
 /**
@@ -100,38 +100,89 @@ var (
 		descPythonPIToken:    pythonPIRegex,
 		descTerraformPIToken: terraformPIRegex,
 	}
-	vendorFinders []common.ResourceToSecurityDiagnostics
 )
 
-//TODO: Make pre- and post-validating functions in addition to the regex. e.g. string must also contain numbers, upper/lowercases
-func makeVendorSecretsFinders(options SecretSearchOptions, rif util.RepositoryIndexedFile) []common.ResourceToSecurityDiagnostics {
+// TODO: Make pre- and post-validating functions in addition to the regex. e.g. string must also contain numbers, upper/lowercases
+func makeVendorSecretsFinders(options SecretSearchOptions) []common.ResourceToSecurityDiagnostics {
 
-	if len(vendorFinders) == 0 {
-		for id, re := range vendorSecrets {
-			sf := secretStringFinder{
-				secretFinder{
-					ExclusionProvider: options.Exclusions,
-					options:           options,
-					rif:               rif,
-				},
-			}
-			sf.providerID = id
-			sf.res = []*regexp.Regexp{re}
-			vendorFinders = append(vendorFinders, &sf)
-		}
+	// Finders are constructed fresh for each call rather than cached in a
+	// package-level slice.
+	//
+	// The previous global cache was built once from whichever file happened to
+	// be scanned first and then shared by every subsequent file, which was
+	// wrong in three separate ways:
+	//
+	//  1. `rif` was captured at construction, so every finding reported the
+	//     FIRST scanned file's RepositoryIndex. In a multi-repository scan all
+	//     vendor-rule findings were attributed to the wrong repository.
+	//  2. The finders carry mutable per-file state (lineIndex, provideSource)
+	//     and an append-only consumer list. Every FindSecret call registered
+	//     another consumer on the same shared objects, so the list grew without
+	//     bound for the lifetime of the process — retaining every aggregator
+	//     from every file already scanned, and making each broadcast fan out
+	//     over ever more dead consumers.
+	//  3. That accumulated state made results depend on how many scans had
+	//     already run in the process: the same corpus scanned twice produced
+	//     different findings.
+	//
+	// Constructing per call restores isolation. Phase 2 removes the repeated
+	// construction cost by hoisting the finder set into a per-worker
+	// ScanContext built once and reset per file.
+	//
+	// Rules are ordered by sorted provider ID. Ordering is observable:
+	// diagnostics.SubsumeOverlapping resolves overlapping findings
+	// positionally, so an unstable rule order changes which rule is credited
+	// with a secret — and therefore the derived finding ID.
+	ids := make([]string, 0, len(vendorSecrets))
+	for id := range vendorSecrets {
+		ids = append(ids, id)
 	}
-	return vendorFinders
+	sort.Strings(ids)
+
+	finders := make([]common.ResourceToSecurityDiagnostics, 0, len(ids))
+	for _, id := range ids {
+		sf := secretStringFinder{
+			secretFinder{
+				ExclusionProvider: options.Exclusions,
+				options:           options,
+			},
+		}
+		sf.providerID = id
+		sf.res = []*regexp.Regexp{vendorSecrets[id]}
+		finders = append(finders, &sf)
+	}
+	return finders
 }
 
 func refineConnectURIDetection(data string) (out string) {
 	out = descConnectionURI
-	for _, v := range connectorRegexes {
-		if v.re.MatchString(data) {
+	// Iterate connectors in a deterministic order: longest key first, then
+	// lexical. Ranging over the map directly meant that a URI matching more
+	// than one connector (`postgresql://` matches both the `postgres` and
+	// `postgresql` patterns) was described differently on different runs.
+	// Longest-first also resolves such overlaps to the most specific
+	// connector, which is the evident intent of the table.
+	for _, k := range connectorKeysBySpecificity {
+		if v, ok := connectorRegexes[k]; ok && v.re.MatchString(data) {
 			return fmt.Sprintf("%s Connection URI Secret", v.connector)
 		}
 	}
 	return
 }
+
+// connectorKeysBySpecificity orders connector keys longest-first, then
+// lexically, giving a stable and maximally specific match order.
+var connectorKeysBySpecificity = func() []string {
+	keys := make([]string, len(connectorKeys))
+	copy(keys, connectorKeys)
+	sort.Slice(keys, func(i, j int) bool {
+		if len(keys[i]) != len(keys[j]) {
+			return len(keys[i]) > len(keys[j])
+		}
+		return keys[i] < keys[j]
+	})
+	return keys
+}()
 
 type connectorRegex struct {
 	connector string

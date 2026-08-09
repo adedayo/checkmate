@@ -190,6 +190,58 @@ PDF report generation is **100% native** and runs directly out of the box with z
 
 ---
 
+## Performance & Large Codebases
+
+CheckMate scans files in parallel and gates its rule set behind a literal
+prefilter, so that on any given file only the rules that could possibly match
+are actually run. On ordinary source this skips well over 90% of the vendor
+rule set.
+
+**Tuning never changes results.** The worker count, the prefilter and the
+progress interval are performance controls only. The test suite scans a
+reference corpus with the prefilter on and off, and at different worker counts,
+and requires the findings to be byte-identical. Scans are also deterministic:
+the same tree produces the same findings in the same order, on every run and
+regardless of which worker happened to finish first.
+
+### Tuning
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `CHECKMATE_SCAN_WORKERS` | `GOMAXPROCS` | Files scanned concurrently. Set to `1` for sequential scanning, or lower to cap CheckMate's footprint on a shared CI runner. |
+| `CHECKMATE_PROGRESS_INTERVAL` | `250ms` | Progress reporting interval. Accepts `500ms`, `2s`, or a bare number read as milliseconds. |
+| `CHECKMATE_CLONE_CONCURRENCY` | `4` | Repositories cloned at once. |
+| `CHECKMATE_DISABLE_PREFILTER` | unset | Set to `1` to run every rule against every file. An escape hatch; should not change results. |
+| `CHECKMATE_PRUNE_DIRS` | unset | Comma-separated directory names to skip. Replaces the built-in list; set empty to disable. |
+
+```bash
+# Cap CheckMate at 4 workers on a shared build agent
+CHECKMATE_SCAN_WORKERS=4 checkmate search ./my-project
+```
+
+### Making a dependency-heavy scan faster
+
+Directory pruning is **off by default, deliberately.** Skipping `node_modules`,
+`vendor`, `dist` and `.git` is worth roughly 2× on a dependency-heavy tree — but
+those directories are scanned today and they hold real secrets: `.npmrc` auth
+tokens, API keys baked into `dist/bundle.js`, `https://user:token@host` remotes
+in `.git/config`. That is a coverage decision, so it is yours to make rather
+than ours:
+
+```bash
+CHECKMATE_PRUNE_DIRS='node_modules,vendor,dist,.git' checkmate search ./my-project
+```
+
+If a scan is slower than you expect and pruning is not appropriate, the usual
+cause is a small number of very large single-line files — minified bundles,
+serialised blobs or base64 assets — rather than the file count. Run with
+`--verbose` to see which file is being scanned.
+
+For benchmark methodology and the equivalence-testing approach, see
+[`docs/testing.md`](docs/testing.md).
+
+---
+
 ## Compliance & Governance Use Cases
 
 CheckMate is designed to support the following security and compliance scenarios:

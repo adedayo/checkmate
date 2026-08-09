@@ -9,7 +9,7 @@ This file is read by AI coding agents working in this repo (OpenSpec convention)
 - **Language:** Go 1.24+
 - **Database:** SQLite via `modernc.org/sqlite` (CGO-free, pure Go) with `golang-migrate/migrate/v4` for versioned schema migrations — replaced Badger KV store
 - **HTTP/API:** `gorilla/mux` + `gorilla/handlers` + `gorilla/websocket` — migrating to `/v1/` route namespace
-- **Detection engine:** `github.com/adedayo/checkmate-plugin/secrets-finder` (entropy + structural context + pattern matching), `github.com/adedayo/checkmate-core` for shared types
+- **Detection engine:** `pkg/plugin/secrets-finder/` — in-repo (entropy + structural context + pattern matching), with `pkg/core` for shared types. Scans files in parallel behind a literal prefilter; see the `scan-engine` capability spec.
 - **Git:** `go-git/go-git/v5` + `github.com/adedayo/git-service-driver`
 - **Scheduler:** `robfig/cron/v3`
 - **LSP:** `github.com/adedayo/go-lsp` (Language Server Protocol server for in-editor integration)
@@ -23,6 +23,8 @@ This file is read by AI coding agents working in this repo (OpenSpec convention)
 2. **Raw secret value never sent to cloud AI providers.** `CHECKMATE_AI_ALLOW_RAW_VALUE=true` is only honoured when `isLocalEndpoint(baseURL)` returns true (loopback, RFC-1918, or plain Docker hostname). Cloud endpoints silently fall back to REDACTED mode regardless of the flag.
 3. **Secret values are never stored in plaintext.** Only `secretChecksum` (sha256) and `evidenceRedacted` (first 4 + last 4 chars) are persisted. The raw value exists only in memory during scanning.
 4. **Stable finding identity.** `findingID = sha256(ruleID + repoURL + filePath + lineNumber + columnNumber + secretChecksum)` — same finding across different scans always has the same ID, enabling tracking without DB joins.
+5. **Scan-engine performance work must be finding-identical.** Optimisations to the detection engine may not change the set of findings, and "may not" means a test rather than a review: the reference corpus is scanned with the prefilter on and off and at different worker counts, and the results must be byte-identical. Anything that *does* change detection or coverage — a length cap, a default directory prune — is a product decision, made explicitly and never as a side effect of a performance change.
+6. **Scans are deterministic.** Files are scanned in parallel, so arrival order is nondeterministic by construction. Anything feeding a regex alternation, an iteration over a rule map, or overlap resolution must be explicitly ordered, and findings are sorted canonically before anything is derived from them.
 
 ## Conventions
 
@@ -41,4 +43,6 @@ This file is read by AI coding agents working in this repo (OpenSpec convention)
 - `openspec/specs/` — accepted, current capability specs
 - `openspec/changes/<id>/` — in-flight changes: `proposal.md`, `design.md`, `tasks.md`, `specs/<capability>/spec.md`
 - On completing a change, archive it: merge spec deltas into `openspec/specs/` and move the change folder to `openspec/archive/`
-- Current active change: `changes/001-clean-slate-platform/`
+- Accepted capabilities: `ai-triage`, `api-contract`, `authentication`, `data-store`, `exception-management`, `sarif-export`, `scan-engine`, `sdk`, `webhooks`
+- Archived changes: `001-clean-slate-platform`, `003-scan-engine-performance`
+- Current active change: `changes/002-app-modernisation/`

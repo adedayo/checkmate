@@ -50,94 +50,104 @@ var (
 		".json": true, ".yaml": true, ".yml": true, ".rb": true, ".erb": true, ".conf": true}
 )
 
-//GetFinderForFileType returns the appropriate MatchProvider based on the file type hint
-func GetFinderForFileType(fileType string, rif util.RepositoryIndexedFile, options SecretSearchOptions) MatchProvider {
-	filePath := rif.File
+// GetFinderForFileType returns the appropriate MatchProvider based on the file type hint
+func GetFinderForFileType(fileType string, options SecretSearchOptions) MatchProvider {
 	switch strings.ToLower(fileType) {
 	case ".java", ".scala", ".kt", ".go":
-		return NewJavaFinder(options, rif)
+		return NewJavaFinder(options)
 	case ".c", ".cpp", ".cc", ".c++", ".h++", ".hh", ".hpp", ".hxx":
-		return NewCPPSecretsFinders(options, rif)
+		return NewCPPSecretsFinders(options)
 	case ".xml":
-		return NewXMLSecretsFinders(filePath, options, rif)
+		return NewXMLSecretsFinders(options)
 	// case ".json":
 	// 	return NewJSONSecretsFinders(options)
 	case ".yaml", ".yml", ".json":
-		return NewYamlSecretsFinders(options, rif)
+		return NewYamlSecretsFinders(options)
 	case ".rb":
-		return NewRubySecretsFinders(options, rif)
+		return NewRubySecretsFinders(options)
 	case ".erb":
-		return NewERubySecretsFinders(options, rif)
+		return NewERubySecretsFinders(options)
 	case ".conf":
-		return NewConfigurationSecretsFinder(options, rif)
+		return NewConfigurationSecretsFinder(options)
 	default:
-		return defaultFinder(options, rif)
+		return defaultFinder(options)
 	}
 }
 
-func defaultFinder(options SecretSearchOptions, rif util.RepositoryIndexedFile) MatchProvider {
+func defaultFinder(options SecretSearchOptions) MatchProvider {
 	return &defaultMatchProvider{
-		finders: append(makeVendorSecretsFinders(options, rif),
+		finders: append(makeVendorSecretsFinders(options),
 			[]common.ResourceToSecurityDiagnostics{
-				makeAssignmentFinder(assignmentProviderID, secretAssignment, options, rif),
-				makeSecretStringFinder(secretStringProviderID, secretStrings, options, rif),
-				makeSecretStringFinder(longStringProviderID, longStrings, options, rif),
-				makeAssignmentFinder(yamlAssignmentProviderID, yamlAssignment, options, rif),
-				makeAssignmentFinder(arrowAssignmentProviderID, arrowQuoteLeft, options, rif),
-				makeAssignmentFinder(arrowAssignmentProviderID, arrowNoQuoteLeft, options, rif),
+				makeAssignmentFinder(assignmentProviderID, secretAssignment, options),
+				makeSecretStringFinder(secretStringProviderID, secretStrings, options),
+				makeSecretStringFinder(longStringProviderID, longStrings, options),
+				makeAssignmentFinder(yamlAssignmentProviderID, yamlAssignment, options),
+				makeAssignmentFinder(arrowAssignmentProviderID, arrowQuoteLeft, options),
+				makeAssignmentFinder(arrowAssignmentProviderID, arrowNoQuoteLeft, options),
 			}...),
 	}
 }
 
-//NewJavaFinder provides secret detection in Java-like programming languages
-func NewJavaFinder(options SecretSearchOptions, rif util.RepositoryIndexedFile) MatchProvider {
+// NewJavaFinder provides secret detection in Java-like programming languages
+func NewJavaFinder(options SecretSearchOptions) MatchProvider {
 	return &defaultMatchProvider{
-		finders: append(makeVendorSecretsFinders(options, rif),
+		finders: append(makeVendorSecretsFinders(options),
 			[]common.ResourceToSecurityDiagnostics{
-				makeAssignmentFinder(assignmentProviderID, secretAssignment, options, rif),
-				makeSecretStringFinder(secretStringProviderID, secretStrings, options, rif),
-				makeSecretStringFinder(longStringProviderID, longStrings, options, rif),
+				makeAssignmentFinder(assignmentProviderID, secretAssignment, options),
+				makeSecretStringFinder(secretStringProviderID, secretStrings, options),
+				makeSecretStringFinder(longStringProviderID, longStrings, options),
 			}...),
 	}
 }
 
-//MatchProvider provides regular expressions and other facilities for locating secrets in source data and resources
+// MatchProvider provides regular expressions and other facilities for locating secrets in source data and resources
 type MatchProvider interface {
 	// common.exclusionProvider
 	GetFinders() []common.ResourceToSecurityDiagnostics
 }
 
-//RegexFinder provides secret detection using regular expressions
+// RegexFinder provides secret detection using regular expressions
 type RegexFinder struct {
 	diagnostics.DefaultSecurityDiagnosticsProvider
-	res           []*regexp.Regexp
-	regexIDs      []string //used to map each regex above to a potentially unique ID.
-	lineKeeper    *util.LineKeeper
+	res      []*regexp.Regexp
+	regexIDs []string //used to map each regex above to a potentially unique ID.
+	//lineIndex and rif are per-file state, supplied by the resource
+	//multiplexer for each file rather than captured at construction. Keeping
+	//them out of the constructor is what allows a finder to be built once and
+	//reused across many files.
+	lineIndex     *util.LineIndex
+	rif           util.RepositoryIndexedFile
 	providerID    string
 	provideSource bool
 }
 
-//GetRegularExpressions returns the underlying compiled regular expressions
+// GetRegularExpressions returns the underlying compiled regular expressions
 func (finder RegexFinder) GetRegularExpressions() []*regexp.Regexp {
 	return finder.res
 }
 
-//Consume allows a source processor receive `source` data streamed in "chunks", with `startIndex` indicating the
-//character location of the first character in the stream
+// Consume allows a source processor receive `source` data streamed in "chunks", with `startIndex` indicating the
+// character location of the first character in the stream
 func (finder *RegexFinder) Consume(startIndex int64, source string) {
 }
 
-//SetLineKeeper allows this source consumer to keep track of `code.Position`
-func (finder *RegexFinder) SetLineKeeper(lk *util.LineKeeper) {
-	finder.lineKeeper = lk
+// SetLineIndex allows this source consumer to keep track of `code.Position`
+func (finder *RegexFinder) SetLineIndex(li *util.LineIndex) {
+	finder.lineIndex = li
 }
 
-//End is used to signal to the consumer that the source stream has ended
+// SetRepositoryFile supplies the per-file context (path and the index of the
+// scan root it was found under) for the file about to be consumed.
+func (finder *RegexFinder) SetRepositoryFile(rif util.RepositoryIndexedFile) {
+	finder.rif = rif
+}
+
+// End is used to signal to the consumer that the source stream has ended
 func (finder *RegexFinder) End() {
 
 }
 
-//ShouldProvideSourceInDiagnostics toggles whether source evidence should be provided with diagnostics, defaults to false
+// ShouldProvideSourceInDiagnostics toggles whether source evidence should be provided with diagnostics, defaults to false
 func (finder *RegexFinder) ShouldProvideSourceInDiagnostics(provideSource bool) {
 	finder.provideSource = provideSource
 }
@@ -159,31 +169,31 @@ func (dmp defaultMatchProvider) GetFinders() []common.ResourceToSecurityDiagnost
 // 	return false
 // }
 
-//NewConfigurationSecretsFinder is a `MatchProvider` for finding secrets in configuration `.conf` files
-func NewConfigurationSecretsFinder(options SecretSearchOptions, rif util.RepositoryIndexedFile) MatchProvider {
+// NewConfigurationSecretsFinder is a `MatchProvider` for finding secrets in configuration `.conf` files
+func NewConfigurationSecretsFinder(options SecretSearchOptions) MatchProvider {
 	return &defaultMatchProvider{
-		finders: append(makeVendorSecretsFinders(options, rif),
+		finders: append(makeVendorSecretsFinders(options),
 			[]common.ResourceToSecurityDiagnostics{
-				makeAssignmentFinder(confAssignmentProviderID, confAssignment, options, rif),
-				makeAssignmentFinder(assignmentProviderID, secretAssignment, options, rif),
-				makeAssignmentFinder(yamlAssignmentProviderID, yamlAssignment, options, rif),
-				makeAssignmentFinder(jsonAssignmentProviderID, jsonAssignmentNumOrBool, options, rif),
-				makeAssignmentFinder(jsonAssignmentProviderID, jsonAssignmentString, options, rif),
-				makeSecretStringFinder(secretStringProviderID, secretStrings, options, rif),
-				makeSecretStringFinder(longStringProviderID, longStrings, options, rif),
+				makeAssignmentFinder(confAssignmentProviderID, confAssignment, options),
+				makeAssignmentFinder(assignmentProviderID, secretAssignment, options),
+				makeAssignmentFinder(yamlAssignmentProviderID, yamlAssignment, options),
+				makeAssignmentFinder(jsonAssignmentProviderID, jsonAssignmentNumOrBool, options),
+				makeAssignmentFinder(jsonAssignmentProviderID, jsonAssignmentString, options),
+				makeSecretStringFinder(secretStringProviderID, secretStrings, options),
+				makeSecretStringFinder(longStringProviderID, longStrings, options),
 			}...),
 	}
 }
 
-//NewCPPSecretsFinders is a `MatchProvider` for finding secrets in files with C++-like content
-func NewCPPSecretsFinders(options SecretSearchOptions, rif util.RepositoryIndexedFile) MatchProvider {
+// NewCPPSecretsFinders is a `MatchProvider` for finding secrets in files with C++-like content
+func NewCPPSecretsFinders(options SecretSearchOptions) MatchProvider {
 	return &defaultMatchProvider{
-		finders: append(makeVendorSecretsFinders(options, rif),
+		finders: append(makeVendorSecretsFinders(options),
 			[]common.ResourceToSecurityDiagnostics{
-				makeAssignmentFinder(cppAssignmentProviderID, secretCPPAssignment, options, rif),
-				makeAssignmentFinder(defineAssignmentProviderID, secretDefine, options, rif),
-				makeSecretStringFinder(secretStringProviderID, secretStrings, options, rif),
-				makeSecretStringFinder(longStringProviderID, longStrings, options, rif),
+				makeAssignmentFinder(cppAssignmentProviderID, secretCPPAssignment, options),
+				makeAssignmentFinder(defineAssignmentProviderID, secretDefine, options),
+				makeSecretStringFinder(secretStringProviderID, secretStrings, options),
+				makeSecretStringFinder(longStringProviderID, longStrings, options),
 			}...),
 	}
 }
@@ -193,12 +203,12 @@ type idRegexPair struct {
 	regex *regexp.Regexp
 }
 
-//NewXMLSecretsFinders is a `MatchProvider` for finding secrets in files with XML content
-func NewXMLSecretsFinders(filePath string, options SecretSearchOptions, rif util.RepositoryIndexedFile) MatchProvider {
+// NewXMLSecretsFinders is a `MatchProvider` for finding secrets in files with XML content
+func NewXMLSecretsFinders(options SecretSearchOptions) MatchProvider {
 	return &defaultMatchProvider{
-		finders: append(makeVendorSecretsFinders(options, rif),
+		finders: append(makeVendorSecretsFinders(options),
 			[]common.ResourceToSecurityDiagnostics{
-				makeXMLSecretsFinder(filePath, []idRegexPair{
+				makeXMLSecretsFinder([]idRegexPair{
 					{xmlAssignmentProviderID, secretAssignment},
 					{xmlAssignmentProviderID, yamlAssignment},
 					{xmlAssignmentProviderID, arrowNoQuoteLeft},
@@ -207,76 +217,75 @@ func NewXMLSecretsFinders(filePath string, options SecretSearchOptions, rif util
 					{longTagValueProviderID, longUnquotedTextRegex},
 					{secretStringProviderID, secretStrings},
 					{longStringProviderID, longStrings},
-				}, options, rif),
+				}, options),
 			}...),
 	}
 }
 
 //NewJSONSecretsFinders is a `MatchProvider` for finding secrets in files with JSON content
-// func NewJSONSecretsFinders(options SecretSearchOptions, rif util.RepositoryIndexedFile) MatchProvider {
+// func NewJSONSecretsFinders(options SecretSearchOptions) MatchProvider {
 // 	return &defaultMatchProvider{
 // 		finders: append(makeVendorSecretsFinders(options,rif), []common.ResourceToSecurityDiagnostics{
-// 			makeAssignmentFinder(jsonAssignmentProviderID, jsonAssignmentString, options, rif),
-// 			makeAssignmentFinder(jsonAssignmentProviderID, jsonAssignmentNumOrBool, options, rif),
-// 			makeSecretStringFinder(longStringProviderID, longStrings, options, rif),
+// 			makeAssignmentFinder(jsonAssignmentProviderID, jsonAssignmentString, options),
+// 			makeAssignmentFinder(jsonAssignmentProviderID, jsonAssignmentNumOrBool, options),
+// 			makeSecretStringFinder(longStringProviderID, longStrings, options),
 // 		}...),
 // 	}
 // }
 
-//NewRubySecretsFinders is a `MatchProvider` for finding secrets in files with Ruby content
-func NewRubySecretsFinders(options SecretSearchOptions, rif util.RepositoryIndexedFile) MatchProvider {
+// NewRubySecretsFinders is a `MatchProvider` for finding secrets in files with Ruby content
+func NewRubySecretsFinders(options SecretSearchOptions) MatchProvider {
 	return &defaultMatchProvider{
-		finders: append(makeVendorSecretsFinders(options, rif),
+		finders: append(makeVendorSecretsFinders(options),
 			[]common.ResourceToSecurityDiagnostics{
-				makeAssignmentFinder(tagAssignmentProviderID, secretTags, options, rif),
-				makeAssignmentFinder(assignmentProviderID, secretAssignment, options, rif),
-				makeAssignmentFinder(longTagValueProviderID, longTagValues, options, rif),
-				makeAssignmentFinder(secretTagProviderID, secretTagValues, options, rif),
-				makeAssignmentFinder(yamlAssignmentProviderID, yamlAssignment, options, rif),
-				makeSecretStringFinder(secretStringProviderID, secretStrings, options, rif),
-				makeSecretStringFinder(longStringProviderID, longStrings, options, rif),
+				makeAssignmentFinder(tagAssignmentProviderID, secretTags, options),
+				makeAssignmentFinder(assignmentProviderID, secretAssignment, options),
+				makeAssignmentFinder(longTagValueProviderID, longTagValues, options),
+				makeAssignmentFinder(secretTagProviderID, secretTagValues, options),
+				makeAssignmentFinder(yamlAssignmentProviderID, yamlAssignment, options),
+				makeSecretStringFinder(secretStringProviderID, secretStrings, options),
+				makeSecretStringFinder(longStringProviderID, longStrings, options),
 			}...),
 	}
 }
 
-//NewERubySecretsFinders is a `MatchProvider` for finding secrets in files with ERuby content
-func NewERubySecretsFinders(options SecretSearchOptions, rif util.RepositoryIndexedFile) MatchProvider {
+// NewERubySecretsFinders is a `MatchProvider` for finding secrets in files with ERuby content
+func NewERubySecretsFinders(options SecretSearchOptions) MatchProvider {
 	return &defaultMatchProvider{
-		finders: append(makeVendorSecretsFinders(options, rif),
+		finders: append(makeVendorSecretsFinders(options),
 			[]common.ResourceToSecurityDiagnostics{
-				makeAssignmentFinder(tagAssignmentProviderID, secretTags, options, rif),
-				makeAssignmentFinder(assignmentProviderID, secretAssignment, options, rif),
-				makeAssignmentFinder(longTagValueProviderID, longTagValues, options, rif),
-				makeAssignmentFinder(secretTagProviderID, secretTagValues, options, rif),
-				makeSecretStringFinder(secretStringProviderID, secretStrings, options, rif),
-				makeSecretStringFinder(longStringProviderID, longStrings, options, rif),
-				makeAssignmentFinder(jsonAssignmentProviderID, jsonAssignmentNumOrBool, options, rif),
-				makeAssignmentFinder(yamlAssignmentProviderID, yamlAssignment, options, rif),
-				makeAssignmentFinder(jsonAssignmentProviderID, jsonAssignmentString, options, rif),
+				makeAssignmentFinder(tagAssignmentProviderID, secretTags, options),
+				makeAssignmentFinder(assignmentProviderID, secretAssignment, options),
+				makeAssignmentFinder(longTagValueProviderID, longTagValues, options),
+				makeAssignmentFinder(secretTagProviderID, secretTagValues, options),
+				makeSecretStringFinder(secretStringProviderID, secretStrings, options),
+				makeSecretStringFinder(longStringProviderID, longStrings, options),
+				makeAssignmentFinder(jsonAssignmentProviderID, jsonAssignmentNumOrBool, options),
+				makeAssignmentFinder(yamlAssignmentProviderID, yamlAssignment, options),
+				makeAssignmentFinder(jsonAssignmentProviderID, jsonAssignmentString, options),
 			}...),
 	}
 }
 
-//NewYamlSecretsFinders is a `MatchProvider` for finding secrets in files with YAML content
-func NewYamlSecretsFinders(options SecretSearchOptions, rif util.RepositoryIndexedFile) MatchProvider {
+// NewYamlSecretsFinders is a `MatchProvider` for finding secrets in files with YAML content
+func NewYamlSecretsFinders(options SecretSearchOptions) MatchProvider {
 	return &defaultMatchProvider{
-		finders: append(makeVendorSecretsFinders(options, rif),
+		finders: append(makeVendorSecretsFinders(options),
 			[]common.ResourceToSecurityDiagnostics{
-				makeAssignmentFinder(yamlAssignmentProviderID, yamlAssignment, options, rif),
-				makeAssignmentFinder(jsonAssignmentProviderID, jsonAssignmentString, options, rif),
-				makeSecretStringFinder(secretStringProviderID, secretStrings, options, rif),
-				makeSecretStringFinder(longStringProviderID, longStrings, options, rif),
+				makeAssignmentFinder(yamlAssignmentProviderID, yamlAssignment, options),
+				makeAssignmentFinder(jsonAssignmentProviderID, jsonAssignmentString, options),
+				makeSecretStringFinder(secretStringProviderID, secretStrings, options),
+				makeSecretStringFinder(longStringProviderID, longStrings, options),
 			}...),
 	}
 }
 
-func makeXMLSecretsFinder(filePath string, stringRegexes []idRegexPair,
-	options SecretSearchOptions, rif util.RepositoryIndexedFile) *xmlSecretFinder {
+func makeXMLSecretsFinder(stringRegexes []idRegexPair,
+	options SecretSearchOptions) *xmlSecretFinder {
 	sxml := xmlSecretFinder{
-		secretFinder{
+		secretFinder: secretFinder{
 			ExclusionProvider: options.Exclusions,
 			options:           options,
-			rif:               rif,
 		},
 	}
 
@@ -288,12 +297,11 @@ func makeXMLSecretsFinder(filePath string, stringRegexes []idRegexPair,
 	return &sxml
 }
 
-func makeAssignmentFinder(providerID string, re *regexp.Regexp, options SecretSearchOptions, rif util.RepositoryIndexedFile) *assignmentFinder {
+func makeAssignmentFinder(providerID string, re *regexp.Regexp, options SecretSearchOptions) *assignmentFinder {
 	sa := assignmentFinder{
 		secretFinder{
 			ExclusionProvider: options.Exclusions,
 			options:           options,
-			rif:               rif,
 		},
 	}
 	sa.providerID = providerID
@@ -301,12 +309,11 @@ func makeAssignmentFinder(providerID string, re *regexp.Regexp, options SecretSe
 	return &sa
 }
 
-func makeSecretStringFinder(providerID string, re *regexp.Regexp, options SecretSearchOptions, rif util.RepositoryIndexedFile) *secretStringFinder {
+func makeSecretStringFinder(providerID string, re *regexp.Regexp, options SecretSearchOptions) *secretStringFinder {
 	sf := secretStringFinder{
 		secretFinder{
 			ExclusionProvider: options.Exclusions,
 			options:           options,
-			rif:               rif,
 		},
 	}
 
@@ -320,7 +327,38 @@ type secretFinder struct {
 	diagnostics.DefaultSecurityDiagnosticsProvider
 	diagnostics.ExclusionProvider
 	options SecretSearchOptions
-	rif     util.RepositoryIndexedFile
+	// gate and gateIndex implement prefilter rule skipping.
+	//
+	// Both are per-worker, not per-file: the gate is owned by the ScanContext
+	// that built this finder and is refreshed for each file before any finder
+	// runs. gateIndex is -1 for every finder that is not a gated vendor rule,
+	// which makes gating a no-op for the generic assignment/string finders.
+	gate      *ruleGate
+	gateIndex int
+}
+
+// skipRule reports whether this finder can be skipped for the current content
+// because the prefilter proved none of its literals are present.
+func (sf *secretFinder) skipRule() bool {
+	return sf.gate != nil && !sf.gate.allows(sf.gateIndex)
+}
+
+// attachGate wires the worker's prefilter into this finder.
+//
+// Every finder embedding secretFinder gets the gate, not only the gated vendor
+// rules. A generic assignment or string finder still resolves to gateIndex -1
+// and therefore always runs — but it also *classifies* the values it finds
+// through detectSecret, and that classification evaluates the whole vendor
+// rule set. Withholding the gate from those finders is what left the most
+// expensive path in the engine ungated after Phase 4.
+func (sf *secretFinder) attachGate(gate *ruleGate) {
+	sf.gate = gate
+	sf.gateIndex = gate.indexOf(sf.providerID)
+}
+
+// gatedFinder is implemented by every finder embedding secretFinder.
+type gatedFinder interface {
+	attachGate(*ruleGate)
 }
 
 type assignmentFinder struct {
@@ -369,8 +407,8 @@ func (sa *assignmentFinder) Consume(startIndex int64, source string) {
 func (sa *assignmentFinder) ConsumePath(path util.RepositoryIndexedFile) {
 }
 
-//trimQuotes attempts to remove balanced quotes around a piece of string
-//returns the trimmed text and the number of characters trimmed from the prefix
+// trimQuotes attempts to remove balanced quotes around a piece of string
+// returns the trimmed text and the number of characters trimmed from the prefix
 func trimQuotes(text string) (string, int) {
 	text = strings.TrimSpace(text)
 	count := 0
@@ -408,10 +446,17 @@ type secretStringFinder struct {
 }
 
 func (sf *secretStringFinder) Consume(startIndex int64, source string) {
+	// The prefilter has already established that none of this rule's mandatory
+	// literals occur in `source`, so the regex cannot match. This is where the
+	// scan's dominant cost disappears: on ordinary source files it skips ~93%
+	// of the vendor rule set.
+	if sf.skipRule() {
+		return
+	}
 	for _, re := range sf.GetRegularExpressions() {
 		matches := re.FindAllStringSubmatchIndex(source, -1)
 		for _, match := range matches {
-			if len(match) == 4 && space.FindAllStringIndex(source[match[0]:match[1]], -1) == nil {
+			if len(match) == 4 && !containsWhitespace(source[match[0]:match[1]]) {
 				processString(match, sf.providerID, source, startIndex, sf.secretFinder)
 			}
 		}
@@ -425,32 +470,38 @@ func (sf *secretStringFinder) ConsumePath(path util.RepositoryIndexedFile) {
 
 type xmlSecretFinder struct {
 	secretFinder
+	// source accumulates the file content delivered through Consume, so the
+	// XML parse can run over memory the engine has already read.
+	source strings.Builder
 }
 
 func (xf *xmlSecretFinder) Consume(startIndex int64, source string) {
-	// the xml parser uses its own streamer to parse the content, so we do nothing here
+	// The XML parse happens in ConsumePath, once the whole document has
+	// arrived. Retaining the content here is what lets it avoid re-reading the
+	// file from disk.
+	xf.source.WriteString(source)
 }
 
 func (xf *xmlSecretFinder) ConsumePath(rif util.RepositoryIndexedFile) {
 
-	path := rif.File
-	//file for decoding the XML
-	file, err := os.Open(path)
-	if err != nil {
-		return
-	}
-	defer func() {
-		_ = file.Close()
-	}()
+	content := xf.source.String()
+	// Reset immediately: this finder is reused across files, and content left
+	// behind would be parsed again as part of the next document.
+	xf.source.Reset()
 
-	//Scanner opening the same file for navigating and seeking XML positions
-	scan, err := os.Open(path)
-	if err != nil {
+	if content == "" {
 		return
 	}
-	defer func() {
-		_ = scan.Close()
-	}()
+
+	// Two independent readers over the same in-memory content: one for the
+	// decoder, one for seeking to positions.
+	//
+	// This previously opened the file from disk twice, on top of the read the
+	// engine had already performed to stream the content into Consume — three
+	// full reads of every XML file, two of them redundant. The content is
+	// already in hand, so both readers are now views onto it.
+	file := strings.NewReader(content)
+	scan := strings.NewReader(content)
 
 	decoder := xml.NewDecoder(file)
 	decoder.Strict = false
@@ -517,8 +568,8 @@ func (xf *xmlSecretFinder) ConsumePath(rif util.RepositoryIndexedFile) {
 	}
 }
 
-//try and locate the offset of the <element  (the position of the letter t in <element )
-//this may fail, in which case we will just simply return the original offset passed to the function
+// try and locate the offset of the <element  (the position of the letter t in <element )
+// this may fail, in which case we will just simply return the original offset passed to the function
 func findElementOffset(file io.ReadSeeker, offset int64, element string) int64 {
 	length := 2 * len(element) // we are going to search backwards reading twice (arbitrary) the length of the attribute
 	if length == 0 {           //degenerate case
@@ -560,7 +611,7 @@ func processAssignment(match []int, providerID, source string, startIndex int64,
 		variable := strings.TrimSpace(strings.ToLower(source[lhsStart:match[3]]))
 
 		//check if variable contains newline or space => in which case it's most likely an FP
-		if strings.Contains(variable, "\n") || space.FindStringSubmatchIndex(variable) != nil {
+		if strings.Contains(variable, "\n") || containsWhitespace(variable) {
 			return
 		}
 
@@ -578,7 +629,7 @@ func processAssignment(match []int, providerID, source string, startIndex int64,
 		assignedVal, count := trimQuotes(assignedVal)
 		rhsStart += int64(count)
 		rhsEnd := rhsStart + int64(len(assignedVal))
-		evidence := detectSecret(secretContext{secret: assignedVal, higherConfidenceContext: true})
+		evidence := detectSecret(secretContext{secret: assignedVal, higherConfidenceContext: true, gate: sf.gate})
 
 		// log.Printf("(%s) Variable: %s <=> %s\n", providerID, variable, assignedVal)
 		// log.Printf("(%s) Evidence: %#v \n", providerID, evidence)
@@ -609,16 +660,16 @@ func processAssignment(match []int, providerID, source string, startIndex int64,
 					evidence},
 			},
 			Range: code.Range{
-				Start: sf.lineKeeper.GetPositionFromCharacterIndex(codeStart),
-				End:   sf.lineKeeper.GetPositionFromCharacterIndex(codeEnd),
+				Start: sf.lineIndex.GetPositionFromCharacterIndex(codeStart),
+				End:   sf.lineIndex.GetPositionFromCharacterIndex(codeEnd),
 			},
 			RawRange: diagnostics.CharRange{
 				StartIndex: codeStart,
 				EndIndex:   codeEnd,
 			},
 			HighlightRange: code.Range{
-				Start: sf.lineKeeper.GetPositionFromCharacterIndex(startIndex + rhsStart - 1),
-				End:   sf.lineKeeper.GetPositionFromCharacterIndex(startIndex + rhsEnd - 1),
+				Start: sf.lineIndex.GetPositionFromCharacterIndex(startIndex + rhsStart - 1),
+				End:   sf.lineIndex.GetPositionFromCharacterIndex(startIndex + rhsEnd - 1),
 			},
 			ProviderID:      &providerID,
 			Excluded:        sf.ShouldExcludeValue(assignedVal),
@@ -663,7 +714,7 @@ func processString(match []int, providerID, source string, startIndex int64,
 	stringStart := start + int64(count)
 	stringEnd := stringStart + int64(len(value))
 
-	evidence := detectSecret(secretContext{secret: value})
+	evidence := detectSecret(secretContext{secret: value, gate: sf.gate})
 	if evidence.Description == descNotSecret && evidence.Confidence == diagnostics.High {
 		return //skip high confidence non-secrets
 	}
@@ -686,16 +737,16 @@ func processString(match []int, providerID, source string, startIndex int64,
 			Reasons:  reasons,
 		},
 		Range: code.Range{
-			Start: sf.lineKeeper.GetPositionFromCharacterIndex(codeStart),
-			End:   sf.lineKeeper.GetPositionFromCharacterIndex(codeEnd),
+			Start: sf.lineIndex.GetPositionFromCharacterIndex(codeStart),
+			End:   sf.lineIndex.GetPositionFromCharacterIndex(codeEnd),
 		},
 		RawRange: diagnostics.CharRange{
 			StartIndex: codeStart,
 			EndIndex:   codeEnd,
 		},
 		HighlightRange: code.Range{
-			Start: sf.lineKeeper.GetPositionFromCharacterIndex(startIndex + stringStart - 1),
-			End:   sf.lineKeeper.GetPositionFromCharacterIndex(startIndex + stringEnd - 1),
+			Start: sf.lineIndex.GetPositionFromCharacterIndex(startIndex + stringStart - 1),
+			End:   sf.lineIndex.GetPositionFromCharacterIndex(startIndex + stringEnd - 1),
 		},
 		ProviderID:      &providerID,
 		Excluded:        sf.ShouldExcludeValue(value),
@@ -729,13 +780,13 @@ func findXMLStringSecret(source string, startIndex int64, providerID string, re 
 	for _, match := range matches {
 		if len(match) == 6 { //assignment match signature
 			processAssignment(match, providerID, source, startIndex, sf.secretFinder)
-		} else if len(match) == 4 && space.FindAllStringIndex(source[match[0]:match[1]], -1) == nil {
+		} else if len(match) == 4 && !containsWhitespace(source[match[0]:match[1]]) {
 			processString(match, providerID, source, startIndex, sf.secretFinder)
 		}
 	}
 }
 
-//checks whether the current event is true CharData by checking for the closing marker ]]>
+// checks whether the current event is true CharData by checking for the closing marker ]]>
 func isCharData(file io.ReadSeeker, start int64) bool {
 	if start > 3 {
 		if _, err := file.Seek(start-3, io.SeekStart); err != nil {
@@ -749,7 +800,7 @@ func isCharData(file io.ReadSeeker, start int64) bool {
 	return false
 }
 
-//used for XML elements and attribute "assignments"
+// used for XML elements and attribute "assignments"
 func processXMLAssignment(variable, assignedVal string, sourceIndex int64, isElement bool, finder *xmlSecretFinder,
 	scan io.ReadSeeker) {
 	start := sourceIndex - int64(1) //peg the startindex back by 1 char
@@ -770,7 +821,7 @@ func processXMLAssignment(variable, assignedVal string, sourceIndex int64, isEle
 		return
 	}
 	if secretVarCompile.MatchString(variable) {
-		evidence := detectSecret(secretContext{secret: assignedVal, higherConfidenceContext: true})
+		evidence := detectSecret(secretContext{secret: assignedVal, higherConfidenceContext: true, gate: finder.gate})
 		if strings.Contains(variable, "passphrase") {
 			//special "passphrase" case:
 			//if the assigned variable is a passphrase bypass any result of the assigned value
@@ -796,16 +847,16 @@ func processXMLAssignment(variable, assignedVal string, sourceIndex int64, isEle
 					evidence},
 			},
 			Range: code.Range{
-				Start: finder.lineKeeper.GetPositionFromCharacterIndex(start + 1),
-				End:   finder.lineKeeper.GetPositionFromCharacterIndex(end),
+				Start: finder.lineIndex.GetPositionFromCharacterIndex(start + 1),
+				End:   finder.lineIndex.GetPositionFromCharacterIndex(end),
 			},
 			RawRange: diagnostics.CharRange{
 				StartIndex: start + 1,
 				EndIndex:   end,
 			},
 			HighlightRange: code.Range{ //TODO the highlighted range is the same as the total range, fix
-				Start: finder.lineKeeper.GetPositionFromCharacterIndex(start + 1),
-				End:   finder.lineKeeper.GetPositionFromCharacterIndex(end),
+				Start: finder.lineIndex.GetPositionFromCharacterIndex(start + 1),
+				End:   finder.lineIndex.GetPositionFromCharacterIndex(end),
 			},
 			ProviderID:      &providerID,
 			Excluded:        finder.ShouldExcludeValue(assignedVal),

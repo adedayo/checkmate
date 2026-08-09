@@ -1,6 +1,7 @@
 package projects
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -617,6 +618,23 @@ func (spm simpleProjectManager) GetProject(id string) (project Project, err erro
 	return
 }
 
+// GetScanResults reads a scan's findings.
+//
+// The file is newline-delimited JSON — one finding per line — written
+// incrementally as the scan proceeds. Two consequences follow from that, and
+// both are handled here rather than by callers:
+//
+//   - The findings are in arrival order, which is nondeterministic now that
+//     files are scanned in parallel. They are sorted canonically before being
+//     returned, so callers see a stable order derived from content alone.
+//     Sorting on read rather than on write is what allows the writer to stay
+//     streaming; see streamingDiagnosticConsumer.
+//
+//   - A scan that was killed mid-write leaves a final truncated line. That is
+//     the normal, expected state of an aborted scan, not corruption, so the
+//     truncated tail is discarded and everything before it returned. Failing
+//     the whole read would throw away thousands of valid findings to punish
+//     the one the process died halfway through.
 func (spm simpleProjectManager) GetScanResults(projID, scanID string) (results []*diagnostics.SecurityDiagnostic, err error) {
 	scanResultsLocation := path.Join(spm.projectsLocation, projID, scanID, defaultScanResultsFile)
 	file, err := os.Open(scanResultsLocation)
@@ -626,15 +644,54 @@ func (spm simpleProjectManager) GetScanResults(projID, scanID string) (results [
 	defer func() {
 		_ = file.Close()
 	}()
-	decoder := json.NewDecoder(file)
+
+	reader := bufio.NewReaderSize(file, 256*1024)
+
+	//Sniff the first non-whitespace byte. A JSON array can only begin with
+	//'[', and an NDJSON stream of objects can only begin with '{', so one byte
+	//separates the streaming format from the single-array one that preceded
+	//it. This costs nothing and means results already on disk still load;
+	//without it they would decode as an empty set, which reads as "no secrets
+	//found" rather than as an error.
+	legacyArray := false
 	for {
-		if e := decoder.Decode(&results); e == io.EOF {
-			break
-		} else if e != nil {
-			err = e
-			return
+		b, e := reader.Peek(1)
+		if e != nil {
+			//Empty or unreadable file: no findings, which is a legitimate
+			//result for a clean scan.
+			return results, nil
 		}
+		if b[0] == ' ' || b[0] == '\n' || b[0] == '\r' || b[0] == '\t' {
+			_, _ = reader.Discard(1)
+			continue
+		}
+		legacyArray = b[0] == '['
+		break
 	}
+
+	decoder := json.NewDecoder(reader)
+
+	if legacyArray {
+		if e := decoder.Decode(&results); e != nil && e != io.EOF {
+			return nil, e
+		}
+		diagnostics.SortDiagnosticsCanonically(results)
+		return results, nil
+	}
+
+	for {
+		var diag diagnostics.SecurityDiagnostic
+		if e := decoder.Decode(&diag); e != nil {
+			if e == io.EOF || errors.Is(e, io.ErrUnexpectedEOF) {
+				//Clean end, or the truncated tail of an aborted scan.
+				break
+			}
+			return nil, e
+		}
+		results = append(results, &diag)
+	}
+
+	diagnostics.SortDiagnosticsCanonically(results)
 	return results, nil
 }
 
@@ -1250,39 +1307,113 @@ func (spm simpleProjectManager) saveScan(projID, scanID string, policy ScanPolic
 	return nil
 }
 
-type simpleDiagnosticConsumer struct {
+// streamingDiagnosticConsumer writes findings to the scan results file as they
+// arrive.
+//
+// It replaces an accumulator that appended every diagnostic of the entire scan
+// into a slice and encoded the lot as a single JSON array at close. That slice
+// was the scan's peak memory — on a large estate it outweighed everything the
+// engine itself held — and it grew with the number of findings, which is the
+// one quantity a security scanner has no control over. Worse, the file was
+// only created at close, so a crash, an eviction or a cancelled scan lost
+// every finding it had already made.
+//
+// The format is newline-delimited JSON: one complete document per line, which
+// is what makes writing incremental. json.Encoder.Encode already terminates
+// each value with a newline, so this costs nothing to produce.
+//
+// # Ordering
+//
+// Phase 7 sorts findings canonically before persistence so that two identical
+// scans produce identical output. Streaming is in direct tension with that —
+// you cannot sort what you have not finished receiving — and buffering to sort
+// would reinstate exactly the accumulation being removed here.
+//
+// The tension is resolved by moving the sort to the read side: the file is
+// written in arrival order and GetScanResults sorts canonically before
+// returning. Every consumer-visible guarantee is preserved, because no caller
+// reads this file directly. What is lost is the ability to diff two results
+// files with `diff`, which was never a supported operation; what is gained is
+// that peak memory no longer depends on how many secrets a codebase contains.
+type streamingDiagnosticConsumer struct {
 	scanLocation string
-	diagnostics  []*diagnostics.SecurityDiagnostic
+
+	//mu guards the writer. The scan engine delivers findings from a single
+	//sink goroutine, but this is registered as a diagnostics consumer and that
+	//interface promises its implementors nothing about threading — the git
+	//history scanner and any future producer broadcast on their own
+	//goroutines. A mutex here is a few nanoseconds against a JSON encode.
+	mu   sync.Mutex
+	file *os.File
+	buf  *bufio.Writer
+	enc  *json.Encoder
+
+	//err latches the first write failure. Reporting it per-diagnostic would
+	//emit one log line per finding for a full disk; latching it surfaces the
+	//problem once, at close, where the caller can act on it.
+	err   error
+	count int64
 }
 
-func (sdc *simpleDiagnosticConsumer) ReceiveDiagnostic(diag *diagnostics.SecurityDiagnostic) {
-	sdc.diagnostics = append(sdc.diagnostics, diag)
-}
+func (sdc *streamingDiagnosticConsumer) ReceiveDiagnostic(diag *diagnostics.SecurityDiagnostic) {
+	sdc.mu.Lock()
+	defer sdc.mu.Unlock()
 
-func (sdc *simpleDiagnosticConsumer) close(start, end time.Time) error {
-	//write the collected diagnostics to file
-	filePath := path.Join(sdc.scanLocation, defaultScanResultsFile)
-	file, err := os.Create(filePath)
-	if err != nil {
-		return err
+	if sdc.enc == nil || sdc.err != nil {
+		return
 	}
-	defer func() {
-		_ = file.Close()
-	}()
 
-	if err := json.NewEncoder(file).Encode(sdc.diagnostics); err != nil {
-		return err
+	if err := sdc.enc.Encode(diag); err != nil {
+		sdc.err = err
+		return
 	}
-	return nil
+	sdc.count++
 }
 
-func createDiagnosticConsumer(projectLocation, projectID, scanID string) *simpleDiagnosticConsumer {
-	sdc := simpleDiagnosticConsumer{
+func (sdc *streamingDiagnosticConsumer) close(start, end time.Time) error {
+	sdc.mu.Lock()
+	defer sdc.mu.Unlock()
+
+	if sdc.file == nil {
+		return sdc.err
+	}
+
+	//Flush before close, and prefer the earlier error: a failure during the
+	//scan explains a short file better than the flush failure it causes.
+	if err := sdc.buf.Flush(); err != nil && sdc.err == nil {
+		sdc.err = err
+	}
+	if err := sdc.file.Close(); err != nil && sdc.err == nil {
+		sdc.err = err
+	}
+
+	sdc.file = nil
+	sdc.buf = nil
+	sdc.enc = nil
+
+	return sdc.err
+}
+
+func createDiagnosticConsumer(projectLocation, projectID, scanID string) *streamingDiagnosticConsumer {
+	sdc := &streamingDiagnosticConsumer{
 		scanLocation: path.Join(projectLocation, projectID, scanID),
-		diagnostics:  []*diagnostics.SecurityDiagnostic{},
 	}
 
-	return &sdc
+	//The file is opened now, at the start of the scan, rather than at close.
+	//That is what makes a partially completed scan recoverable: whatever was
+	//flushed is on disk and readable, instead of the whole run being lost with
+	//the process.
+	file, err := os.Create(path.Join(sdc.scanLocation, defaultScanResultsFile))
+	if err != nil {
+		sdc.err = err
+		return sdc
+	}
+
+	sdc.file = file
+	sdc.buf = bufio.NewWriterSize(file, 256*1024)
+	sdc.enc = json.NewEncoder(sdc.buf)
+
+	return sdc
 }
 
 type projectStatus struct {

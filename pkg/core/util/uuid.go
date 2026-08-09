@@ -6,7 +6,7 @@ import (
 	"io"
 )
 
-//see https://github.com/google/uuid
+// see https://github.com/google/uuid
 var (
 	rander = rand.Reader
 )

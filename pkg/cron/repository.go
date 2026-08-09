@@ -10,8 +10,8 @@ import (
 	"github.com/adedayo/checkmate/pkg/core/diagnostics"
 	gitutils "github.com/adedayo/checkmate/pkg/core/git"
 	"github.com/adedayo/checkmate/pkg/core/projects"
-	secrets "github.com/adedayo/checkmate/pkg/plugin/secrets-finder/pkg"
 	"github.com/adedayo/checkmate/pkg/gitservice/utils"
+	secrets "github.com/adedayo/checkmate/pkg/plugin/secrets-finder/pkg"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
@@ -198,9 +198,15 @@ func runScan(ctx context.Context, ps *projects.ProjectSummary, pm projects.Proje
 		//not needed
 	}
 
-	paths := []string{}
+	//Files scanned is read from the progress event's Position rather than
+	//counted in callbacks: progress is coalesced onto an interval, so the
+	//number of events is a function of how long the scan took, not of how many
+	//files it read.
+	var filesScanned int64
 	progressMon := func(progress diagnostics.Progress) {
-		paths = append(paths, progress.CurrentFile)
+		if progress.Position > filesScanned {
+			filesScanned = progress.Position
+		}
 		callback(ps.ID, progress)
 	}
 
@@ -232,7 +238,7 @@ func runScan(ctx context.Context, ps *projects.ProjectSummary, pm projects.Proje
 	}
 
 	summariser := func(projID, sID string, issues []*diagnostics.SecurityDiagnostic) *projects.ScanSummary {
-		model := projects.GenerateModel(len(paths), secOptions.ShowSource, issues)
+		model := projects.GenerateModel(int(filesScanned), secOptions.ShowSource, issues)
 		summary := model.Summarise()
 		project, err := pm.GetProject(projID) //reloading project as policies might have been manually changed during scanning
 		if err != nil {
