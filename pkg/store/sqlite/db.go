@@ -774,7 +774,24 @@ func (d *DB) RunScan(
 		secOptions.Exclusions = exProvider
 	}
 
-	findingsCh, pathsCh := secrets.SearchSecretsOnPaths(targets, secOptions)
+	//Progress is reported through the same coalescing reporter the scanner
+	//path uses. A nil monitor is tolerated so callers that do not want
+	//progress need not supply one.
+	monitor := progressMonitor
+	if monitor == nil {
+		monitor = func(diagnostics.Progress) {}
+	}
+
+	monitor(diagnostics.Progress{
+		ProjectID:   projectID,
+		ScanID:      scanID,
+		Position:    0,
+		Total:       1,
+		CurrentFile: "starting scan ...",
+	})
+
+	findingsCh, pathsCh := secrets.SearchSecretsOnPathsWithProgress(
+		targets, secOptions, projectID, scanID, monitor)
 
 	startTime := time.Now()
 	var allFindings []*diagnostics.SecurityDiagnostic

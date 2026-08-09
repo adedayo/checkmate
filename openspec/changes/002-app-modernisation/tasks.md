@@ -24,5 +24,7 @@
 - [ ] **Settings:** Port over git service setup, authentication logic, and webhooks config.
 
 ## Phase 5: Finalization
-- [ ] Delete `checkmate-app-legacy`.
+- `[x]` Delete `checkmate-app-legacy`. Directory removed; only OpenSpec
+  references to the name remain, which are historical record rather than
+  live dependencies.
 - [ ] Merge OpenSpec specifications into `openspec/specs/` and archive `002-app-modernisation`.
