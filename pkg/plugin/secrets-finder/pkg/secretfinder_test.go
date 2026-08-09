@@ -90,9 +90,9 @@ func TestFindSecret(t *testing.T) {
 			},
 		},
 		{
-			name:            "Assignment 2.2",
-			value:           `crypt space = "gho_pTruZn7ntsbrTERIYU4sGx3Qq4689V2Jzoq1"`,
-			extension:       ".java",
+			name:      "Assignment 2.2",
+			value:     `crypt space = "gho_pTruZn7ntsbrTERIYU4sGx3Qq4689V2Jzoq1"`,
+			extension: ".java",
 			provider:  descGithubToken,
 			evidences: [3]diagnostics.Evidence{
 				{
@@ -194,7 +194,7 @@ IAuthUserRequest,
 		t.Run(tt.name, func(t *testing.T) {
 			path := fmt.Sprintf("Filename%s", tt.extension) // dummy path
 			gotResult := false
-			for got := range FindSecret(util.RepositoryIndexedFile{RepositoryIndex: 0, File: path}, strings.NewReader(tt.value), GetFinderForFileType(tt.extension, util.RepositoryIndexedFile{RepositoryIndex: 0, File: path}, options), true) {
+			for got := range FindSecret(util.RepositoryIndexedFile{RepositoryIndex: 0, File: path}, strings.NewReader(tt.value), GetFinderForFileType(tt.extension, options), true) {
 				if tt.shouldNotDetect {
 					t.Errorf("Result Not expected, but Got %#v", got)
 				}

@@ -32,9 +32,9 @@ import (
 	"github.com/adedayo/checkmate/pkg/core/projects"
 	"github.com/adedayo/checkmate/pkg/core/util"
 	secrets "github.com/adedayo/checkmate/pkg/plugin/secrets-finder/pkg"
-	"github.com/adedayo/checkmate/pkg/reports/pdf"
-	csvreport "github.com/adedayo/checkmate/pkg/reports/csv"
 	"github.com/adedayo/checkmate/pkg/report"
+	csvreport "github.com/adedayo/checkmate/pkg/reports/csv"
+	"github.com/adedayo/checkmate/pkg/reports/pdf"
 	"github.com/adedayo/checkmate/pkg/store"
 	"github.com/adedayo/checkmate/pkg/webhooks"
 
@@ -50,9 +50,9 @@ var (
 	//used to validate UUID strings used for various (project,scan) IDs
 	idRegX = regexp.MustCompile(`[a-zA-Z0-9]{8}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{4}-[a-zA-Z0-9]{12}`) //see util.UUID.String()
 
-	pm             store.PlatformStore
+	pm                store.PlatformStore
 	webhookDispatcher *webhooks.Dispatcher
-	allowedOrigins = []string{
+	allowedOrigins    = []string{
 		"localhost",
 		"checkmate-app",
 		"checkmate-api",
@@ -849,10 +849,7 @@ func findSecrets(w http.ResponseWriter, r *http.Request) {
 	options := secrets.SecretSearchOptions{
 		Exclusions: diagnostics.MakeEmptyExcludes(),
 	}
-	finder := secrets.GetFinderForFileType(data.SourceType, util.RepositoryIndexedFile{
-		RepositoryIndex: 0,
-		File:            path,
-	}, options)
+	finder := secrets.GetFinderForFileType(data.SourceType, options)
 	diagnostics := []*diagnostics.SecurityDiagnostic{}
 	for diagnostic := range secrets.FindSecret(util.RepositoryIndexedFile{RepositoryIndex: 0, File: path}, strings.NewReader(data.Source), finder, true) {
 		diagnostics = append(diagnostics, diagnostic)

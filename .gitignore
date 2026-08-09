@@ -25,3 +25,6 @@ go.work.sum
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Golden-file failure artifacts (written by equivalence_test.go)
+*.actual

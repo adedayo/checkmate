@@ -10,7 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-//ExclusionProvider implements a exclude strategy
+// ExclusionProvider implements a exclude strategy
 type ExclusionProvider interface {
 	//ShouldExclude determines whether the supplied value should be excluded based on its value and the
 	//path (if any) of the source file providing additional context
@@ -19,6 +19,31 @@ type ExclusionProvider interface {
 	ShouldExcludePath(path string) bool
 	ShouldExcludeValue(value string) bool
 	ShouldExcludeHash(hash string) bool
+}
+
+// DirectoryPruner is an optional capability of an ExclusionProvider: it reports
+// whether a whole directory subtree can be skipped without opening any file
+// beneath it.
+//
+// It is a separate interface rather than a method on ExclusionProvider so that
+// adding it breaks no existing implementation, and so that a caller that cannot
+// prune (or a provider that cannot prove a verdict) degrades to walking
+// everything, which is the safe direction.
+//
+// Soundness is the whole point here. "This directory is excluded" does NOT
+// generally imply "every file under it is excluded" — the exclusion patterns
+// match complete file paths, so a pattern matching `/x/build` says nothing
+// about `/x/build/app.js`. Pruning on that basis would silently remove real
+// findings from the scan, which is precisely the failure mode Phase 5.10
+// refused to accept by default. See prunableDirectoryPatterns for the one
+// pattern shape where the implication does hold and can be proved.
+type DirectoryPruner interface {
+	//ShouldPruneDirectory reports whether every file beneath dir is
+	//provably excluded.
+	ShouldPruneDirectory(dir string) bool
+	//HasPrunableDirectories reports whether any pattern can ever prune, so a
+	//caller can skip installing the predicate entirely.
+	HasPrunableDirectories() bool
 }
 
 // ExcludeDefinition describes exclude rules
@@ -55,7 +80,7 @@ type PolicyUpdateResult struct {
 	NewPolicy string
 }
 
-//GenerateSampleExclusion generates a sample exclusion YAML file content with descriptions
+// GenerateSampleExclusion generates a sample exclusion YAML file content with descriptions
 func GenerateSampleExclusion() string {
 	return `# This is a sample Exclusion YAML file to specify patterns of directories, files and values
 # to exclude while searching for secrets
@@ -111,16 +136,32 @@ func DefaultExclusion() ExcludeDefinition {
 	}
 }
 
-//defaultExclusionProvider contains various mechanisms for excluding false positives
+// defaultExclusionProvider contains various mechanisms for excluding false positives
 type defaultExclusionProvider struct {
 	*ExcludeDefinition
 	globallyExcludedRegExsCompiled  []*regexp.Regexp
 	pathExclusionRegExsCompiled     []*regexp.Regexp
 	pathRegexExcludedRegExsCompiled map[*regexp.Regexp][]*regexp.Regexp
 	repositories                    []string
+	//pathExclusionCombined is the alternation of every pathExclusion pattern,
+	//so one MatchString replaces N. ShouldExcludePath is called at least once
+	//per file, and the loop it replaces re-entered the regexp machinery for
+	//each pattern; a single automaton scans the path once regardless of how
+	//many rules a project has accumulated.
+	//
+	//It is nil when there are no patterns, or when the combination failed to
+	//compile — in which case the per-pattern loop remains and behaviour is
+	//unchanged. Combining cannot alter semantics: an alternation matches iff
+	//some member matches, which is exactly the loop's disjunction. Each member
+	//is wrapped in a non-capturing group so that a top-level `|` inside a
+	//pattern cannot escape into the alternation and change its meaning.
+	pathExclusionCombined *regexp.Regexp
+	//prunableDirectoryPatterns holds, for each path exclusion of the form
+	//`X/.*`, the compiled `(?:X)$`. See ShouldPruneDirectory.
+	prunableDirectoryPatterns []*regexp.Regexp
 }
 
-//CompileExcludes returns a ExclusionProvider with the regular expressions already compiled
+// CompileExcludes returns a ExclusionProvider with the regular expressions already compiled
 func CompileExcludes(container ExcludeContainer) (ExclusionProvider, error) {
 	wl := defaultExclusionProvider{
 		ExcludeDefinition: container.ExcludeDef,
@@ -131,7 +172,7 @@ func CompileExcludes(container ExcludeContainer) (ExclusionProvider, error) {
 	return &wl, err
 }
 
-//MakeEmptyExcludes creates an empty default exclusion list
+// MakeEmptyExcludes creates an empty default exclusion list
 func MakeEmptyExcludes() ExclusionProvider {
 	return &defaultExclusionProvider{
 		ExcludeDefinition: &ExcludeDefinition{
@@ -178,7 +219,7 @@ func (wl *defaultExclusionProvider) cleanSerialisationConstructs() (err error) {
 	return
 }
 
-//compileRegExs ensures the regular expressions defined are compilable before use
+// compileRegExs ensures the regular expressions defined are compilable before use
 func (wl *defaultExclusionProvider) compileRegExs() error {
 	wl.globallyExcludedRegExsCompiled = make([]*regexp.Regexp, 0)
 	bestEffortErrors := []error{}
@@ -192,14 +233,17 @@ func (wl *defaultExclusionProvider) compileRegExs() error {
 	}
 
 	wl.pathExclusionRegExsCompiled = make([]*regexp.Regexp, 0)
+	compiledPathSources := make([]string, 0, len(wl.PathExclusionRegExs))
 	for _, s := range wl.PathExclusionRegExs {
 		if re, err := regexp.Compile(s); err == nil {
 			wl.pathExclusionRegExsCompiled = append(wl.pathExclusionRegExsCompiled, re)
+			compiledPathSources = append(compiledPathSources, s)
 		} else {
 			log.Printf("Problem compiling regex: %s, Error: %s", s, err.Error())
 			bestEffortErrors = append(bestEffortErrors, err)
 		}
 	}
+	wl.buildPathExclusionAccelerators(compiledPathSources)
 
 	wl.pathRegexExcludedRegExsCompiled = make(map[*regexp.Regexp][]*regexp.Regexp)
 	for p, ss := range wl.PathRegexExcludedRegExs {
@@ -235,8 +279,8 @@ func (wl *defaultExclusionProvider) compileRegExs() error {
 	return combinedErr
 }
 
-//ShouldExclude determines whether the supplied value should be excluded based on its value and the
-//path (if any) of the source file providing additional context
+// ShouldExclude determines whether the supplied value should be excluded based on its value and the
+// path (if any) of the source file providing additional context
 func (wl *defaultExclusionProvider) ShouldExclude(pathContext, value string) bool {
 	for _, s := range wl.GloballyExcludedStrings {
 		if s == value {
@@ -318,8 +362,12 @@ func (wl *defaultExclusionProvider) ShouldExcludeHash(hash string) bool {
 	return false
 }
 
-//ShouldExcludePath determines whether the path should be excluded from analysis
+// ShouldExcludePath determines whether the path should be excluded from analysis
 func (wl *defaultExclusionProvider) ShouldExcludePath(pathContext string) bool {
+
+	if wl.pathExclusionCombined != nil {
+		return wl.pathExclusionCombined.MatchString(pathContext)
+	}
 
 	for _, prx := range wl.pathExclusionRegExsCompiled {
 		if prx.MatchString(pathContext) {
@@ -330,7 +378,95 @@ func (wl *defaultExclusionProvider) ShouldExcludePath(pathContext string) bool {
 	return false
 }
 
-//ShouldExcludeValue determines whether the value should be excluded from results
+// buildPathExclusionAccelerators derives, from the path exclusion patterns that
+// compiled successfully, (a) a single combined alternation used by
+// ShouldExcludePath and (b) the subset that can prune a whole directory.
+func (wl *defaultExclusionProvider) buildPathExclusionAccelerators(sources []string) {
+	wl.pathExclusionCombined = nil
+	wl.prunableDirectoryPatterns = nil
+
+	if len(sources) == 0 {
+		return
+	}
+
+	grouped := make([]string, 0, len(sources))
+	for _, s := range sources {
+		grouped = append(grouped, "(?:"+s+")")
+	}
+
+	//Every member compiled on its own, so the alternation compiles too except
+	//in pathological size cases. If it does not, we simply keep the loop.
+	if combined, err := regexp.Compile(strings.Join(grouped, "|")); err == nil {
+		wl.pathExclusionCombined = combined
+	}
+
+	for _, s := range sources {
+		if re, ok := directoryPrunePattern(s); ok {
+			wl.prunableDirectoryPatterns = append(wl.prunableDirectoryPatterns, re)
+		}
+	}
+}
+
+// directoryPrunePattern derives a directory-level matcher from a path exclusion
+// pattern, when — and only when — matching the directory provably implies
+// matching every file beneath it.
+//
+// The one shape where that holds is a pattern ending in `/.*`:
+//
+//	pattern  P = X/.*
+//	dir      D such that (?:X)$ matches D
+//	file     F = D + "/" + anything
+//
+// Since X matches a substring of D ending at D's final character, and F
+// continues with "/" followed by arbitrary characters, P matches F. So every
+// file under D is excluded and D can be skipped without opening it.
+//
+// The `$` anchor is what makes the argument work, and it is easy to get wrong:
+// without it, X could match anywhere inside D and the "/" required by P need
+// not be the separator that begins the remainder of F. `.` does not match a
+// newline in Go, but neither `X` nor the remainder needs it to — the implication
+// only requires that `.*` can span the rest of the path, and a path containing a
+// newline would fail to match P for the file too, so the direction of the
+// implication is preserved.
+//
+// Anything else — a pattern targeting file names, extensions, or a directory
+// without the `/.*` tail — yields no pruner. That is intentional: a wrong
+// "prune" removes files from the scan silently, so this function fails closed.
+func directoryPrunePattern(source string) (*regexp.Regexp, bool) {
+	trimmed := strings.TrimSuffix(source, "$")
+	if !strings.HasSuffix(trimmed, "/.*") {
+		return nil, false
+	}
+
+	prefix := strings.TrimSuffix(trimmed, "/.*")
+	if prefix == "" {
+		return nil, false
+	}
+
+	re, err := regexp.Compile("(?:" + prefix + ")$")
+	if err != nil {
+		return nil, false
+	}
+	return re, true
+}
+
+// ShouldPruneDirectory reports whether every file beneath dir is provably
+// excluded. See DirectoryPruner and directoryPrunePattern.
+func (wl *defaultExclusionProvider) ShouldPruneDirectory(dir string) bool {
+	for _, re := range wl.prunableDirectoryPatterns {
+		if re.MatchString(dir) {
+			return true
+		}
+	}
+	return false
+}
+
+// HasPrunableDirectories reports whether any exclusion can ever prune a subtree.
+func (wl *defaultExclusionProvider) HasPrunableDirectories() bool {
+	return len(wl.prunableDirectoryPatterns) > 0
+}
+
+// ShouldExcludeValue determines whether the value should be excluded from results
 func (wl *defaultExclusionProvider) ShouldExcludeValue(value string) bool {
 
 	for _, s := range wl.GloballyExcludedStrings {

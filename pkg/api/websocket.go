@@ -7,8 +7,8 @@ import (
 
 	"github.com/adedayo/checkmate/pkg/core/diagnostics"
 	"github.com/adedayo/checkmate/pkg/core/projects"
-	secrets "github.com/adedayo/checkmate/pkg/plugin/secrets-finder/pkg"
 	"github.com/adedayo/checkmate/pkg/gitservice/utils"
+	secrets "github.com/adedayo/checkmate/pkg/plugin/secrets-finder/pkg"
 	"github.com/gorilla/websocket"
 )
 
@@ -114,9 +114,17 @@ func runSecretScan(ctx context.Context, options ProjectScanOptions, ws *websocke
 			consumer.start(options.ProjectID)
 		}
 
-		paths := []string{}
+		//The number of files scanned comes from the progress event's Position,
+		//not from counting the events. Progress is coalesced onto an interval
+		//now, so one event no longer means one file — counting them would
+		//report a scan of a million files as a scan of a dozen, and the
+		//summary would look plausible while being wrong by five orders of
+		//magnitude. Position is monotonic and its final value is exact.
+		var filesScanned int64
 		progressMon := func(progress diagnostics.Progress) {
-			paths = append(paths, progress.CurrentFile)
+			if progress.Position > filesScanned {
+				filesScanned = progress.Position
+			}
 			for _, ws := range GetListeningSocketsByProjectID(id) {
 				_ = ws.WriteJSON(progress)
 			}
@@ -147,7 +155,7 @@ func runSecretScan(ctx context.Context, options ProjectScanOptions, ws *websocke
 		var scanSummary *projects.ScanSummary
 		summariser := func(projID, sID string, issues []*diagnostics.SecurityDiagnostic) *projects.ScanSummary {
 
-			model := projects.GenerateModel(len(paths), secOptions.ShowSource, issues)
+			model := projects.GenerateModel(int(filesScanned), secOptions.ShowSource, issues)
 			scanSummary = model.Summarise()
 
 			// removeScanListeners(id)

@@ -819,6 +819,13 @@ func (d *DB) RunScan(
 
 	files := <-pathsCh
 
+	// Findings arrive in file-completion order, which is nondeterministic now
+	// that files are scanned in parallel. Everything derived from the slice
+	// below — the summary, the severity counts, the report — is order-
+	// sensitive to some degree, so pin the order before any of it is computed
+	// or stored.
+	diagnostics.SortDiagnosticsCanonically(allFindings)
+
 	// Build summary
 	scanSummary := summariser(projectID, scanID, allFindings)
 	if scanSummary == nil {
