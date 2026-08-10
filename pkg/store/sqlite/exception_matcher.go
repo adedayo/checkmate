@@ -301,7 +301,7 @@ func (d *DB) reconcileSuppressions(ctx context.Context, scanID, projectID string
 		log.Printf("reconcileSuppressions: prepare: %v", err)
 		return
 	}
-	defer stmt.Close()
+	defer func() { _ = stmt.Close() }()
 
 	for _, u := range updates {
 		var excID interface{}
