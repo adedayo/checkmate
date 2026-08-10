@@ -5,7 +5,7 @@ go 1.26.1
 require (
 	// github.com/adedayo/code-intel-service v0.0.1
 	github.com/adedayo/go-lsp v0.0.9
-	github.com/go-git/go-git/v5 v5.19.1
+	github.com/go-git/go-git/v5 v5.19.2
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.3

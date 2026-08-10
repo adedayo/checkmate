@@ -2,7 +2,6 @@ package sqlite
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"embed"
 	"encoding/json"
@@ -810,6 +809,13 @@ func (d *DB) RunScan(
 		activeExceptions = append(activeExceptions, exc)
 	}
 
+	// Findings are persisted by a single batching writer rather than a
+	// goroutine per finding. See findingWriter for why: the previous approach
+	// queued thousands of goroutines on the store's exclusive lock, which
+	// starved interactive writes — suppressing a finding mid-scan appeared to
+	// hang until the scan finished.
+	writer := d.newFindingWriter(ctx, scanID, projectID)
+
 	for finding := range findingsCh {
 		allFindings = append(allFindings, finding)
 
@@ -818,8 +824,7 @@ func (d *DB) RunScan(
 			finding.Excluded = true
 		}
 
-		// Persist finding
-		go d.persistFinding(ctx, finding, scanID, projectID, suppressed, excID)
+		writer.add(finding, suppressed, excID)
 
 		// Notify consumers (e.g. WebSocket broadcaster)
 		for _, c := range consumers {
@@ -833,6 +838,11 @@ func (d *DB) RunScan(
 			Data:   finding,
 		})
 	}
+
+	// Blocks until every finding is durable. Everything below — the summary,
+	// the severity counts, marking the scan complete — describes a scan whose
+	// findings are in the database, which was not previously guaranteed.
+	writer.close()
 
 	files := <-pathsCh
 
@@ -936,102 +946,6 @@ func (d *DB) markScanFailed(ctx context.Context, scanID string) {
 	}
 }
 
-func (d *DB) persistFinding(ctx context.Context, finding *diagnostics.SecurityDiagnostic, scanID, projectID string, suppressed bool, exceptionID string) {
-	if finding == nil {
-		return
-	}
-
-	checksum := ""
-	if finding.SHA256 != nil {
-		checksum = *finding.SHA256
-	}
-
-	location := ""
-	if finding.Location != nil {
-		location = *finding.Location
-	}
-
-	ruleName := finding.Justification.Headline.Description
-
-	line := finding.Range.Start.Line + 1
-	col := finding.Range.Start.Character + 1
-
-	// Build deterministic finding ID
-	hash := sha256.New()
-	_, _ = fmt.Fprintf(hash, "%s:%s:%s:%d:%d:%s", ruleName, "", location, line, col, checksum)
-	findingID := fmt.Sprintf("%x", hash.Sum(nil))
-
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	now := time.Now().UTC().Format(time.RFC3339)
-
-	// Since checkmate-core SecurityDiagnostic lacks standard fields like branch/commit,
-	// we map what we can for the relational columns and store the rest as JSON (if needed).
-	// In the future, findings might include an evidence redacted string.
-	evidenceRedacted := ""
-	source := ""
-	if finding.Source != nil {
-		source = *finding.Source
-	}
-
-	suppressedInt := 0
-	if suppressed {
-		suppressedInt = 1
-	}
-	var excID interface{} = nil
-	if exceptionID != "" {
-		excID = exceptionID
-	}
-
-	var prevAIAnnotation, prevVerificationStatus sql.NullString
-	_ = d.db.QueryRowContext(ctx, `
-		SELECT ai_annotation, verification_status
-		FROM findings
-		WHERE project_id = ? AND finding_id = ? AND (ai_annotation IS NOT NULL OR (verification_status IS NOT NULL AND verification_status != 'NOT_CHECKED'))
-		ORDER BY rowid DESC LIMIT 1
-	`, projectID, findingID).Scan(&prevAIAnnotation, &prevVerificationStatus)
-
-	initialVerifStatus := "NOT_CHECKED"
-	if prevVerificationStatus.Valid && prevVerificationStatus.String != "" {
-		initialVerifStatus = prevVerificationStatus.String
-	}
-
-	var aiAnnotationVal interface{} = nil
-	if prevAIAnnotation.Valid && prevAIAnnotation.String != "" {
-		aiAnnotationVal = prevAIAnnotation.String
-	}
-
-	_, err := d.db.ExecContext(ctx, `
-		INSERT OR IGNORE INTO findings(
-			finding_id, scan_id, project_id,
-			rule_id, secret_type, severity, confidence,
-			repo_url, commit_sha, branch, file_path, line_number, column_number,
-			evidence_redacted, secret_checksum, source_context,
-			suppressed, exception_id, verification_status, ai_annotation, detected_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		findingID, scanID, projectID,
-		ruleName, "generic.high_entropy", finding.Justification.Headline.Confidence.String(), finding.Justification.Headline.Confidence.String(),
-		"", "", "", location, line,
-		col,
-		evidenceRedacted, checksum, source,
-		suppressedInt, excID, initialVerifStatus, aiAnnotationVal, now,
-	)
-	if err != nil {
-		log.Printf("persistFinding: %v", err)
-	}
-
-	if !suppressed && d.webhookDispatcher != nil {
-		go d.webhookDispatcher("finding.detected", map[string]interface{}{
-			"findingId":  findingID,
-			"secretType": "generic.high_entropy",
-			"severity":   finding.Justification.Headline.Confidence.String(),
-			"file":       location,
-			"line":       line,
-		})
-	}
-}
-
 // ─── Row scanners ─────────────────────────────────────────────────────────────
 
 type rowScanner interface {
@@ -1117,6 +1031,12 @@ func (d *DB) scanFindingRow(row rowScanner) (*diagnostics.SecurityDiagnostic, er
 			diag.AIAnnotation = ann
 		}
 	}
+
+	// The suppressed column was scanned but never mapped, so every finding
+	// read back from the store reported itself as not suppressed regardless of
+	// what was recorded. Suppression survived the write and was lost on the
+	// read, which makes a suppression look as though it did nothing.
+	diag.Excluded = suppressed == 1
 
 	return diag, nil
 }
@@ -1226,7 +1146,16 @@ func (d *DB) SearchFindings(req store.FindingSearchRequest) (*store.FindingSearc
 	}
 	offset := (page - 1) * limit
 
-	query := fmt.Sprintf("SELECT id, scan_id, project_id, finding_id, rule_id, confidence, location, line_number, column_number, secret_checksum, source_context FROM findings WHERE %s LIMIT ? OFFSET ?", strings.Join(where, " AND "))
+	// The column list must match scanFindingRow's Scan, and the table. This
+	// previously selected "id" and "location", neither of which exists in the
+	// findings schema, and eleven columns where the scanner reads nineteen —
+	// so every call failed with "no such column: id". Nothing exercised it.
+	query := fmt.Sprintf(`SELECT finding_id, rule_id, secret_type, severity, confidence,
+	        repo_url, commit_sha, branch, file_path, line_number, column_number,
+	        evidence_redacted, secret_checksum, source_context,
+	        suppressed, exception_id, verification_status, ai_annotation, detected_at
+	 FROM findings WHERE %s ORDER BY file_path, line_number LIMIT ? OFFSET ?`,
+		strings.Join(where, " AND "))
 	args = append(args, limit, offset)
 
 	rows, err := d.db.Query(query, args...)
