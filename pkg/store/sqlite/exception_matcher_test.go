@@ -174,7 +174,7 @@ func TestRuleScopedExceptionDoesNotSuppressOtherRules(t *testing.T) {
 func TestReconcileSuppressesFindingsRecordedBeforeTheException(t *testing.T) {
 	db, err := New(t.TempDir())
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	projectID := uuid.NewString()
 	scanID := uuid.NewString()
@@ -221,7 +221,7 @@ func TestReconcileSuppressesFindingsRecordedBeforeTheException(t *testing.T) {
 func TestReconcileLeavesUncoveredFindingsAlone(t *testing.T) {
 	db, err := New(t.TempDir())
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	projectID := uuid.NewString()
 	scanID := uuid.NewString()
@@ -251,7 +251,7 @@ func TestReconcileLeavesUncoveredFindingsAlone(t *testing.T) {
 func TestReconcileWithNoExceptionsIsANoOp(t *testing.T) {
 	db, err := New(t.TempDir())
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	projectID := uuid.NewString()
 	scanID := uuid.NewString()
