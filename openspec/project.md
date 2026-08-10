@@ -55,3 +55,12 @@ This file is read by AI coding agents working in this repo (OpenSpec convention)
     `sqlite.DB.RunScan` accepts `progressMonitor` and never calls it, so the
     WebSocket scan summary reports `fileCount: 0`. Pre-existing, verified at the
     pre-003 commit.
+  - `changes/006-account-wide-repository-discovery/` — decisions resolved, ready
+    to start. Resolve a GitHub account (`https://github.com/adedayo`) to its full
+    repository set and enrol it as a single project. Anonymous (public) by
+    default over REST; token-authenticated over GraphQL for private repositories.
+    Snapshot enrolment plus opt-in account watch for continuous attack surface
+    monitoring, with repository membership tracked as a time series and findings
+    history decoupled from checked-out code retention. Introduces the
+    `repository-discovery` capability; deltas to `api-contract`, `data-store`,
+    `sdk` and `webhooks`.
