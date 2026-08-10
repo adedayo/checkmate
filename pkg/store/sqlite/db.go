@@ -655,50 +655,6 @@ func (d *DB) BuildExclusionProvider(projectID string) (diagnostics.ExclusionProv
 	return diagnostics.CompileExcludes(container)
 }
 
-// matchException evaluates a finding against a list of active exceptions.
-func matchException(finding *diagnostics.SecurityDiagnostic, exceptions []*store.Exception) (bool, string) {
-	if finding == nil {
-		return false, ""
-	}
-
-	ruleName := finding.Justification.Headline.Description
-
-	for _, exc := range exceptions {
-		if exc.RuleID != "*" && exc.RuleID != ruleName {
-			continue
-		}
-
-		if exc.Scope == nil {
-			continue
-		}
-
-		switch exc.Scope.Type {
-		case "global", "project":
-			return true, exc.ID
-		case "directory":
-			if finding.Location != nil && strings.HasPrefix(*finding.Location, exc.Scope.Path) {
-				return true, exc.ID
-			}
-		case "file":
-			if finding.Location != nil && *finding.Location == exc.Scope.Path {
-				return true, exc.ID
-			}
-		case "line":
-			if finding.Location != nil && *finding.Location == exc.Scope.Path {
-				line := int(finding.Range.Start.Line + 1)
-				if exc.Scope.LineStart != nil && exc.Scope.LineEnd != nil && line >= *exc.Scope.LineStart && line <= *exc.Scope.LineEnd {
-					return true, exc.ID
-				}
-			}
-		case "value":
-			if finding.SHA256 != nil && *finding.SHA256 == exc.Scope.SecretChecksum {
-				return true, exc.ID
-			}
-		}
-	}
-	return false, ""
-}
-
 // RunScan executes a full scan for a project, persisting findings and summary.
 func (d *DB) RunScan(
 	ctx context.Context,
@@ -795,19 +751,20 @@ func (d *DB) RunScan(
 	startTime := time.Now()
 	var allFindings []*diagnostics.SecurityDiagnostic
 
-	// Fetch active exceptions
-	allExceptions, _ := d.ListExceptions(projectID)
-	var activeExceptions []*store.Exception
-	nowT := time.Now()
-	for _, exc := range allExceptions {
-		if exc.Status != "active" {
-			continue
-		}
-		if exc.ExpiresAt != nil && exc.ExpiresAt.Before(nowT) {
-			continue
-		}
-		activeExceptions = append(activeExceptions, exc)
-	}
+	// Suppressions created while this scan is running should apply to it, not
+	// only to the next one. The engine-side exclusion provider above was
+	// compiled before the workers started and cannot be changed underneath
+	// them, so the store-side matcher is refreshed periodically instead: a
+	// false positive suppressed at file 40,000 then covers files 40,001
+	// onwards. Findings already recorded are reconciled after the loop, so the
+	// scan ends under one policy rather than a mixture — see below.
+	//
+	// Refreshing on a timer rather than per finding keeps this off the hot
+	// path; ListExceptions takes the store lock, and a scan can emit findings
+	// far faster than an operator can click.
+	matcher := newExceptionMatcher(d.listExceptionsQuietly(projectID))
+	const exceptionRefreshInterval = 2 * time.Second
+	lastExceptionRefresh := time.Now()
 
 	// Findings are persisted by a single batching writer rather than a
 	// goroutine per finding. See findingWriter for why: the previous approach
@@ -819,7 +776,12 @@ func (d *DB) RunScan(
 	for finding := range findingsCh {
 		allFindings = append(allFindings, finding)
 
-		suppressed, excID := matchException(finding, activeExceptions)
+		if time.Since(lastExceptionRefresh) >= exceptionRefreshInterval {
+			matcher = newExceptionMatcher(d.listExceptionsQuietly(projectID))
+			lastExceptionRefresh = time.Now()
+		}
+
+		suppressed, excID := matcher.match(finding)
 		if suppressed {
 			finding.Excluded = true
 		}
@@ -843,6 +805,18 @@ func (d *DB) RunScan(
 	// the severity counts, marking the scan complete — describes a scan whose
 	// findings are in the database, which was not previously guaranteed.
 	writer.close()
+
+	// A suppression created part-way through the scan has so far only affected
+	// the findings that arrived after it. Apply it to the ones that arrived
+	// before, so the completed scan reflects a single, final policy rather than
+	// a record of when the operator happened to click. Without this, two
+	// identical secrets in the same scan can end up with different verdicts,
+	// and the summary, severity counts and score below would be computed from
+	// that mixed set.
+	//
+	// Done once, after the writer has drained, so it cannot race the inserts it
+	// is amending.
+	d.reconcileSuppressions(ctx, scanID, projectID, allFindings)
 
 	files := <-pathsCh
 

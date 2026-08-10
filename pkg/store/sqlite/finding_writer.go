@@ -155,6 +155,31 @@ func (w *findingWriter) run() {
 	}
 }
 
+// computeFindingID derives the stable identity of a finding.
+//
+// It is the primary key the findings table is addressed by, so anything that
+// wants to revisit a row it did not itself insert — the mid-scan suppression
+// reconciler, for one — must derive the identity exactly the same way. Hence a
+// single definition rather than the formula written out at each call site.
+func computeFindingID(finding *diagnostics.SecurityDiagnostic) string {
+	checksum := ""
+	if finding.SHA256 != nil {
+		checksum = *finding.SHA256
+	}
+	location := ""
+	if finding.Location != nil {
+		location = *finding.Location
+	}
+
+	ruleName := finding.Justification.Headline.Description
+	line := finding.Range.Start.Line + 1
+	col := finding.Range.Start.Character + 1
+
+	hash := sha256.New()
+	_, _ = fmt.Fprintf(hash, "%s:%s:%s:%d:%d:%s", ruleName, "", location, line, col, checksum)
+	return fmt.Sprintf("%x", hash.Sum(nil))
+}
+
 // persistFindingBatch writes a batch of findings in one transaction, holding
 // the store lock once for the batch rather than once per finding.
 func (d *DB) persistFindingBatch(ctx context.Context, scanID, projectID string, batch []findingWrite) {
@@ -224,9 +249,7 @@ func (d *DB) persistFindingBatch(ctx context.Context, scanID, projectID string, 
 		line := finding.Range.Start.Line + 1
 		col := finding.Range.Start.Character + 1
 
-		hash := sha256.New()
-		_, _ = fmt.Fprintf(hash, "%s:%s:%s:%d:%d:%s", ruleName, "", location, line, col, checksum)
-		findingID := fmt.Sprintf("%x", hash.Sum(nil))
+		findingID := computeFindingID(finding)
 
 		// Carry forward any triage the user or the AI has already recorded for
 		// this finding, so a rescan does not silently discard it.
