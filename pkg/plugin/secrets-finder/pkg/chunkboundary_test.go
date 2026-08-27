@@ -2,31 +2,56 @@ package secrets
 
 // Phase 10 — offset-independence of findings.
 //
-// # What this file does and does not establish
+// # What this file establishes
 //
-// **These tests pass against the pre-change engine as well as the current one.
-// They therefore do NOT reproduce the difference described below, and are not
-// a regression guard for it.** They are kept as a forward-looking property
-// test: they assert something that must remain true, and would catch a future
-// change that reintroduced offset-dependent matching in the straightforward
-// case. Read them as a statement of intent, not as evidence.
+// `TestChunkBoundarySuppressionIsNotLost` below is a real regression guard: it
+// reproduces, in 4,200 synthetic bytes, the divergence found against a real
+// dependency tree, and it **fails against the pre-change engine** (which
+// reports the finding) and passes against the current one (which does not).
+// It was reduced by `tools/boundarydiff` under openspec change 004.
 //
-// # The difference they were written for
+// The two property tests after it are weaker and are labelled as such: they
+// pass against both engines, so they do not reproduce anything. They are kept
+// as forward-looking assertions about offset-independence.
+//
+// # The mechanism, now established
 //
 // Phase 10.5 scanned a real 22,542-file dependency tree and found 53 stable
-// finding differences against the pre-change engine. Every affected file was
-// larger than 4,096 bytes — the old dataChunkSize — and no file at or below
-// that size differed at all. A controlled shift of one real file, moving a
-// matching region from offset 4,327 to 3,927 by deleting 400 bytes earlier in
-// the file, flips the pre-change engine's output and not the current engine's.
+// finding differences. Every affected file exceeded 4,096 bytes — the old
+// dataChunkSize — and no smaller file differed at all. The 003 record left the
+// cause as an inference from that correlation, because two manual attempts to
+// synthesise it (50 cases sweeping a secret across the seam, 11 reproducing
+// one file's shape) produced zero divergence.
 //
-// The obvious explanation is that the old chunked read restarted matching at
-// each 4KB boundary, so a buffer edge could manufacture or truncate a match.
-// That explanation is **inferred from the correlation and has not been
-// proved**: two attempts to reduce it to a synthetic fixture — 50 cases
-// sweeping a secret across the seam, and 11 reproducing the exact shape of the
-// one file examined closely — showed zero divergence between engines. Some
-// property of the real content is not captured here. See baseline.md.
+// Those attempts failed because they were looking for the wrong thing. They
+// swept a **well-formed secret** across the boundary, and a well-formed secret
+// is reported by both engines wherever it sits. The divergence is the opposite
+// case: a **false positive that whole-file context suppresses**.
+//
+// Reduction of `testdata/boundary/css-select-filters.js` (145 lines to 3,
+// holding every byte offset fixed so chunk geometry could not change) isolated
+// three necessary ingredients:
+//
+//  1. a double-quote character before the seam;
+//  2. a `// ... :root` comment after it;
+//  3. a `filters["root"](...)` match after it.
+//
+// Remove any one and both engines agree. The old reader consumed each chunk in
+// a separate `Consume` call, so a suppression rule needing to see both (1) and
+// (3) could not fire when the seam fell between them, and the false positive
+// survived. The whole-file engine sees both and suppresses it.
+//
+// Moving the quote across the seam confirms this directly: with the quote at
+// bytes 3,101 / 3,763 / 4,018 the engines diverge; at 4,064 / 4,101 / 4,189
+// they agree. The flip is exactly at the newline-aligned chunk split (byte
+// 4,063, the end of line 108) — not at 4,096, because `readChunks` walks back
+// to the last newline. So the divergence tracks the *real* seam, which is
+// stronger evidence than a correlation with the nominal chunk size.
+//
+// This also refutes the two hypotheses recorded in the 004 design. It is not
+// the `largeChunk` accumulation branch: the reproducer has short lines and
+// never enters it. It is not entropy scored over a truncated window: the
+// finding is a fixed-string match, and its SHA-256 is identical either side.
 //
 // # Why the reference corpus could not catch it
 //
@@ -34,12 +59,7 @@ package secrets
 // than 4KB, so no fixture ever contained a chunk boundary. The adversarial
 // fixtures do, but they are single-line by construction and are asserted on
 // for time rather than content. The missing shape was "a multi-line file over
-// 4KB with a match near byte 4096" — the commonest shape in real source code,
-// and the reason a whole class of differences went unnoticed until the engine
-// met a real repository.
-//
-// If the minimal fixture is ever found, it belongs here, and at that point
-// these tests become a real guard rather than an aspiration.
+// 4KB with a suppressible false positive after byte 4096".
 
 import (
 	"fmt"
@@ -52,6 +72,95 @@ import (
 // offset where the historic implementation placed a seam, and the test must
 // keep probing it even if the current buffer size changes.
 const oldChunkSize = 4096
+
+// buildCrossSeamSuppressionCase returns the minimised reproducer.
+//
+// Shape: a quote in the first chunk, inert padding across the seam, then a
+// comment and a `filters["root"]` match in the second. `withQuote` controls
+// ingredient (1) and is the single variable the test flips.
+//
+// The padding is blank rather than plausible-looking code on purpose. That is
+// the reverse of the advice on buildFileWithMatchAtOffset below, and the
+// difference matters: here the padding must contribute *nothing*, because the
+// whole claim is that three specific lines are sufficient. Delta debugging
+// established that blank padding preserves the divergence, so anything richer
+// would only reintroduce the doubt about what is really responsible.
+func buildCrossSeamSuppressionCase(withQuote bool) string {
+	var b strings.Builder
+
+	if withQuote {
+		b.WriteString("    \"x\"\n")
+	} else {
+		b.WriteString("       \n")
+	}
+
+	// Push the match past the seam. The exact count is not delicate — any
+	// padding that carries the match beyond 4,096 bytes reproduces it — but it
+	// is asserted below rather than assumed.
+	for i := 0; i < 100; i++ {
+		b.WriteString(strings.Repeat(" ", 40) + "\n")
+	}
+
+	b.WriteString("            // Equivalent to :root\n")
+	b.WriteString("            return filters[\"root\"](next, rule, options);\n")
+
+	return b.String()
+}
+
+// TestChunkBoundarySuppressionIsNotLost is the regression guard.
+//
+// It asserts that the `filters["root"]` false positive is suppressed when a
+// quote precedes it, *even though* the two sit either side of the historic
+// 4KB seam. The pre-change engine fails this: it reports the finding, because
+// its two chunks were matched independently and the suppressing context never
+// reached the match. Verified by running both engines under
+// tools/boundarydiff — pre-change reports 1 finding, current reports 0.
+func TestChunkBoundarySuppressionIsNotLost(t *testing.T) {
+	withQuote := buildCrossSeamSuppressionCase(true)
+
+	// Guard the precondition. If this fixture ever stops straddling the seam,
+	// the test would pass for an unrelated reason — the divergence would
+	// vanish because its precondition had gone, not because the defect had.
+	// That is the specific failure mode this whole change was written to
+	// avoid, so it is asserted, not assumed.
+	if len(withQuote) <= oldChunkSize {
+		t.Fatalf("fixture is %d bytes, which no longer exceeds the historic "+
+			"chunk size of %d; it cannot contain a seam and the test is vacuous",
+			len(withQuote), oldChunkSize)
+	}
+	if idx := strings.Index(withQuote, "filters["); idx <= oldChunkSize {
+		t.Fatalf("the match sits at byte %d, inside the first chunk; the "+
+			"fixture must place it beyond byte %d to exercise the seam",
+			idx, oldChunkSize)
+	}
+
+	countRootFindings := func(t *testing.T, content string) int {
+		t.Helper()
+		root := materialiseCorpus(t, []corpusFile{{
+			Path:    "repo-a/src/filters.js",
+			Content: content,
+		}})
+		return len(runScan(t, baselineOptions(), root).Findings)
+	}
+
+	// The control. Without the quote, both engines report the finding, so a
+	// non-zero count here proves the fixture reaches a rule at all and that
+	// the zero below is suppression rather than the scanner ignoring the file.
+	if got := countRootFindings(t, buildCrossSeamSuppressionCase(false)); got == 0 {
+		t.Fatal("control fixture produced no findings at all; the assertion " +
+			"below would pass vacuously, proving nothing")
+	}
+
+	if got := countRootFindings(t, withQuote); got != 0 {
+		t.Errorf(""+
+			"cross-seam suppression was lost: got %d findings, want 0.\n"+
+			"A quote before the historic 4KB seam must still suppress the "+
+			"filters[\"root\"] false positive after it. Reporting it means "+
+			"matching context is once again confined to a read buffer, which "+
+			"is the pre-change chunked-read defect; see openspec change 004.",
+			got)
+	}
+}
 
 // buildFileWithMatchAtOffset returns a multi-line file whose secret assignment
 // begins at approximately the requested byte offset.
@@ -80,9 +189,9 @@ func buildFileWithMatchAtOffset(offset int, secret string) string {
 // in the file.
 //
 // The offsets straddle the historic 4KB seam and its multiples. Note this
-// passes on the pre-change engine too — see the file comment — so it does not
-// demonstrate the difference found in Phase 10.5; it only fixes the property
-// going forward.
+// passes on the pre-change engine too, so it does not demonstrate the
+// difference found in Phase 10.5 — TestChunkBoundarySuppressionIsNotLost does
+// that. This only fixes the property going forward.
 func TestFindingsDoNotDependOnChunkBoundary(t *testing.T) {
 	const secret = "AKIAIOSFODNN7EXAMPLE"
 

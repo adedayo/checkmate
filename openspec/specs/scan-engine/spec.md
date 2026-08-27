@@ -50,11 +50,26 @@ pre-existing defects rather than consequences of optimisation:
    Note this changes `findingID` for affected findings, since identity includes
    position. Stored findings in those files will be re-keyed on the next scan.
 
-   **This exception is recorded on inferred rather than proven mechanism, and
-   has no regression test.** Two attempts to reduce it to a synthetic fixture
-   did not reproduce it; see `baseline.md`. Accepting this change means
-   accepting a finding-set difference whose precise cause is understood only by
-   correlation.
+   **The mechanism is now proved, and the exception has a regression test.**
+   Change 004 reduced a real diverging file from 145 lines to 3 by delta
+   debugging under an oracle that ran both engines three times per candidate,
+   holding every byte offset fixed so chunk geometry could not vary. Three
+   ingredients are each necessary: a double-quote before the seam, a
+   `// ... :root` comment after it, and a `filters["root"](...)` match after
+   it. Remove any one and the engines agree.
+
+   The old reader consumed each chunk in a separate `Consume` call, so a
+   suppression rule that must see both the quote and the match could not fire
+   when the seam fell between them, and a false positive survived. The
+   whole-file engine sees both and suppresses it. Moving the quote across the
+   seam flips the behaviour exactly at the newline-aligned split (byte 4,063),
+   not at the nominal 4,096 — so the divergence tracks the real seam, which is
+   stronger evidence than the size correlation alone.
+
+   This confirms the earlier finding that the affected results are heuristic
+   false positives on comment text: the current engine reports *fewer* of them.
+   `TestChunkBoundarySuppressionIsNotLost` in `chunkboundary_test.go` guards
+   this, and was verified to fail against the pre-change engine.
 
 
 ---
@@ -338,3 +353,58 @@ The following MUST pass in CI before this change is accepted:
    throughput target.
 7. **Adversarial corpus** — minified/single-line/base64/binary/symlink-loop/deep
    -nesting fixtures complete within their stated bounds.
+
+## Chunk-boundary offset independence
+
+Merged from change 004-chunk-boundary-minimisation, which discharged the
+"inferred mechanism" exception recorded above.
+
+- **R1** — Offset independence MUST be a proved property, not an inferred one.
+  A finding-set difference attributed to a read-buffer boundary MUST be
+  supported by a reproducer and a named mechanism. A correlation with file size
+  is not sufficient: it is equally consistent with "the boundary causes it" and
+  "something else causes it and correlates with size".
+
+  Discharged. The mechanism is the loss of a suppression across the seam, not a
+  manufactured or truncated match. Confirmed by moving the trigger across the
+  boundary: divergence at bytes 3,101 / 3,763 / 4,018, agreement at 4,064 /
+  4,101 / 4,189, flipping exactly at the newline-aligned split (byte 4,063)
+  rather than the nominal 4,096.
+
+- **R2** — The reproducer MUST be committed, with origin, version and hash.
+  Reproducers discovered in `node_modules` or other regenerable trees do not
+  survive a reinstall.
+
+  Discharged: `pkg/plugin/secrets-finder/pkg/testdata/boundary/`.
+
+- **R3** — A differential oracle MUST tolerate baseline nondeterminism. It MUST
+  run each revision more than once and MUST distinguish "unstable" from "does
+  not diverge". Collapsing the two lets a flaky oracle steer a search and
+  produce a confident, meaningless result.
+
+  Discharged: `tools/boundarydiff`, 3 runs per side, three-valued verdict.
+
+- **R4** — Minimisation MUST NOT cross below the chunk threshold undetected. A
+  divergence that vanishes because the input no longer contains a second chunk
+  is not a result; the precondition was destroyed, not the defect.
+
+  Discharged structurally rather than by post-hoc check: deleted lines are
+  replaced by equal-length whitespace, so input length and every newline
+  position are invariant and chunk geometry cannot change. The tool aborts if a
+  reduction ever alters the length.
+
+- **R5** — Unexplained MUST be recordable as unexplained. If minimisation
+  fails, the exception stands explicitly on correlation and says so. The
+  prohibited outcome is a test that passes for an unrelated reason and is
+  presented as a guard.
+
+  Not exercised — minimisation succeeded — but retained, as it governs any
+  future instance.
+
+### Regression guard
+
+`TestChunkBoundarySuppressionIsNotLost` reproduces the mechanism in 4,200
+synthetic bytes and was verified to fail against the pre-change engine (1
+finding) and pass against the current one (0). The two other tests in
+`chunkboundary_test.go` pass against both engines and are labelled in the file
+as forward-looking property tests rather than guards.

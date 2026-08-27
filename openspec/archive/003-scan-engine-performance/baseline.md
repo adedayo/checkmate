@@ -516,6 +516,42 @@ as evidence for it. Its file comment says so. Recorded as an open follow-up
 rather than papered over: either minimise the real file into a committed
 fixture, or find the content property the reconstructions missed.
 
+> **RESOLVED by change 004.** The follow-up above is closed; the section it
+> qualifies is left as written, because what was true at the time is part of
+> the record.
+>
+> The content property the reconstructions missed was **a double-quote
+> character before the seam**. Attempt 2 was one ingredient away: it had the
+> `root(` definition and the `// Equivalent to :root` comment, but its padding
+> contained no quote, so the suppression it needed to defeat never armed.
+>
+> The mechanism is not a manufactured or truncated match, which is what both
+> attempts were looking for. It is the **loss of a suppression**. The old
+> reader passed each chunk to a separate `Consume` call, so a rule needing to
+> see both the quote and the match could not fire across the seam, and a false
+> positive survived that the whole-file engine correctly suppresses. This is
+> why sweeping a well-formed secret across the boundary found nothing: a
+> well-formed secret is reported by both engines wherever it sits. The
+> divergence only appears for findings the whole-file engine is able to
+> *reject*.
+>
+> Reduced from `css-select@6.0.0 dist/esm/pseudo-selectors/filters.js`, 145
+> lines to 3, by `tools/boundarydiff`. The reduction held every byte offset
+> fixed — deleted lines became equal-length whitespace — so chunk geometry
+> could not change and the file could not shrink below 4,096 bytes and appear
+> to "fix" itself. Confirmed by moving the quote across the seam: divergence at
+> bytes 3,101 / 3,763 / 4,018, agreement at 4,064 / 4,101 / 4,189. The flip is
+> at the newline-aligned split, byte 4,063, not the nominal 4,096.
+>
+> Both hypotheses recorded in the 004 design are refuted. Not the `largeChunk`
+> accumulation branch: the reproducer has short lines and never enters it. Not
+> entropy over a truncated window: the finding is a fixed-string match with an
+> identical SHA-256 either side.
+>
+> There is now a regression test —
+> `TestChunkBoundarySuppressionIsNotLost` — verified to fail against the
+> pre-change engine (1 finding) and pass against the current one (0).
+
 
 
 Severity of the 53:
