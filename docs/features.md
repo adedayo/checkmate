@@ -132,6 +132,19 @@ Files are scanned in parallel by a worker pool, each rule set is gated behind a
 literal prefilter so that only rules that could possibly match are run, and
 progress is coalesced onto a fixed interval rather than emitted per file.
 
+Progress is reported on every scan path, including the SQLite-backed one the
+desktop app uses. Before v1.5.0 that path accepted a progress callback and
+never called it, so desktop scans showed no movement and a file count of zero
+until they finished. Coalescing means roughly four updates a second at the
+default interval, not one per file — on a 22,591-file tree, about 400 events
+rather than 22,591.
+
+This costs approximately **3–4% of scan throughput** (measured at 100.2s
+against a 97s baseline on that tree), which is the price of an atomic counter
+update per file. Raising `CHECKMATE_PROGRESS_INTERVAL` reduces the number of
+events delivered but not this cost, which is incurred per file rather than per
+event.
+
 Two properties are worth stating explicitly, because they are what make the
 tuning knobs below safe to touch:
 

@@ -656,6 +656,24 @@ func (d *DB) BuildExclusionProvider(projectID string) (diagnostics.ExclusionProv
 }
 
 // RunScan executes a full scan for a project, persisting findings and summary.
+//
+// Two parameters are accepted and deliberately unused, both required by the
+// projects.ProjectManager interface that simpleProjectManager also implements.
+// They are named here rather than left to be discovered, because an accepted-
+// but-unused parameter is exactly the defect that hid the missing progress
+// reporting fixed in change 005: the caller supplies something, the compiler is
+// satisfied, and nothing happens.
+//
+//   - scanner: this implementation calls secrets.SearchSecretsOnPathsWithProgress
+//     directly rather than driving scanner.Scan, so the argument is inert. Any
+//     caller passing a custom scanner gets the built-in secrets finder instead.
+//
+//   - wsSummariser: simpleProjectManager invokes this after a scan to refresh
+//     workspace summaries (see core/projects/management.go). This implementation
+//     does not, so workspace summaries are never recomputed after a SQLite scan.
+//     That is a real behavioural difference, not merely dead weight; it is
+//     recorded as a follow-up in change 005 rather than fixed here, because
+//     changing it alters output rather than restoring absent reporting.
 func (d *DB) RunScan(
 	ctx context.Context,
 	projectID string,
@@ -711,7 +729,8 @@ func (d *DB) RunScan(
 		targets = append(targets, repo.GetCodeLocation(d, projectID))
 	}
 
-	// Run the scan — scanner emits findings via its channel
+	// Run the scan. Note this calls the secrets finder directly; the `scanner`
+	// parameter is not used. See the doc comment on RunScan.
 	secOptions := secrets.SecretSearchOptions{
 		ShowSource:        true,
 		CalculateChecksum: true,

@@ -42,13 +42,30 @@
 - [ ] **3.1** Table-driven conformance test running the same progress
   assertions against **both** `ProjectManager` implementations.
 
-  Not done. The two implementations diverge more deeply than a shared test can
-  paper over — one drives `scanner.Scan`, the other calls the finder directly —
-  so a genuine conformance test needs the lifecycle extraction in 5.3 first.
-- [ ] **3.2** Audit `sqlite.DB` for other accepted-but-unused parameters.
+  **Deferred, deliberately, to the follow-up in 5.3.** The two implementations
+  diverge more deeply than a shared test can paper over — one drives
+  `scanner.Scan`, the other calls the finder directly — so a genuine
+  conformance test needs the lifecycle extraction first. Writing one now would
+  mean either testing the two paths separately (which is what the existing
+  tests already do) or asserting only what both happen to share, which would
+  pass without constraining the thing that actually broke.
+- [x] **3.2** Audited `sqlite.DB.RunScan` for other accepted-but-unused
+  parameters. **Two found**, both now named in the function's doc comment
+  rather than left to be rediscovered.
 
-  Not done. Note `RunScan` also accepts a `scanner` argument it never uses,
-  which is the same class of defect and currently harmless only by luck.
+  - `scanner projects.SecurityScanner` — inert, as predicted. A caller passing
+    a custom scanner silently gets the built-in secrets finder. The comment
+    above the call site actively asserted the opposite ("scanner emits findings
+    via its channel"); corrected.
+  - `wsSummariser projects.WorkspaceSummariser` — **not harmless.**
+    `simpleProjectManager` calls this after a scan to refresh workspace
+    summaries (`core/projects/management.go:917`); the SQLite path never does,
+    so workspace summaries go stale after every desktop scan. This is the same
+    defect class as the progress callback and was found by looking for it.
+
+    Not fixed here. Restoring absent reporting is what this change is for;
+    changing which summaries get recomputed alters output and belongs in its
+    own change, with its own before/after evidence. Recorded in 5.3.
 
 ## Phase 4: Verify at scale
 
@@ -68,11 +85,20 @@
 
 ## Phase 5: Close out
 
-- [ ] **5.1** Update `docs/features.md` if user-visible progress behaviour
-  changes.
-- [ ] **5.2** Note in the archived 003 record that its filed follow-up is
-  resolved.
-- [ ] **5.3** Consider follow-up: extract the shared scan lifecycle so both
-  implementations use one progress-emitting path (design option B). This change
-  fixes the instance; it does not remove the duplication that caused it.
-- [ ] **5.4** Merge spec delta into `openspec/specs/` and archive.
+- [x] **5.1** `docs/features.md` updated. Progress behaviour did change
+  user-visibly — desktop scans previously showed no movement and a zero file
+  count until completion — so the section now says that, states the coalescing
+  ratio (~400 events for 22,591 files) and records the 3–4% throughput cost
+  from 4.2, including the fact that raising the interval does not recover it.
+- [x] **5.2** Archived 003 record updated: its filed follow-up is resolved.
+- [x] **5.3** Follow-ups recorded for a subsequent change, not silently
+  dropped:
+
+  1. Extract the shared scan lifecycle so both implementations use one
+     progress-emitting path (design option B). This change fixes the instance;
+     it does not remove the duplication that caused it. Task 3.1 is blocked on
+     this.
+  2. Decide whether `sqlite.DB.RunScan` should honour `wsSummariser`, per 3.2.
+  3. Consider whether the ~3–4% per-file cost can be reduced, e.g. by
+     incrementing a sharded counter, if progress reporting proves hot.
+- [x] **5.4** Spec delta merged into `openspec/specs/data-store/spec.md` and archived. R5 is merged as an **accepted exception**, not as satisfied.

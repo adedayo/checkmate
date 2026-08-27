@@ -44,3 +44,47 @@ PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 PRAGMA busy_timeout = 5000;
 ```
+
+## Scan Progress Reporting
+
+Merged from change 005-sqlite-progress-reporting.
+
+`projects.ProjectManager` has two implementations. Before v1.5.0
+`simpleProjectManager` emitted progress and `sqlite.DB` accepted the same
+`progressMonitor func(diagnostics.Progress)` and emitted none, so every desktop
+scan reported `fileCount: 0` until it completed.
+
+- **R1** — An implementation accepting `progressMonitor` MUST invoke it across
+  the scan lifecycle. Accepting the parameter and ignoring it is a defect, not
+  an implementation choice. Go does not error on unused function parameters, so
+  this cannot be caught by the compiler and MUST be covered by a test.
+- **R2** — Emission MUST pass through the coalescing path bounded by
+  `CHECKMATE_PROGRESS_INTERVAL` (default 250ms), never per file. Per-file
+  emission produces the callback storm change 003 removed, and would reappear
+  silently because the symptom is load-dependent and absent on small corpora.
+- **R3** — File counts MUST derive from `Position`, not from counting events.
+  Counting coalesced events under-reports by orders of magnitude.
+- **R4** — The observable count MUST be non-zero and monotonic, and MUST be
+  asserted at the progress layer the summary derives from. Asserting against
+  persisted `file_count` proves nothing: it was already correct while progress
+  was entirely absent.
+- **R6** — Progress reporting MUST NOT alter the finding set. Guarded by the
+  existing `scan-engine` equivalence tests; verified byte-identical over 11,575
+  findings.
+
+### Accepted exception: R5 is not met
+
+R5 as drafted required progress obligations to be verified against all
+implementations from a shared, table-driven conformance test. **This is not
+implemented.** The two implementations do not share a scan lifecycle — one
+drives `scanner.Scan`, the other calls the secrets finder directly — so a
+shared test could only assert what they already have in common, which would
+pass without constraining the behaviour that broke.
+
+Recorded rather than quietly dropped, because R5 addresses the root cause and
+R1–R4 only address the instance. It is blocked on extracting a shared scan
+lifecycle, filed as a follow-up in change 005.
+
+Known consequence of the same root cause, still open: `sqlite.DB.RunScan` also
+ignores the `wsSummariser` parameter that `simpleProjectManager` honours, so
+workspace summaries are not recomputed after a SQLite-backed scan.
