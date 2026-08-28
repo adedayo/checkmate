@@ -1,6 +1,13 @@
 module github.com/adedayo/checkmate
 
-go 1.26.1
+// Patch-level, deliberately. This is a library, so the directive is a floor
+// rather than the compiler any particular consumer uses — but govulncheck
+// reports six standard-library vulnerabilities as reachable from this module
+// at 1.26.5, and a floor below the fix lets a consumer build the vulnerable
+// combination without being told. 1.26.6 carries the fixes for GO-2026-6090
+// (crypto/tls), GO-2026-5972 (encoding/asn1), GO-2026-6091 (html/template),
+// GO-2026-5942 (net) and GO-2026-5026 (net/http, via x/net/idna).
+go 1.26.6
 
 require (
 	// github.com/adedayo/code-intel-service v0.0.1
@@ -27,9 +34,9 @@ require (
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	github.com/stretchr/testify v1.11.1
-	golang.org/x/crypto v0.54.0
+	golang.org/x/crypto v0.55.0
 	golang.org/x/net v0.57.0
-	golang.org/x/text v0.40.0
+	golang.org/x/text v0.41.0
 	modernc.org/sqlite v1.54.0
 )
 
@@ -82,7 +89,7 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
-	golang.org/x/image v0.44.0 // indirect
+	golang.org/x/image v0.45.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
