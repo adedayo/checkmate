@@ -655,6 +655,24 @@ func (d *DB) BuildExclusionProvider(projectID string) (diagnostics.ExclusionProv
 	return diagnostics.CompileExcludes(container)
 }
 
+// scanTargets returns what the scanner should be pointed at for each
+// repository in a project.
+//
+// A git repository is named by its URL, not by the path GetCodeLocation would
+// derive for it. Nothing in the SQLite scan path clones before scanning, so
+// that derived path is a directory which does not exist; walking it reads no
+// files, and the scan therefore reported zero findings for every repository
+// added by URL while looking exactly like a successful scan of a clean
+// repository. The scanner's own acquisition clones a URL it is handed, into
+// SecretSearchOptions.CloneBaseDir.
+func scanTargets(repositories []projects.Repository) []string {
+	targets := make([]string, 0, len(repositories))
+	for _, repo := range repositories {
+		targets = append(targets, repo.Location)
+	}
+	return targets
+}
+
 // RunScan executes a full scan for a project, persisting findings and summary.
 //
 // Two parameters are accepted and deliberately unused, both required by the
@@ -723,11 +741,8 @@ func (d *DB) RunScan(
 		}
 	}
 
-	// Build target paths
-	var targets []string
-	for _, repo := range proj.Repositories {
-		targets = append(targets, repo.GetCodeLocation(d, projectID))
-	}
+	// Build target paths.
+	targets := scanTargets(proj.Repositories)
 
 	// Run the scan. Note this calls the secrets finder directly; the `scanner`
 	// parameter is not used. See the doc comment on RunScan.
@@ -747,6 +762,14 @@ func (d *DB) RunScan(
 	if exProvider, err := d.BuildExclusionProvider(projectID); err == nil && exProvider != nil {
 		secOptions.Exclusions = exProvider
 	}
+
+	// Clones land in the store's managed code directory, under the project.
+	// Left unset the scanner clones into the process's working directory,
+	// which for a desktop application launched from the Finder or a desktop
+	// launcher is "/" — the clone then fails on permissions and the scan
+	// silently reads nothing. Set here rather than left to each caller because
+	// every caller of this store has the same right answer available.
+	secOptions.CloneBaseDir = filepath.Join(d.GetCodeBaseDir(), projectID)
 
 	//Progress is reported through the same coalescing reporter the scanner
 	//path uses. A nil monitor is tolerated so callers that do not want

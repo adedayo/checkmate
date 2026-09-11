@@ -141,6 +141,52 @@ func (r *rootRegistry) transpose(location util.RepositoryIndexedFile) (string, s
 	return transposed, branch, detail
 }
 
+// resolveLocationType returns the repository's LocationType, inferring one when
+// the field is empty.
+//
+// The field is not always populated. Repositories recorded by callers that
+// never set it — the desktop app did not, for its entire history — are stored
+// with "", and an exact switch on that value drops them: the scan completes,
+// reports zero findings, and looks for all the world like a clean repository.
+// A security tool that cannot scan something must not render that as "nothing
+// found".
+//
+// Inference is deliberately narrow, covering the two forms a location can
+// actually take. Anything explicitly set is returned untouched, so this cannot
+// override a caller that knows better.
+func resolveLocationType(repo projects.Repository) string {
+	if repo.LocationType != "" {
+		return repo.LocationType
+	}
+	if isRemoteLocation(repo.Location) {
+		return "git"
+	}
+	return "filesystem"
+}
+
+// isRemoteLocation reports whether a location names a remote repository rather
+// than a path on disk.
+//
+// Covers the URL forms git understands — https://, http://, git://, ssh:// —
+// and scp-style shorthand such as git@github.com:owner/repo.git, which has no
+// scheme but is not a path either.
+func isRemoteLocation(location string) bool {
+	for _, scheme := range []string{"https://", "http://", "git://", "ssh://", "git+ssh://"} {
+		if strings.HasPrefix(location, scheme) {
+			return true
+		}
+	}
+	// scp-style: user@host:path, with the colon after the host and no leading
+	// slash. A Windows drive letter ("C:\src") has its colon at index 1, and
+	// an absolute or relative path has no "@" before the colon.
+	if at := strings.Index(location, "@"); at > 0 {
+		if colon := strings.Index(location[at:], ":"); colon > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // acquireRepositories fixes each repository's index, then acquires them
 // concurrently, publishing each root as soon as it is ready.
 //
@@ -180,7 +226,7 @@ func acquireRepositories(ctx context.Context, project *projects.Project, pm proj
 	seen := make(map[string]struct{}, len(repositories))
 
 	for i, p := range repositories {
-		switch p.LocationType {
+		switch resolveLocationType(p) {
 		case "filesystem":
 			//Published immediately: there is nothing to acquire, so this tree
 			//is scanned while the clones are still running.
@@ -198,7 +244,12 @@ func acquireRepositories(ctx context.Context, project *projects.Project, pm proj
 			seen[p.Location] = struct{}{}
 			jobs = append(jobs, cloneJob{index: i, repo: p})
 		default:
-			//ignore any other types of repos
+			//Not silent. A repository the user asked to scan and which is then
+			//dropped produces a scan reporting zero findings, which is
+			//indistinguishable from a clean repository and is the more
+			//dangerous of the two readings for a security tool to present
+			//without comment.
+			log.Printf("Ignoring repository %q: unrecognised LocationType %q", p.Location, p.LocationType)
 		}
 	}
 
@@ -343,7 +394,14 @@ func acquirePaths(ctx context.Context, paths []string, options SecretSearchOptio
 				defer wg.Done()
 				defer func() { <-sem }()
 
-				clone, err := gitutils.Clone(ctx, job.url, &gitutils.GitCloneOptions{Depth: 1})
+				clone, err := gitutils.Clone(ctx, job.url, &gitutils.GitCloneOptions{
+					Depth: 1,
+					//Empty unless the caller nominated somewhere, in which
+					//case the clone lands under a directory the process is
+					//known to be able to write to rather than wherever it
+					//happens to have been started from.
+					BaseDir: options.CloneBaseDir,
+				})
 				if err != nil {
 					//Unlike the project path this one does not publish a root
 					//on failure, matching what this entry point has always

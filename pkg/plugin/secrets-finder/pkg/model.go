@@ -57,4 +57,20 @@ type SecretSearchOptions struct {
 	//else's Git server, and a scan of a few hundred repositories that opens a
 	//few hundred simultaneous clones is indistinguishable from an attack on it.
 	CloneConcurrency int `json:"CloneConcurrency" yaml:"CloneConcurrency"`
+
+	//CloneBaseDir is the directory git URLs are cloned into when scanning by
+	//path. Zero value means the process's working directory, which is what
+	//this has always done.
+	//
+	//That default is survivable for a CLI invoked from the directory the user
+	//chose, and silently fatal everywhere else. A GUI application launched
+	//from Finder or a desktop launcher inherits "/" as its working directory,
+	//so the clone is attempted at "/<repo>", fails on permissions, and — since
+	//a failed clone publishes no root — the scan completes having read nothing
+	//and reports zero findings. A scan that could not obtain the code is not
+	//the same as a repository with nothing in it, but that is how it appeared.
+	//
+	//Callers with somewhere proper to put a checkout should say so. The
+	//desktop app and the API server both have a managed code base directory.
+	CloneBaseDir string `json:"CloneBaseDir" yaml:"CloneBaseDir"`
 }
