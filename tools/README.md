@@ -48,7 +48,7 @@ go run ./tools/boundarydiff \
 ```
 
 `dumpfindings` postdates the baseline, so it has to be copied into the older
-worktree — it only uses `SearchSecretsOnPaths`, which exists on both sides.
+worktree - it only uses `SearchSecretsOnPaths`, which exists on both sides.
 
 Three properties are worth knowing before trusting its output.
 
@@ -61,7 +61,7 @@ flakiness and reports it with total confidence.
 the same length rather than removing its bytes, so every offset and newline
 position is invariant. Without this, ddmin "succeeds" by shrinking the file
 below 4,096 bytes, at which point there is no second chunk and the divergence
-disappears — a result that looks like a minimal reproducer and is actually the
+disappears - a result that looks like a minimal reproducer and is actually the
 destruction of the precondition.
 
 **It self-checks before searching**, requiring "diverges" on a known-positive
@@ -70,8 +70,8 @@ reduces to noise just as convincingly as a correct one.
 
 ## `e2echeck`
 
-Drives the same path the Wails desktop app uses — the SQLite `PlatformStore`'s
-`RunScan` with a `SecretScanner` — against a large project, so end-to-end
+Drives the same path the Wails desktop app uses - the SQLite `PlatformStore`'s
+`RunScan` with a `SecretScanner` - against a large project, so end-to-end
 behaviour can be exercised headlessly.
 
 ```bash

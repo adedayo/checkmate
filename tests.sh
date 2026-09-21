@@ -1,1 +1,1 @@
-go build ./... && echo "\nBuild succeeds. Testing\n" && go test ./... && echo "\nTesting succeeds. Linting\n" && golangci-lint run
+go build ./... && echo "\nBuild succeeds. Testing\n" && go test ./... && echo "\nTesting succeeds. Checking user-visible prose\n" && go run ./tools/prosecheck && echo "\nProse is clean. Linting\n" && golangci-lint run

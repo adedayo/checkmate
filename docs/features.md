@@ -136,7 +136,7 @@ Progress is reported on every scan path, including the SQLite-backed one the
 desktop app uses. Before v1.5.0 that path accepted a progress callback and
 never called it, so desktop scans showed no movement and a file count of zero
 until they finished. Coalescing means roughly four updates a second at the
-default interval, not one per file — on a 22,591-file tree, about 400 events
+default interval, not one per file - on a 22,591-file tree, about 400 events
 rather than 22,591.
 
 This costs approximately **3–4% of scan throughput** (measured at 100.2s
@@ -162,14 +162,14 @@ tuning knobs below safe to touch:
 
 All of these are optional. The defaults are intended to be correct for most
 users, and every one of them is ignored (rather than fatal) if it is set to
-something unparseable — a mistyped tuning knob should not fail a scan.
+something unparseable - a mistyped tuning knob should not fail a scan.
 
 | Variable | Default | Effect |
 | --- | --- | --- |
 | `CHECKMATE_SCAN_WORKERS` | `GOMAXPROCS` | Number of files scanned concurrently. Set to `1` for strictly sequential scanning. Useful for capping CheckMate's footprint on a shared CI runner. |
 | `CHECKMATE_PROGRESS_INTERVAL` | `250ms` | How often progress is reported. Accepts a Go duration (`500ms`, `2s`) or a bare number read as milliseconds. |
 | `CHECKMATE_CLONE_CONCURRENCY` | `4` | How many repositories are cloned at once. Deliberately modest: the other side is somebody else's Git server. |
-| `CHECKMATE_DISABLE_PREFILTER` | unset | Set to `1` to run every rule against every file. Should not change results — it exists as an escape hatch and as the control arm of the equivalence test. |
+| `CHECKMATE_DISABLE_PREFILTER` | unset | Set to `1` to run every rule against every file. Should not change results - it exists as an escape hatch and as the control arm of the equivalence test. |
 | `CHECKMATE_PRUNE_DIRS` | unset (no pruning) | Comma-separated directory names to skip. **Replaces** the built-in suggestion list rather than adding to it; setting it empty disables pruning. |
 
 The same controls are available programmatically on `SecretSearchOptions`
@@ -180,7 +180,7 @@ take precedence over the environment.
 
 Directory pruning is **off by default, and that is deliberate.** Skipping
 `node_modules`, `vendor`, `dist`, `.git` and friends is worth roughly 2× on a
-dependency-heavy tree, so it is tempting to make it the default — but those
+dependency-heavy tree, so it is tempting to make it the default - but those
 directories are not excluded today, which means they are scanned today, and
 they contain real secrets: an `.npmrc` auth token under `node_modules`, an API
 key baked into `dist/bundle.js`, a `https://user:token@host` remote in
@@ -196,13 +196,13 @@ CHECKMATE_PRUNE_DIRS='node_modules,vendor,dist,.git' checkmate search ./my-proje
 
 ### Large and adversarial inputs
 
-Very large single-line files — minified bundles, serialised blobs, base64
-assets — are the worst case for any regex-based scanner, and they are
+Very large single-line files - minified bundles, serialised blobs, base64
+assets - are the worst case for any regex-based scanner, and they are
 attacker-influenced wherever someone can commit a file. CheckMate bounds this
 in two ways: files above a size cut-off are hashed and skipped rather than
 scanned, and the rules that survive the prefilter on such content are the
 generic ones doing genuine detection work.
 
 Multi-megabyte single-line files remain the slowest thing the engine does. If a
-scan is slow, that is the first place to look — run with `--verbose` to see the
+scan is slow, that is the first place to look - run with `--verbose` to see the
 file being scanned.

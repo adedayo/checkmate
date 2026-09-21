@@ -49,7 +49,7 @@ a code review.
 
 ### Equivalence testing
 
-The engine is tested against a **reference corpus** — a synthetic repository
+The engine is tested against a **reference corpus** - a synthetic repository
 built to exercise every branch of the file-type dispatch, plus confidential and
 test-file fixtures, plus an adversarial set (minified bundles, single-line JSON,
 base64 blobs, binaries behind text extensions, deep nesting, symlink loops).
@@ -74,13 +74,13 @@ other cannot be satisfied that way.
 ### Soundness of the prefilter
 
 The prefilter is the only component that can **silently remove findings** if it
-is wrong — everything else either produces the same output or fails loudly. It
+is wrong - everything else either produces the same output or fails loudly. It
 therefore gets stronger testing than its size suggests:
 
 - `FuzzPrefilterSoundness` asserts the one direction that matters: any rule that
   matches must have been admitted. Over-admitting is merely slow;
   under-admitting loses findings. Seed the corpus with near-misses built from
-  the rules themselves — random bytes never match a secret regex and explore
+  the rules themselves - random bytes never match a secret regex and explore
   nothing.
 - `TestGatedFindersSkipOnlyWhenSeedAbsent` exists because equivalence alone
   cannot show the gate *works*, only that it is harmless: a gate that admitted
@@ -93,7 +93,7 @@ therefore gets stronger testing than its size suggests:
 
 When a data structure or algorithm is replaced for speed, the **old
 implementation is kept in the test file as the specification** and the new one
-is compared against it over randomised inputs — see
+is compared against it over randomised inputs - see
 `TestLineIndexDifferential` and `TestRemoveOverlappingIssuesDifferential`.
 
 This is preferred over asserting hand-computed expectations, for two reasons:
@@ -136,8 +136,8 @@ go test -run '^$' -bench 'BenchmarkScan|BenchmarkPrefilter' -benchmem \
   ./pkg/plugin/secrets-finder/pkg/
 ```
 
-The expensive measurements — large-scale scans, memory profiles and the
-adversarial fixtures — are gated behind an environment variable so that ordinary
+The expensive measurements - large-scale scans, memory profiles and the
+adversarial fixtures - are gated behind an environment variable so that ordinary
 CI stays inside its timeout:
 
 ```bash

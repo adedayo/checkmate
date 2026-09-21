@@ -33,6 +33,13 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      # Checks only text a user reads - string literals, report templates and
+      # the documents under docs/. Comments and openspec/ keep their own
+      # punctuation, because a check that flags a maintainer's prose is one
+      # people learn to ignore.
+      - name: User-visible prose
+        run: go run ./tools/prosecheck
+
       - name: Test
         run: go test -race -coverprofile=coverage.out ./...
 

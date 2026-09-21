@@ -222,7 +222,7 @@ CHECKMATE_SCAN_WORKERS=4 checkmate search ./my-project
 ### Making a dependency-heavy scan faster
 
 Directory pruning is **off by default, deliberately.** Skipping `node_modules`,
-`vendor`, `dist` and `.git` is worth roughly 2× on a dependency-heavy tree — but
+`vendor`, `dist` and `.git` is worth roughly 2× on a dependency-heavy tree - but
 those directories are scanned today and they hold real secrets: `.npmrc` auth
 tokens, API keys baked into `dist/bundle.js`, `https://user:token@host` remotes
 in `.git/config`. That is a coverage decision, so it is yours to make rather
@@ -233,8 +233,8 @@ CHECKMATE_PRUNE_DIRS='node_modules,vendor,dist,.git' checkmate search ./my-proje
 ```
 
 If a scan is slower than you expect and pruning is not appropriate, the usual
-cause is a small number of very large single-line files — minified bundles,
-serialised blobs or base64 assets — rather than the file count. Run with
+cause is a small number of very large single-line files - minified bundles,
+serialised blobs or base64 assets - rather than the file count. Run with
 `--verbose` to see which file is being scanned.
 
 For benchmark methodology and the equivalence-testing approach, see
