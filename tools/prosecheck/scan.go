@@ -204,9 +204,9 @@ func scanSource(src string, k kind) []region {
 	case template:
 		return outsideHTMLComments(src)
 	case goSource:
-		return stringLiterals(src, false)
+		return stringLiterals(src)
 	case tsSource:
-		return stringLiterals(src, true)
+		return stringLiterals(src)
 	}
 	return nil
 }
@@ -246,7 +246,13 @@ func outsideHTMLComments(src string) []region {
 // this character inside quotes or not. It handles the cases that occur in this
 // codebase - escapes, raw and template literals, and comments containing
 // quotes, which is the case a naive quote-counter gets wrong.
-func stringLiterals(src string, ts bool) []region {
+//
+// Go and TypeScript need no distinction here. Both delimit strings with single
+// and double quotes, both honour a backslash escape inside them, and both use
+// backticks for a form that runs to the next backtick regardless: Go's raw
+// string and TypeScript's template literal. The two kinds stay separate in
+// kindOf because they are selected by file extension, but they scan alike.
+func stringLiterals(src string) []region {
 	var out []region
 	i := 0
 	n := len(src)
@@ -262,7 +268,7 @@ func stringLiterals(src string, ts bool) []region {
 
 		case c == '/' && i+1 < n && src[i+1] == '*':
 			i += 2
-			for i+1 < n && !(src[i] == '*' && src[i+1] == '/') {
+			for i+1 < n && (src[i] != '*' || src[i+1] != '/') {
 				i++
 			}
 			i += 2
