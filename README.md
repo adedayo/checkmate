@@ -117,8 +117,10 @@ A graphical desktop version of CheckMate is available: [CheckMate Desktop Applic
 # Scan a local directory
 checkmate search /path/to/your/project
 
-# Scan a remote git repository directly
+# Scan a public or private remote git repository (HTTPS or SSH)
 checkmate search https://github.com/example/repository.git
+checkmate search --git-token-env GITHUB_TOKEN --git-depth 1 https://github.com/org/private-repo.git
+checkmate search --ssh-key ~/.ssh/id_ed25519 git@github.com:org/private-repo.git
 
 # Scan with SARIF output for GitHub Code Scanning
 checkmate search --sarif /path/to/project > results.sarif
@@ -134,6 +136,10 @@ checkmate search --pdf /path/to/project
 | `--calculate-checksums` | Compute checksums of detected secrets (default: true) |
 | `--exclude-tests` | Skip test files during scanning |
 | `-e, --exclusion <file>` | Use an exclusion YAML configuration file |
+| `--git-depth <n>` | Git clone depth (`1` shallow default, `0` for full history) |
+| `--git-token <token>` | Personal access token or password for private HTTPS git repositories |
+| `--git-token-env <var>` | Environment variable name containing a git HTTPS access token |
+| `--insecure-skip-tls` | Opt-in to skip TLS certificate verification when cloning git repositories |
 | `--json` | Generate output in JSON format (default: true) |
 | `--pdf` | Generate a native PDF audit report |
 | `--report-ignored` | Include ignored files and values in reports |
@@ -143,6 +149,7 @@ checkmate search --pdf /path/to/project
 | `--sensitive-files` | List all registered sensitive file types |
 | `--sensitive-files-only` | Scan only for sensitive files (certificates, key stores) |
 | `-s, --source` | Include source code evidence in results (default: true) |
+| `--ssh-key <path>` | Path to an SSH private key file for cloning SSH git repositories |
 | `--verbose` | Enable verbose output |
 
 ### API Server
@@ -155,23 +162,25 @@ checkmate api --port 17283 --data-path ~/.checkmate
 
 The API server provides:
 - JWT-authenticated REST endpoints for projects, scans, findings, exceptions, and webhooks
-- Streamable HTTP MCP endpoint (`/v1/mcp`) and external agent triage write-back (`/v1/scans/{scanId}/triage/batch`, `/v1/scans/{scanId}/sanitised`)
-- Real-time scan event streaming via Server-Sent Events (SSE)
+- Streamable HTTP MCP endpoint (`POST /v1/mcp`, SSE `GET /v1/mcp`, `DELETE /v1/mcp`), finding context (`GET /v1/findings/{findingId}/context`), checkout cleanup (`DELETE /v1/scans/{scanId}/checkout`), and external agent triage write-back (`PUT /v1/findings/{findingId}/triage`, `POST /v1/scans/{scanId}/triage/batch`, `GET /v1/scans/{scanId}/sanitised`)
+- Real-time scan event streaming via WebSocket and Server-Sent Events (SSE)
 - Automated scheduled scanning of monitored repositories
 
-For full API capabilities including BYOK AI Triage, Webhook Notifications, and Auditable Exceptions, see the [Features & Capabilities Documentation](docs/features.md) or the [CheckMate Project Site](https://adedayo.github.io/checkmate/).
+For full API capabilities including BYOK AI Triage, Webhook Notifications, and Auditable Exceptions, see the [Features & Capabilities Documentation](docs/features.md), the [REST API Reference](docs/api.md), or the [CheckMate Project Site](https://adedayo.github.io/checkmate/).
 
 ### MCP Server (AI Agent Integration)
 
-Drive CheckMate from AI coding agents (GitHub Copilot, Claude Code, Cursor, or CI agents) over stdio or Streamable HTTP:
+Drive CheckMate from AI coding agents (GitHub Copilot, Claude Code, Cursor, or CI agents) over stdio or Streamable HTTP with SSE progress:
 
 ```bash
 # Persistent stdio MCP server (shares ~/.checkmate/checkmate.db with CheckMate App)
 checkmate mcp serve
 
-# Ephemeral stdio MCP server for stateless CI or PR reviews
+# Ephemeral stdio MCP server for stateless CI or PR reviews (auto-cleans retained checkouts)
 checkmate mcp serve --ephemeral
 ```
+
+Available MCP tools cover the complete triage loop: `checkmate_scan` (synchronous with `_meta.progressToken` or `async: true`, plus `keepCheckout: true` for remote Git URLs), `checkmate_get_scan_status`, `checkmate_get_worklist` (with configurable `samplesPerGroup`), `checkmate_list_findings`, `checkmate_get_finding_context`, `checkmate_cleanup_checkout`, `checkmate_preview_suppression`, `checkmate_triage_batch`, `checkmate_apply_suppression_rule`, and `checkmate_export_sanitised`.
 
 Example MCP client configuration:
 
@@ -185,6 +194,20 @@ Example MCP client configuration:
   }
 }
 ```
+
+### LSP 3.17 Server (In-Editor Detection & Quick Fixes)
+
+Run CheckMate inside VS Code, Neovim, Zed, Helix, Emacs, or JetBrains IDEs for real-time debounced diagnostics, background workspace scanning, shared SQLite + `.checkmate.yaml` exclusions, and one-click Quick Fix suppressions:
+
+```bash
+# Default: shares ~/.checkmate/checkmate.db and workspace .checkmate.yaml
+checkmate lspServe
+
+# YAML-only mode without SQLite persistence
+checkmate lspServe --no-db --no-workspace-scan
+```
+
+See [docs/features.md](docs/features.md#7-in-editor-lsp-317-server-checkmate-lspserve) for copy-paste editor setup snippets.
 
 ### Docker
 
@@ -292,20 +315,24 @@ CheckMate is structured as a layered platform:
 
 ```
 checkmate/
-├── cmd/                  # CLI commands (search, api, lsp-serve)
+├── cmd/                       # CLI commands (search, api, mcp, lspServe)
 ├── pkg/
-│   ├── ai/               # BYOK AI triage client (OpenAI-compatible)
-│   ├── api/              # REST API handlers and routing
-│   ├── auth/             # JWT authentication
-│   ├── cron/             # Scheduled scan automation
-│   ├── lsp/              # Language Server Protocol support
-│   ├── report/           # SARIF report generation
-│   ├── reports/pdf/      # Native PDF report generation
-│   ├── sdk/              # Shared types (Finding, AIAnnotation, etc.)
-│   └── store/sqlite/     # SQLite-backed persistence with versioned migrations
+│   ├── ai/                    # BYOK AI triage client (OpenAI-compatible & Ollama)
+│   ├── api/                   # REST API handlers, WebSocket/SSE & Streamable HTTP MCP
+│   ├── auth/                  # JWT & scoped API key authentication
+│   ├── core/git/              # Unified Git auth (HTTPS/SSH/git_config) & acquisition
+│   ├── cron/                  # Scheduled scan automation
+│   ├── lsp/                   # Self-contained LSP 3.17 server & Quick Fix suppressions
+│   ├── mcp/                   # Model Context Protocol server (stdio + HTTP SSE)
+│   ├── plugin/secrets-finder/ # Parallel prefiltered secret detection engine
+│   ├── report/                # SARIF 2.1.0 report generation with suppressions
+│   ├── reports/pdf/           # Native PDF audit report generation
+│   ├── sdk/                   # Importable Go SDK (Scanner, ScanPathWithReport, Finding)
+│   ├── store/sqlite/          # CGO-free SQLite persistence with versioned migrations
+│   └── triage/                # Shared clustering, suppression preview, context & export
 ```
 
-The scanner engine itself lives in [`checkmate-plugin/secrets-finder`](https://github.com/adedayo/checkmate-plugin), a separate, reusable module, allowing CheckMate to be embedded or extended independently of the platform.
+The detection engine lives in-repo under [`pkg/plugin/secrets-finder/`](pkg/plugin/secrets-finder/) and is exposed programmatically via [`pkg/sdk/`](pkg/sdk/) so Go tools can embed CheckMate directly without spawning a subprocess or running an HTTP server.
 
 ---
 

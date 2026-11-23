@@ -70,16 +70,51 @@ To verify:
 
 ---
 
-## Triage & Findings
+## Triage, Context & Findings
 
 ### `GET /v1/projects/{projectId}/scans/{scanId}/findings`
 Fetch the findings for a specific scan. Supports pagination.
 
-### `POST /v1/findings/{findingId}/triage`
-Manually triage a finding (e.g. mark it as a false positive).
-- **Request Body:** `{"status": "FALSE_POSITIVE", "reason": "Test credential"}`
+### `GET /v1/findings/{findingId}/context`
+Return numbered source code lines surrounding a finding from local disk or a retained remote checkout (falling back to stored `source_context`).
+- **Query Parameters:** `scanId` (optional), `before` (default `20`), `after` (default `20`).
 
-### `POST /v1/projects/{projectId}/triage/batch`
-Queue a batch of findings for automated AI triage analysis in the background.
-- **Request Body:** `{"findingIds": ["f1", "f2"]}`
-- **Response:** `{"status": "queued", "count": 2}`
+### `POST /v1/findings/{findingId}/triage`
+Queue automated BYOK AI triage for a single finding.
+
+### `PUT /v1/findings/{findingId}/triage`
+Write back an external AI agent or human triage verdict (`true_positive`, `false_positive`, `needs_review`), optionally applying to all findings sharing `secretChecksum` and persisting a scoped exception.
+
+### `POST /v1/scans/{scanId}/triage/batch`
+Write back a batch of triage verdicts for a scan, update suppressions and `audit_log`, and recompute `scans.sanitised_summary`.
+
+### `GET /v1/scans/{scanId}/sanitised`
+Return the scan's sanitised summary together with active (non-suppressed) findings. Pass `?includeSuppressed=true` to include suppressed entries.
+
+### `DELETE /v1/scans/{scanId}/checkout`
+Delete any retained remote Git checkout associated with `scanId` (`keepCheckout: true`), clear its metadata in SQLite, and append an `audit_log` event.
+
+---
+
+## Streamable HTTP MCP Endpoint (`/v1/mcp`)
+
+### `POST /v1/mcp`
+Accepts a JSON-RPC 2.0 MCP request or batch (supports `initialize`, `tools/list`, `tools/call`, `resources/*`, `prompts/*`). Sets/honours the `Mcp-Session-Id` header.
+
+### `GET /v1/mcp`
+Opens an MCP Streamable HTTP Server-Sent Events (`Accept: text/event-stream`) stream for a session (`Mcp-Session-Id`), pushing server-initiated JSON-RPC notifications such as `notifications/progress` during scans.
+
+### `DELETE /v1/mcp`
+Closes the MCP HTTP session and tears down its SSE stream (`204 No Content`).
+
+---
+
+## Exceptions
+
+- `GET /v1/exceptions` - List active exceptions (optional `?projectId=...`)
+- `POST /v1/exceptions` - Create a scoped exception with justification and audit log entry
+- `GET /v1/exceptions/{exceptionId}` - Fetch a single exception
+- `PATCH /v1/exceptions/{exceptionId}` - Update justification, tags, or expiry
+- `DELETE /v1/exceptions/{exceptionId}` - Revoke an exception
+- `GET /v1/exceptions/export` / `POST /v1/exceptions/import` - Export or import `.checkmate.yaml`
+

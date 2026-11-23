@@ -112,15 +112,25 @@ Or via the API when pulling scan results, depending on the route content negotia
 
 ---
 
-## 5. Local CLI Scanning & IDE Integration
+## 5. Local CLI Scanning & Private Git Authentication
 
 **Capabilities:**
-While CheckMate shines as a platform, the core engine runs incredibly fast on local filesystems and git repositories without uploading code to the cloud.
+CheckMate runs fast on local filesystems and both public and private Git repositories (HTTPS and native SSH) without uploading code to any third-party cloud. Credentials are resolved consistently across CLI, Go SDK, SQLite/Desktop App, API, and MCP in deterministic order: explicit `git_config` service ID, host-matched `git_config` entry, explicit CLI/SDK override (`--git-token`, `--git-token-env`, `--ssh-key`), environment fallback (`CHECKMATE_GIT_TOKEN`, `GITHUB_TOKEN`, `GITLAB_TOKEN`, `CHECKMATE_SSH_KEY_PATH`, `SSH_AUTH_SOCK`), and anonymous access.
+
+- Embedded URL credentials are always stripped before logging or persisting.
+- TLS certificates are verified by default (opt-in `--insecure-skip-tls` for self-signed internal servers).
+- Clone failures are surfaced explicitly with structured error kinds (`auth_failed`, `not_found`, `network`, `tls`, `invalid_url`, `io`) rather than reporting a clean 0-finding scan.
 
 **Usage Documentation:**
-Scan a local GitHub clone directly:
 ```bash
-go run checkmate.go search https://github.com/example/repo
+# Scan a public repository
+checkmate search https://github.com/example/repo.git
+
+# Scan a private HTTPS repository with token from environment and full history
+checkmate search --git-token-env GITHUB_TOKEN --git-depth 0 https://github.com/org/private-repo.git
+
+# Scan a private SSH repository with an explicit key (or ssh-agent automatically)
+checkmate search --ssh-key ~/.ssh/id_ed25519 git@github.com:org/private-repo.git
 ```
 
 ---
@@ -266,4 +276,16 @@ args = ["lspServe"]
 name = "go"
 language-servers = ["gopls", "checkmate"]
 ```
+
+---
+
+## 8. Model Context Protocol (MCP) Server for AI Agents
+
+**Capabilities:**
+CheckMate ships a native MCP server over both stdio (`checkmate mcp serve`) and Streamable HTTP (`POST/GET/DELETE /v1/mcp` on `checkmate api`) so AI coding agents can run scans, inspect findings in full code context, verify suppression blast radius, write back triage verdicts, and export sanitised reports.
+
+- **Large-repo resilience:** Supports both synchronous `checkmate_scan` with `_meta.progressToken` streaming (`notifications/progress` over stdio or `GET /v1/mcp` SSE) and `async: true` with `checkmate_get_scan_status` polling.
+- **Unbounded finding access:** `checkmate_get_worklist` supports configurable `samplesPerGroup` (default 5, max 50), and `checkmate_list_findings` provides paginated canonical access to individual findings.
+- **Remote Git URL triage:** Pass `keepCheckout: true` on `checkmate_scan` to retain `0700` per-scan checkouts, inspect code lines with `checkmate_get_finding_context`, and delete checkouts cleanly via `checkmate_cleanup_checkout` (with automatic cleanup on `--ephemeral` exit and `CHECKMATE_CHECKOUT_TTL` expiry).
+
 
