@@ -59,6 +59,106 @@ type PlatformStore interface {
 	UpdateAISettings(settings *AISettings) error
 	GetUnannotatedFindings(scanID string) ([]string, error)
 	GetAITokenUsage() (*AITokenUsage, error)
+
+	// Agent MCP & Triage write-back
+	GetScanProjectID(scanID string) (string, error)
+	GetScanFileCount(scanID string) (int, error)
+	GetScanFindings(scanID string) ([]*StoredFinding, error)
+	UpdateFindingTriage(scanID, findingID string, update TriageUpdate) (int, error)
+	RecomputeScanSummary(scanID string) (*SanitisedSummary, error)
+	GetSanitisedSummary(scanID string) (*SanitisedSummary, error)
+	PreviewExceptionOnScan(scanID string, exc *Exception) (*ExceptionPreview, error)
+	ApplyExceptionToScan(scanID string, exc *Exception, triagedBy string, force bool) (*ExceptionApplyResult, error)
+	RecordAuditEvent(audit *AuditEvent, resourceType, resourceID string) error
+}
+
+// StoredFinding is a full finding row retrieved from storage, including
+// deterministic detection fields, suppression state, and triage metadata.
+type StoredFinding struct {
+	FindingID          string            `json:"findingId"`
+	ScanID             string            `json:"scanId"`
+	ProjectID          string            `json:"projectId,omitempty"`
+	RuleID             string            `json:"ruleId"`
+	SecretType         sdk.SecretType    `json:"secretType"`
+	Severity           sdk.Severity      `json:"severity"`
+	Confidence         sdk.Confidence    `json:"confidence"`
+	RepositoryURL      string            `json:"repoUrl,omitempty"`
+	CommitSHA          string            `json:"commitSha,omitempty"`
+	Branch             string            `json:"branch,omitempty"`
+	File               string            `json:"file"`
+	Line               int               `json:"line"`
+	Column             int               `json:"column"`
+	EndLine            int               `json:"endLine,omitempty"`
+	EndColumn          int               `json:"endColumn,omitempty"`
+	EvidenceRedacted   string            `json:"evidenceRedacted,omitempty"`
+	SecretChecksum     string            `json:"secretChecksum"`
+	SourceContext      string            `json:"sourceContext,omitempty"`
+	Suppressed         bool              `json:"suppressed"`
+	ExceptionID        string            `json:"exceptionId,omitempty"`
+	VerificationStatus string            `json:"verificationStatus"`
+	AIAnnotation       *sdk.AIAnnotation `json:"aiAnnotation,omitempty"`
+	TriageStatus       sdk.TriageStatus  `json:"triageStatus"`
+	TriageSource       string            `json:"triageSource,omitempty"`
+	TriagedAt          *time.Time        `json:"triagedAt,omitempty"`
+	ContextHash        string            `json:"contextHash,omitempty"`
+	DetectedAt         time.Time         `json:"detectedAt"`
+}
+
+// TriageUpdate describes an agent or human triage decision persisted for a finding.
+type TriageUpdate struct {
+	Status              sdk.TriageStatus  `json:"status"`
+	Source              string            `json:"source"`
+	Annotation          *sdk.AIAnnotation `json:"annotation,omitempty"`
+	Suppressed          *bool             `json:"suppressed,omitempty"`
+	ExceptionID         string            `json:"exceptionId,omitempty"`
+	ApplyToSameChecksum bool              `json:"applyToSameChecksum,omitempty"`
+}
+
+// SanitisedSummary holds post-triage, post-suppression metrics for a scan
+// alongside raw totals without mutating deterministic scan columns.
+type SanitisedSummary struct {
+	RawFindings              int            `json:"rawFindings"`
+	ActiveFindings           int            `json:"activeFindings"`
+	SuppressedFindings       int            `json:"suppressedFindings"`
+	TriagedTruePositives     int            `json:"triagedTruePositives"`
+	TriagedFalsePositives    int            `json:"triagedFalsePositives"`
+	NeedsReview              int            `json:"needsReview"`
+	Untriaged                int            `json:"untriaged"`
+	ActiveFindingsBySeverity map[string]int `json:"activeFindingsBySeverity"`
+	SanitisedScore           float64        `json:"sanitisedScore"`
+	NoiseReductionPercent    float64        `json:"noiseReductionPercent"`
+	LastTriagedAt            *time.Time     `json:"lastTriagedAt,omitempty"`
+	LastTriagedBy            string         `json:"lastTriagedBy,omitempty"`
+}
+
+// ExceptionPreview describes the blast radius of a candidate exception rule on a scan.
+type ExceptionPreview struct {
+	MatchedCount               int                      `json:"matchedCount"`
+	UntriagedMatchedCount      int                      `json:"untriagedMatchedCount"`
+	AlreadySuppressedCount     int                      `json:"alreadySuppressedCount"`
+	WouldSuppressTruePositives int                      `json:"wouldSuppressTruePositives"`
+	ConflictingFindingIDs      []string                 `json:"conflictingFindingIds,omitempty"`
+	MatchedByRule              map[string]int           `json:"matchedByRule"`
+	SampleMatchedLocations     []ExceptionMatchLocation `json:"sampleMatchedLocations"`
+}
+
+// ExceptionMatchLocation identifies a finding matched by a candidate exception rule.
+type ExceptionMatchLocation struct {
+	FindingID    string           `json:"findingId"`
+	File         string           `json:"file"`
+	Line         int              `json:"line"`
+	Column       int              `json:"column"`
+	RuleID       string           `json:"ruleId"`
+	TriageStatus sdk.TriageStatus `json:"triageStatus"`
+	Suppressed   bool             `json:"suppressed"`
+}
+
+// ExceptionApplyResult summarises applying an exception rule to a scan.
+type ExceptionApplyResult struct {
+	ExceptionID        string            `json:"exceptionId"`
+	SuppressedCount    int               `json:"suppressedCount"`
+	AlreadySuppressed  int               `json:"alreadySuppressed"`
+	SanitisedSummary   *SanitisedSummary `json:"sanitisedSummary"`
 }
 
 // AITokenUsage aggregates the cost of AI triage

@@ -16,14 +16,16 @@ func (s *DB) GetFinding(findingID string) (*sdk.Finding, error) {
 		       repo_url, commit_sha, branch, file_path, line_number, column_number,
 		       evidence_redacted, secret_checksum, source_context,
 		       suppressed, exception_id, verification_status, verified_at,
-		       ai_annotation, detected_at
+		       ai_annotation, triage_status, triage_source, triaged_at, context_hash, detected_at
 		FROM findings
 		WHERE finding_id = ?
+		ORDER BY rowid DESC
 		LIMIT 1
 	`, findingID)
 
 	var f sdk.Finding
 	var repoURL, commitSHA, branch, evidenceRedacted, sourceContext, exceptionID, verifiedAt, aiAnnotationStr sql.NullString
+	var triageStatus, triageSource, triagedAt, contextHash sql.NullString
 	var secretType, severity, confidence, verificationStatus, detectedAt string
 	var suppressed int
 
@@ -32,7 +34,7 @@ func (s *DB) GetFinding(findingID string) (*sdk.Finding, error) {
 		&repoURL, &commitSHA, &branch, &f.File, &f.Line, &f.Column,
 		&evidenceRedacted, &f.SecretChecksum, &sourceContext,
 		&suppressed, &exceptionID, &verificationStatus, &verifiedAt,
-		&aiAnnotationStr, &detectedAt,
+		&aiAnnotationStr, &triageStatus, &triageSource, &triagedAt, &contextHash, &detectedAt,
 	)
 
 	if err != nil {
@@ -47,6 +49,22 @@ func (s *DB) GetFinding(findingID string) (*sdk.Finding, error) {
 	f.Confidence = sdk.Confidence(confidence)
 	f.VerificationStatus = sdk.VerificationStatus(verificationStatus)
 	f.Suppressed = suppressed > 0
+	if triageStatus.Valid && triageStatus.String != "" {
+		f.TriageStatus = sdk.TriageStatus(triageStatus.String)
+	} else {
+		f.TriageStatus = sdk.TriageStatusUntriaged
+	}
+	if triageSource.Valid {
+		f.TriageSource = triageSource.String
+	}
+	if triagedAt.Valid && triagedAt.String != "" {
+		if t, err := time.Parse(time.RFC3339, triagedAt.String); err == nil {
+			f.TriagedAt = &t
+		}
+	}
+	if contextHash.Valid {
+		f.ContextHash = contextHash.String
+	}
 
 	if repoURL.Valid {
 		f.RepositoryURL = repoURL.String

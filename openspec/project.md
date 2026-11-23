@@ -43,8 +43,8 @@ This file is read by AI coding agents working in this repo (OpenSpec convention)
 - `openspec/specs/` — accepted, current capability specs
 - `openspec/changes/<id>/` — in-flight changes: `proposal.md`, `design.md`, `tasks.md`, `specs/<capability>/spec.md`
 - On completing a change, archive it: merge spec deltas into `openspec/specs/` and move the change folder to `openspec/archive/`
-- Accepted capabilities: `ai-triage`, `api-contract`, `authentication`, `data-store`, `exception-management`, `sarif-export`, `scan-engine`, `sdk`, `webhooks`
-- Archived changes: `001-clean-slate-platform`, `003-scan-engine-performance`
+- Accepted capabilities: `agent-mcp`, `ai-triage`, `api-contract`, `authentication`, `data-store`, `exception-management`, `sarif-export`, `scan-engine`, `sdk`, `webhooks`
+- Archived changes: `001-clean-slate-platform`, `003-scan-engine-performance`, `007-agent-mcp-triage`
 - Current active changes:
   - `changes/002-app-modernisation/` — in progress
   - `changes/004-chunk-boundary-minimisation/` — scaffolded, not started. Reduces

@@ -58,8 +58,8 @@ var (
 		"checkmate-api",
 	}
 	corsOptions = []handlers.CORSOption{
-		handlers.AllowedMethods([]string{http.MethodGet, http.MethodHead, http.MethodPost, http.MethodOptions}),
-		handlers.AllowedHeaders([]string{"Content-Type", "Authorization", "Accept", "Accept-Language", "Origin"}),
+		handlers.AllowedMethods([]string{http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions}),
+		handlers.AllowedHeaders([]string{"Content-Type", "Authorization", "Accept", "Accept-Language", "Origin", "Mcp-Session-Id"}),
 		handlers.AllowCredentials(),
 		handlers.AllowedOriginValidator(allowedOriginValidator),
 	}
@@ -185,6 +185,12 @@ func addRoutes() {
 	v1.HandleFunc("/system/ready", systemReady).Methods(http.MethodGet)
 	v1.HandleFunc("/findings/search", searchFindings).Methods(http.MethodPost)
 	v1.HandleFunc("/findings/{findingId}/triage", triageFinding).Methods(http.MethodPost)
+	v1.HandleFunc("/findings/{findingId}/triage", recordFindingTriage).Methods(http.MethodPut)
+
+	// Agent MCP & Triage endpoints
+	v1.HandleFunc("/mcp", handleMCP).Methods(http.MethodPost, http.MethodDelete)
+	v1.HandleFunc("/scans/{scanId}/triage/batch", submitBatchTriage).Methods(http.MethodPost)
+	v1.HandleFunc("/scans/{scanId}/sanitised", getSanitisedScan).Methods(http.MethodGet)
 
 	// Settings & AI
 	v1.HandleFunc("/settings/ai", getAISettings).Methods(http.MethodGet)
@@ -908,6 +914,23 @@ func downloadScanReportV1(w http.ResponseWriter, r *http.Request) {
 	accept := r.Header.Get("Accept")
 	if !strings.Contains(accept, "application/sarif+json") {
 		http.Error(w, "Only application/sarif+json is supported via this endpoint", http.StatusNotAcceptable)
+		return
+	}
+
+	view := r.URL.Query().Get("view")
+	if view == "sanitised" {
+		includeSuppressed := r.URL.Query().Get("includeSuppressed") == "true"
+		findings, err := pm.GetScanFindings(scanID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/sarif+json")
+		if err := report.GenerateSARIFWithOptions(w, findings, report.SARIFOptions{
+			IncludeSuppressed: includeSuppressed,
+		}); err != nil {
+			log.Printf("Failed to generate sanitised SARIF: %v", err)
+		}
 		return
 	}
 

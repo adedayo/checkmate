@@ -593,6 +593,10 @@ func (d *DB) GetGitConfigManager() (gitutils.GitConfigManager, error) {
 
 // BuildExclusionProvider constructs an ExclusionProvider for a project based on active exceptions.
 func (d *DB) BuildExclusionProvider(projectID string) (diagnostics.ExclusionProvider, error) {
+	return d.buildExclusionProviderWithExtra(projectID, nil)
+}
+
+func (d *DB) buildExclusionProviderWithExtra(projectID string, extra *diagnostics.ExcludeDefinition) (diagnostics.ExclusionProvider, error) {
 	allExceptions, err := d.ListExceptions(projectID)
 	if err != nil {
 		return nil, err
@@ -606,6 +610,11 @@ func (d *DB) BuildExclusionProvider(projectID string) (diagnostics.ExclusionProv
 		PerFileExcludedStrings:  make(map[string][]string),
 		PerFileExcludedHashes:   make(map[string][]string),
 		PathRegexExcludedRegExs: make(map[string][]string),
+	}
+
+	if extra != nil {
+		merged := secrets.MergeExclusions(*extra, *def)
+		def = &merged
 	}
 
 	for _, exc := range allExceptions {
@@ -741,8 +750,15 @@ func (d *DB) RunScan(
 		}
 	}
 
-	// Build target paths.
+	// Build target paths. Callers (such as git-diff scoped agent scans) may
+	// supply an explicit target-override slice while still running under the
+	// project's exceptions and triage history.
 	targets := scanTargets(proj.Repositories)
+	if override, ok := scanPolicy.Config["target-override"]; ok {
+		if list, good := override.([]string); good && len(list) > 0 {
+			targets = list
+		}
+	}
 
 	// Run the scan. Note this calls the secrets finder directly; the `scanner`
 	// parameter is not used. See the doc comment on RunScan.
@@ -758,8 +774,13 @@ func (d *DB) RunScan(
 		}
 	}
 
-	// ALWAYS apply the database exclusion provider so it overrides or supplements native exclusions
-	if exProvider, err := d.BuildExclusionProvider(projectID); err == nil && exProvider != nil {
+	// ALWAYS apply the database exclusion provider so it overrides or supplements native exclusions.
+	// If the caller also supplied an extra ExcludeDefinition (e.g. a .checkmate.yaml file), merge them.
+	if extraDef, ok := scanPolicy.Config["extra-exclusions"].(*diagnostics.ExcludeDefinition); ok && extraDef != nil {
+		if mergedProvider, err := d.buildExclusionProviderWithExtra(projectID, extraDef); err == nil && mergedProvider != nil {
+			secOptions.Exclusions = mergedProvider
+		}
+	} else if exProvider, err := d.BuildExclusionProvider(projectID); err == nil && exProvider != nil {
 		secOptions.Exclusions = exProvider
 	}
 
@@ -870,9 +891,11 @@ func (d *DB) RunScan(
 	diagnostics.SortDiagnosticsCanonically(allFindings)
 
 	// Build summary
-	scanSummary := summariser(projectID, scanID, allFindings)
-	if scanSummary == nil {
-		_ = scanSummary
+	if summariser != nil {
+		scanSummary := summariser(projectID, scanID, allFindings)
+		if scanSummary == nil {
+			_ = scanSummary
+		}
 	}
 
 	// Aggregate findings by severity
@@ -912,6 +935,8 @@ func (d *DB) RunScan(
 		len(files), len(allFindings), string(severityJSON), scanScore, durationMs,
 		time.Now().UTC().Format(time.RFC3339), scanID)
 	d.mu.Unlock()
+
+	_, _ = d.RecomputeScanSummary(scanID)
 
 	// Update project with last scan ID
 	proj.ScanIDs = append(proj.ScanIDs, scanID)

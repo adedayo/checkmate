@@ -248,26 +248,63 @@ func (d *DB) persistFindingBatch(ctx context.Context, scanID, projectID string, 
 		ruleName := finding.Justification.Headline.Description
 		line := finding.Range.Start.Line + 1
 		col := finding.Range.Start.Character + 1
+		endLine := finding.Range.End.Line + 1
+		endCol := finding.Range.End.Character + 1
+		if finding.Range.End.Line == 0 && finding.Range.End.Character == 0 {
+			endLine = line
+			endCol = col
+		}
 
 		findingID := computeFindingID(finding)
+		contextHash := computeContextHash(source)
 
 		// Carry forward any triage the user or the AI has already recorded for
-		// this finding, so a rescan does not silently discard it.
+		// this finding when the surrounding context has not drifted, so a rescan
+		// does not silently discard prior triage or re-queue unchanged findings.
 		var prevAIAnnotation, prevVerificationStatus sql.NullString
+		var prevTriageStatus, prevTriageSource, prevTriagedAt, prevContextHash sql.NullString
 		_ = tx.QueryRowContext(ctx, `
-			SELECT ai_annotation, verification_status
+			SELECT ai_annotation, verification_status, triage_status, triage_source, triaged_at, context_hash
 			FROM findings
-			WHERE project_id = ? AND finding_id = ? AND (ai_annotation IS NOT NULL OR (verification_status IS NOT NULL AND verification_status != 'NOT_CHECKED'))
+			WHERE project_id = ? AND finding_id = ?
+			  AND (
+			    ai_annotation IS NOT NULL
+			    OR (verification_status IS NOT NULL AND verification_status != 'NOT_CHECKED')
+			    OR (triage_status IS NOT NULL AND triage_status != 'untriaged')
+			  )
 			ORDER BY rowid DESC LIMIT 1
-		`, projectID, findingID).Scan(&prevAIAnnotation, &prevVerificationStatus)
+		`, projectID, findingID).Scan(
+			&prevAIAnnotation, &prevVerificationStatus,
+			&prevTriageStatus, &prevTriageSource, &prevTriagedAt, &prevContextHash,
+		)
 
 		initialVerifStatus := "NOT_CHECKED"
 		if prevVerificationStatus.Valid && prevVerificationStatus.String != "" {
 			initialVerifStatus = prevVerificationStatus.String
 		}
+
+		// Drift check: carry forward triage only when previous context_hash is empty
+		// (legacy row) or matches the current context_hash.
+		contextMatches := !prevContextHash.Valid || prevContextHash.String == "" || prevContextHash.String == contextHash
+
 		var aiAnnotationVal interface{} = nil
-		if prevAIAnnotation.Valid && prevAIAnnotation.String != "" {
-			aiAnnotationVal = prevAIAnnotation.String
+		triageStatusVal := "untriaged"
+		var triageSourceVal interface{} = nil
+		var triagedAtVal interface{} = nil
+
+		if contextMatches {
+			if prevAIAnnotation.Valid && prevAIAnnotation.String != "" {
+				aiAnnotationVal = prevAIAnnotation.String
+			}
+			if prevTriageStatus.Valid && prevTriageStatus.String != "" {
+				triageStatusVal = prevTriageStatus.String
+			}
+			if prevTriageSource.Valid && prevTriageSource.String != "" {
+				triageSourceVal = prevTriageSource.String
+			}
+			if prevTriagedAt.Valid && prevTriagedAt.String != "" {
+				triagedAtVal = prevTriagedAt.String
+			}
 		}
 
 		suppressedInt := 0
@@ -286,14 +323,18 @@ func (d *DB) persistFindingBatch(ctx context.Context, scanID, projectID string, 
 				finding_id, scan_id, project_id,
 				rule_id, secret_type, severity, confidence,
 				repo_url, commit_sha, branch, file_path, line_number, column_number,
+				end_line, end_column,
 				evidence_redacted, secret_checksum, source_context,
-				suppressed, exception_id, verification_status, ai_annotation, detected_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				suppressed, exception_id, verification_status, ai_annotation,
+				triage_status, triage_source, triaged_at, context_hash, detected_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			findingID, scanID, projectID,
-			ruleName, "generic.high_entropy", confidence, confidence,
+			ruleName, classifyRuleSecretType(ruleName), confidence, confidence,
 			"", "", "", location, line, col,
+			endLine, endCol,
 			"", checksum, source,
 			suppressedInt, excID, initialVerifStatus, aiAnnotationVal,
+			triageStatusVal, triageSourceVal, triagedAtVal, contextHash,
 			time.Now().UTC().Format(time.RFC3339),
 		); err != nil {
 			log.Printf("persistFindingBatch: insert: %v", err)

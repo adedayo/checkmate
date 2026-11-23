@@ -109,7 +109,22 @@ Example GitHub Actions step:
     sarif_file: checkmate-results.sarif
 ```
 
-## Deferred
+## Suppressions, Triage Metadata & End Coordinates
 
-- **Inline suppression annotations:** Mapping CheckMate exceptions to SARIF `suppressions[]` entries. Will be added once the exception-to-finding matching is fully wired.
-- **EndLine / EndColumn:** Currently only `startLine` and `startColumn` are populated. `endLine` and `endColumn` fields exist in the schema but are not yet set.
+Merged from change 007-agent-mcp-triage.
+
+`pkg/report/sarif.go` additionally exposes:
+
+```go
+type SARIFOptions struct {
+    IncludeSuppressed bool
+}
+
+func GenerateSARIFWithOptions(writer io.Writer, findings []*store.StoredFinding, opts SARIFOptions) error
+```
+
+- **Sanitised mode (`IncludeSuppressed: false`):** Omits suppressed / `false_positive` findings so only actionable results are emitted.
+- **Full audit mode (`IncludeSuppressed: true`):** Includes suppressed findings with standard SARIF 2.1.0 `suppressions` (`kind: "external"`, `status: "accepted"`, `justification`).
+- **Triage properties:** Triaged findings include `properties.checkmateTriage` (`triageStatus`, `triageSource`, `exceptionId`, `summary`, `remediationHint`, `reasonCategory`).
+- **Region end coordinates:** `endLine` and `endColumn` are populated on `region` whenever persisted on the stored finding.
+- Output validates cleanly against `pkg/report/testdata/sarif-schema-2.1.0.json`.

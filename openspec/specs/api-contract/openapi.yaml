@@ -1111,6 +1111,21 @@ paths:
           required: true
           schema:
             type: string
+        - name: view
+          in: query
+          required: false
+          description: "raw (default) or sanitised (omits suppressed false positives or includes SARIF suppressions[])"
+          schema:
+            type: string
+            enum: [raw, sanitised]
+            default: raw
+        - name: includeSuppressed
+          in: query
+          required: false
+          description: "When view=sanitised and true, include suppressed findings with SARIF 2.1.0 suppressions[]"
+          schema:
+            type: boolean
+            default: false
       responses:
         "200":
           description: Report file
@@ -1125,6 +1140,92 @@ paths:
             text/html:
               schema:
                 type: string
+
+  /v1/scans/{scanId}/sanitised:
+    get:
+      operationId: getSanitisedScan
+      summary: Retrieve sanitised summary and active (non-suppressed) findings for a scan
+      tags: [scans]
+      parameters:
+        - name: scanId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: includeSuppressed
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Sanitised scan report JSON
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /v1/scans/{scanId}/triage/batch:
+    post:
+      operationId: submitBatchTriage
+      summary: Submit external/AI-agent triage verdicts in batch for a scan
+      tags: [scans]
+      parameters:
+        - name: scanId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decisions]
+              properties:
+                triagedBy:
+                  type: string
+                decisions:
+                  type: array
+                  items:
+                    type: object
+      responses:
+        "200":
+          description: Triage batch applied and sanitised summary recomputed
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /v1/mcp:
+    post:
+      operationId: handleMCPRequest
+      summary: Streamable HTTP Model Context Protocol (MCP) JSON-RPC 2.0 endpoint
+      tags: [scans]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: JSON-RPC 2.0 response payload
+          content:
+            application/json:
+              schema:
+                type: object
+        "202":
+          description: Notification accepted
+    delete:
+      operationId: closeMCPSession
+      summary: Close an MCP HTTP session
+      tags: [scans]
+      responses:
+        "204":
+          description: Session closed
 
   /v1/scans/{scanId}/stream:
     get:
@@ -1570,6 +1671,46 @@ paths:
                     enum: [queued]
                   findingId:
                     type: string
+    put:
+      operationId: recordFindingTriage
+      summary: Write back an external/AI-agent triage verdict for this finding
+      tags: [findings]
+      parameters:
+        - name: findingId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scanId, verdict]
+              properties:
+                scanId:
+                  type: string
+                verdict:
+                  type: string
+                  enum: [true_positive, false_positive, needs_review]
+                reason:
+                  type: string
+                justification:
+                  type: string
+                remediationHint:
+                  type: string
+                applyToSameChecksum:
+                  type: boolean
+                persistException:
+                  type: boolean
+      responses:
+        "200":
+          description: Finding triage updated and scan summary recomputed
+          content:
+            application/json:
+              schema:
+                type: object
 
   # ── Exceptions ──────────────────────────────────────────────────────────────
 

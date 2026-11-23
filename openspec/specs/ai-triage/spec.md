@@ -127,3 +127,12 @@ This enables zero-configuration local triage with `base_url: http://ollama:11434
 
 - **Batch triage:** Background job that triages all un-annotated findings in bulk. 
 - **Cost tracking:** Token usage is recorded per annotation and aggregated into a usage endpoint.
+
+## External Agent Triage Write-Back
+
+Merged from change 007-agent-mcp-triage.
+
+In addition to CheckMate's built-in BYOK `/chat/completions` triage loop, external AI agents (via MCP or REST `PUT /v1/findings/{findingId}/triage` and `POST /v1/scans/{scanId}/triage/batch`) may write back structured triage verdicts after inspecting findings in full repository context.
+
+- `AIAnnotation` includes optional `verdict` (`true_positive`, `false_positive`, `needs_review`), `reasonCategory` (e.g. `test_fixture`, `example_placeholder`, `non_secret_identifier`, `config_key_name`, `real_credential`), and `triageSource`.
+- Deterministic `Finding.Severity` and `Finding.Confidence` remain immutable; false-positive suppression operates strictly via `findings.suppressed`, `findings.exception_id`, `findings.triage_status`, and the `exceptions` table, with every mutation recorded in `audit_log`.

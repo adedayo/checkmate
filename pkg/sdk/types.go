@@ -75,6 +75,17 @@ const (
 	VerificationUnknown    VerificationStatus = "UNKNOWN"
 )
 
+// TriageStatus tracks the human or AI agent verdict on a finding without
+// mutating deterministic Severity or Confidence.
+type TriageStatus string
+
+const (
+	TriageStatusUntriaged     TriageStatus = "untriaged"
+	TriageStatusTruePositive  TriageStatus = "true_positive"
+	TriageStatusFalsePositive TriageStatus = "false_positive"
+	TriageStatusNeedsReview   TriageStatus = "needs_review"
+)
+
 // Finding is a detected secret. The raw secret value is never stored in this
 // struct — only the checksum and a redacted display form.
 //
@@ -122,6 +133,12 @@ type Finding struct {
 	// AI triage — nil until triage is run for this finding
 	AIAnnotation *AIAnnotation
 
+	// Triage metadata (populated by agent MCP/REST triage or human review)
+	TriageStatus TriageStatus
+	TriageSource string
+	TriagedAt    *time.Time
+	ContextHash  string
+
 	DetectedAt time.Time
 }
 
@@ -150,6 +167,10 @@ type AIAnnotation struct {
 
 	UserOverridden bool   `json:"userOverridden,omitempty"`
 	UserDecision   string `json:"userDecision,omitempty"` // "true_positive" or "false_positive"
+
+	Verdict        string `json:"verdict,omitempty"`        // "true_positive", "false_positive", "needs_review"
+	ReasonCategory string `json:"reasonCategory,omitempty"` // e.g. "test_fixture", "example_placeholder", "real_credential"
+	TriageSource   string `json:"triageSource,omitempty"`   // e.g. "agent:copilot/claude-sonnet"
 }
 
 // PromptMode records what was sent to the AI model about the detected secret.
