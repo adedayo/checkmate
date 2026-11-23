@@ -7,6 +7,7 @@
 [![golangci-lint](https://github.com/adedayo/checkmate/actions/workflows/golangci-lint.yml/badge.svg)](https://github.com/adedayo/checkmate/actions/workflows/golangci-lint.yml)
 ![GitHub release](https://img.shields.io/github/release/adedayo/checkmate.svg)
 [![GitHub license](https://img.shields.io/github/license/adedayo/checkmate.svg)](https://github.com/adedayo/checkmate/blob/master/LICENSE)
+[![Docs & Overview](https://img.shields.io/badge/docs-GitHub%20Pages-10b981.svg)](https://adedayo.github.io/checkmate/)
 
 ![CheckMate Reporting](checkmate-report.png)
 
@@ -82,6 +83,7 @@ The CheckMate API server includes a built-in scheduler for **continuous, automat
 | **API Server** | Self-hosted platform with REST API, JWT auth, and SQLite persistence |
 | **GitHub Action** | Native CI/CD integration; block secrets before they merge |
 | **Desktop App** | GUI application for non-CLI users |
+| **MCP Server** | Model Context Protocol (`checkmate mcp serve` and `/v1/mcp`) for AI coding agents |
 | **LSP Server** | IDE integration (Language Server Protocol) for in-editor warnings |
 
 ---
@@ -153,10 +155,36 @@ checkmate api --port 17283 --data-path ~/.checkmate
 
 The API server provides:
 - JWT-authenticated REST endpoints for projects, scans, findings, exceptions, and webhooks
+- Streamable HTTP MCP endpoint (`/v1/mcp`) and external agent triage write-back (`/v1/scans/{scanId}/triage/batch`, `/v1/scans/{scanId}/sanitised`)
 - Real-time scan event streaming via Server-Sent Events (SSE)
 - Automated scheduled scanning of monitored repositories
 
-For full API capabilities including BYOK AI Triage, Webhook Notifications, and Auditable Exceptions, see the [Features & Capabilities Documentation](docs/features.md).
+For full API capabilities including BYOK AI Triage, Webhook Notifications, and Auditable Exceptions, see the [Features & Capabilities Documentation](docs/features.md) or the [CheckMate Project Site](https://adedayo.github.io/checkmate/).
+
+### MCP Server (AI Agent Integration)
+
+Drive CheckMate from AI coding agents (GitHub Copilot, Claude Code, Cursor, or CI agents) over stdio or Streamable HTTP:
+
+```bash
+# Persistent stdio MCP server (shares ~/.checkmate/checkmate.db with CheckMate App)
+checkmate mcp serve
+
+# Ephemeral stdio MCP server for stateless CI or PR reviews
+checkmate mcp serve --ephemeral
+```
+
+Example MCP client configuration:
+
+```json
+{
+  "mcpServers": {
+    "checkmate": {
+      "command": "checkmate",
+      "args": ["mcp", "serve"]
+    }
+  }
+}
+```
 
 ### Docker
 

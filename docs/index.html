@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CheckMate | Open-Source Secrets Detection for CLI, AI Agents, and Desktop</title>
+  <meta name="description" content="Prevent a breach. CheckMate is a self-hosted, open-source secrets detection platform with a fast CLI, native MCP server for AI agents, REST/SSE API, LSP server, and cross-platform Desktop App.">
+  <link rel="icon" type="image/svg+xml" href="assets/logo-icon.svg">
+  <style>
+    :root {
+      --bg: #0b1120;
+      --bg-elevated: #111a2e;
+      --bg-card: #152038;
+      --bg-code: #080d19;
+      --border: #1e2d4a;
+      --border-strong: #2c4168;
+      --text: #e2e8f0;
+      --text-muted: #94a3b8;
+      --text-bright: #f8fafc;
+      --emerald: #10b981;
+      --emerald-dark: #059669;
+      --blue: #3b82f6;
+      --blue-deep: #2563eb;
+      --amber: #f59e0b;
+      --radius: 14px;
+      --radius-sm: 8px;
+      --shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: var(--font-sans);
+      background:
+        radial-gradient(900px 500px at 15% -10%, rgba(37, 99, 235, 0.22), transparent 65%),
+        radial-gradient(800px 500px at 85% 0%, rgba(16, 185, 129, 0.16), transparent 65%),
+        var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: #60a5fa; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .container {
+      width: 100%;
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Navigation */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      backdrop-filter: blur(14px);
+      background: rgba(11, 17, 32, 0.82);
+      border-bottom: 1px solid rgba(30, 45, 74, 0.8);
+    }
+    .nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 68px;
+      gap: 20px;
+    }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      font-size: 1.2rem;
+      color: var(--text-bright);
+      letter-spacing: -0.02em;
+    }
+    .brand:hover { text-decoration: none; }
+    .brand img { width: 32px; height: 32px; }
+    .brand span {
+      background: linear-gradient(90deg, #60a5fa, #10b981);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      font-size: 0.94rem;
+      font-weight: 500;
+    }
+    .nav-links a { color: var(--text-muted); transition: color 0.15s; }
+    .nav-links a:hover { color: var(--text-bright); text-decoration: none; }
+    .nav-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, var(--blue-deep), var(--emerald-dark));
+      color: #fff !important;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .nav-cta:hover { opacity: 0.92; }
+
+    /* Hero */
+    .hero {
+      padding: 84px 0 64px;
+      text-align: center;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      background: rgba(16, 185, 129, 0.1);
+      color: #6ee7b7;
+      font-size: 0.84rem;
+      font-weight: 600;
+      margin-bottom: 24px;
+    }
+    .pill-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--emerald);
+      box-shadow: 0 0 12px var(--emerald);
+    }
+    h1 {
+      font-size: clamp(2.3rem, 5vw, 3.7rem);
+      font-weight: 800;
+      line-height: 1.12;
+      letter-spacing: -0.03em;
+      color: var(--text-bright);
+      max-width: 880px;
+      margin: 0 auto 20px;
+    }
+    .gradient-text {
+      background: linear-gradient(90deg, #60a5fa 0%, #34d399 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero-sub {
+      max-width: 720px;
+      margin: 0 auto 34px;
+      font-size: 1.14rem;
+      color: var(--text-muted);
+    }
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 40px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 13px 24px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.98rem;
+      transition: transform 0.15s, border-color 0.15s, background 0.15s;
+    }
+    .btn:hover { text-decoration: none; transform: translateY(-1px); }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--blue-deep), var(--emerald-dark));
+      color: #fff;
+      box-shadow: 0 10px 30px rgba(16, 185, 129, 0.25);
+    }
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text-bright);
+      border: 1px solid var(--border-strong);
+    }
+    .btn-secondary:hover { border-color: #60a5fa; }
+
+    .hero-stats {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 16px;
+      max-width: 920px;
+      margin: 0 auto;
+    }
+    .stat {
+      background: rgba(21, 32, 56, 0.72);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px 14px;
+    }
+    .stat strong {
+      display: block;
+      font-size: 1.1rem;
+      color: var(--text-bright);
+      margin-bottom: 4px;
+    }
+    .stat span {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    /* Sections */
+    section { padding: 72px 0; }
+    .section-alt {
+      background: rgba(17, 26, 46, 0.55);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .section-label {
+      display: inline-block;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--emerald);
+      margin-bottom: 10px;
+    }
+    h2 {
+      font-size: clamp(1.75rem, 3.2vw, 2.4rem);
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      color: var(--text-bright);
+      margin-bottom: 14px;
+    }
+    .section-lead {
+      color: var(--text-muted);
+      font-size: 1.05rem;
+      max-width: 740px;
+      margin-bottom: 36px;
+    }
+
+    /* Grids & Cards */
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 20px;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 24px;
+      align-items: start;
+    }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      transition: border-color 0.18s, transform 0.18s;
+    }
+    .card:hover {
+      border-color: var(--border-strong);
+      transform: translateY(-2px);
+    }
+    .card-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(37, 99, 235, 0.16);
+      color: #60a5fa;
+      font-weight: 800;
+      font-size: 1rem;
+      margin-bottom: 14px;
+      font-family: var(--font-mono);
+    }
+    .card-icon.green {
+      background: rgba(16, 185, 129, 0.16);
+      color: #34d399;
+    }
+    .card h3 {
+      font-size: 1.12rem;
+      color: var(--text-bright);
+      margin-bottom: 8px;
+      letter-spacing: -0.01em;
+    }
+    .card p {
+      font-size: 0.94rem;
+      color: var(--text-muted);
+    }
+    .card ul {
+      margin-top: 12px;
+      padding-left: 18px;
+      color: var(--text-muted);
+      font-size: 0.92rem;
+    }
+    .card li { margin-bottom: 6px; }
+
+    /* Showcase Media */
+    .media-frame {
+      background: var(--bg-code);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    .media-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background: #0f172a;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+    .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+    .dot-r { background: #ef4444; }
+    .dot-y { background: #f59e0b; }
+    .dot-g { background: #10b981; }
+    .media-frame img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    /* Code Blocks & Tabs */
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .tab-btn {
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      color: var(--text-muted);
+      padding: 9px 16px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      font-family: var(--font-sans);
+      transition: all 0.15s;
+    }
+    .tab-btn:hover { color: var(--text-bright); border-color: var(--border-strong); }
+    .tab-btn.active {
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.25), rgba(16, 185, 129, 0.2));
+      border-color: var(--emerald);
+      color: var(--text-bright);
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    .code-box {
+      position: relative;
+      background: var(--bg-code);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 18px 20px;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 0.87rem;
+      line-height: 1.6;
+      color: #cbd5e1;
+    }
+    .code-box pre { margin: 0; white-space: pre; }
+    .copy-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: var(--bg-card);
+      color: var(--text-muted);
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 0.76rem;
+      font-family: var(--font-sans);
+      cursor: pointer;
+    }
+    .copy-btn:hover { color: var(--text-bright); border-color: var(--emerald); }
+
+    /* Comparison Table */
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-card);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.93rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      background: rgba(15, 23, 42, 0.75);
+      color: var(--text-bright);
+      font-weight: 700;
+      font-size: 0.86rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    tr:last-child td { border-bottom: none; }
+    td { color: var(--text-muted); }
+    td:first-child { color: var(--text-bright); font-weight: 600; }
+    .badge {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: 0.76rem;
+      font-weight: 600;
+    }
+    .badge-yes { background: rgba(16, 185, 129, 0.16); color: #6ee7b7; }
+    .badge-opt { background: rgba(59, 130, 246, 0.16); color: #93c5fd; }
+
+    /* MCP Tool Pills */
+    .tool-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 20px;
+    }
+    .tool-item {
+      background: var(--bg-code);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+    }
+    .tool-item code {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.86rem;
+      color: #34d399;
+      margin-bottom: 6px;
+    }
+    .tool-item p {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+    }
+
+    /* Guardrails strip */
+    .guardrail-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+    .guardrail {
+      background: var(--bg-card);
+      border-left: 3px solid var(--emerald);
+      border-top: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 18px 20px;
+    }
+    .guardrail h3 {
+      font-size: 1rem;
+      color: var(--text-bright);
+      margin-bottom: 6px;
+    }
+    .guardrail p {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 0;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+    .footer-inner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .footer-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+
+    @media (max-width: 920px) {
+      .grid-3, .grid-2, .hero-stats, .tool-grid, .guardrail-list {
+        grid-template-columns: 1fr;
+      }
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="container nav">
+    <a href="#" class="brand">
+      <img src="assets/logo-icon.svg" alt="CheckMate icon">
+      Check<span>Mate</span>
+    </a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#cli">CLI &amp; Platform</a>
+      <a href="#mcp">AI Agent MCP</a>
+      <a href="#desktop">Desktop App</a>
+      <a href="#compare">Compare</a>
+      <a href="#quickstart">Quick Start</a>
+      <a class="nav-cta" href="https://github.com/adedayo/checkmate">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container">
+      <div class="pill">
+        <span class="pill-dot"></span>
+        Open-Source · Self-Hosted · CLI, Desktop App &amp; Native MCP Server
+      </div>
+      <h1>Prevent a breach with <span class="gradient-text">deterministic secret detection</span> and AI-assisted triage</h1>
+      <p class="hero-sub">
+        CheckMate finds hard-coded API keys, passwords, tokens, and private keys across source code, configs, logs, and Git repositories. Run it from the command line, drive it from AI coding agents over MCP, self-host the API server, or manage organisation-wide exposure in the native Desktop App.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#quickstart">Get Started</a>
+        <a class="btn btn-secondary" href="https://github.com/adedayo/checkmate-app/releases/latest">Download Desktop App</a>
+        <a class="btn btn-secondary" href="https://github.com/adedayo/checkmate/releases/latest">CLI Releases</a>
+      </div>
+      <div class="hero-stats">
+        <div class="stat">
+          <strong>Zero Cloud Lock-In</strong>
+          <span>Pure Go single binary with CGO-free SQLite</span>
+        </div>
+        <div class="stat">
+          <strong>Deterministic Engine</strong>
+          <span>Parallel prefiltered scan, canonical ordering</span>
+        </div>
+        <div class="stat">
+          <strong>Native MCP + BYOK AI</strong>
+          <span>Eliminate false positives with contextual triage</span>
+        </div>
+        <div class="stat">
+          <strong>Shared Local Store</strong>
+          <span>CLI, API, MCP &amp; Desktop App share one DB</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CLI & Core Platform -->
+  <section id="cli" class="section-alt">
+    <div class="container">
+      <span class="section-label">Command Line &amp; Platform</span>
+      <h2>Fast, deterministic scanning everywhere code lives</h2>
+      <p class="section-lead">
+        Built in Go for speed and portability, the CheckMate CLI combines Shannon entropy analysis, structural code context, and pattern matching behind a literal prefilter. Scan local directories, remote Git URLs, or CI pipelines with zero external dependencies.
+      </p>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-icon">&gt;_</div>
+          <h3>High-Recall CLI Scanner</h3>
+          <p>Scan local directories, individual files, or remote Git repositories directly by URL using <code>checkmate search</code>.</p>
+          <ul>
+            <li>Parallel worker pool with literal prefiltering</li>
+            <li>Detects credentials, private keys, certificates &amp; keystores</li>
+            <li>Exclude test files or supply <code>.checkmate.yaml</code> policies</li>
+            <li>Stream findings live with <code>--running-commentary</code></li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-icon green">{}</div>
+          <h3>SARIF 2.1.0, PDF, CSV &amp; JSON</h3>
+          <p>Emit developer-ready and audit-ready outputs directly from the CLI or API without middleware converters.</p>
+          <ul>
+            <li>Native SARIF 2.1.0 with <code>partialFingerprints</code></li>
+            <li>Standard SARIF <code>suppressions[]</code> for triaged scans</li>
+            <li>Native PDF executive audit reports &amp; CSV exports</li>
+            <li>Direct GitHub Code Scanning &amp; SIEM ingestion</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">API</div>
+          <h3>Self-Hosted API, LSP &amp; Go SDK</h3>
+          <p>Run CheckMate continuously as a team service, inside editors, or embedded directly inside Go tooling.</p>
+          <ul>
+            <li><code>checkmate api</code>: <code>/v1/</code> REST, WebSocket &amp; SSE streaming</li>
+            <li>JWT auth, scoped <code>cm_</code> API keys &amp; HMAC webhooks</li>
+            <li><code>checkmate lspServe</code> for real-time IDE warnings</li>
+            <li>Importable Go library via <code>pkg/sdk</code> and GitHub Action</li>
+          </ul>
+        </div>
+      </div>
+
+      <div style="margin-top: 32px;" class="media-frame">
+        <div class="media-bar">
+          <span class="dot dot-r"></span>
+          <span class="dot dot-y"></span>
+          <span class="dot dot-g"></span>
+          <span>CheckMate Audit Report &amp; Evidence View</span>
+        </div>
+        <img src="assets/checkmate-report.png" alt="CheckMate scan report showing detected secrets and severity summary" loading="lazy">
+      </div>
+    </div>
+  </section>
+
+  <!-- AI Agent & MCP Server -->
+  <section id="mcp">
+    <div class="container">
+      <span class="section-label">Agent-Driven Triage</span>
+      <h2>Native Model Context Protocol (MCP) Server</h2>
+      <p class="section-lead">
+        High-recall secret scanners inevitably flag test fixtures, mock tokens, integrity hashes, and documentation placeholders. CheckMate exposes a built-in MCP server over both <strong>stdio</strong> (<code>checkmate mcp serve</code>) and <strong>Streamable HTTP</strong> (<code>/v1/mcp</code>) so AI coding agents like GitHub Copilot, Claude Code, and Cursor can run CheckMate, investigate flagged coordinates in full codebase context, suppress false positives, and produce clean, sanitised results.
+      </p>
+
+      <div class="grid-2">
+        <div>
+          <h3 style="color: var(--text-bright); margin-bottom: 10px;">How the Agent Triage Loop Works</h3>
+          <p style="color: var(--text-muted); margin-bottom: 16px;">
+            CheckMate acts as the deterministic high-recall sensor and suppression store; the AI agent acts as the contextual investigator. Repeated noise is clustered by directory or checksum so hundreds of false positives can be verified and suppressed in seconds, with blast-radius previews before any broad rule is committed.
+          </p>
+          <div class="tool-grid">
+            <div class="tool-item">
+              <code>checkmate_scan</code>
+              <p>Scan paths, projects, or a <code>gitDiffBase</code> and return compact cluster counts instead of dumping raw noise.</p>
+            </div>
+            <div class="tool-item">
+              <code>checkmate_get_worklist</code>
+              <p>Group untriaged findings by <code>checksum</code>, <code>directory</code>, <code>file</code>, or <code>rule</code> with exact file/line/column coordinates.</p>
+            </div>
+            <div class="tool-item">
+              <code>checkmate_preview_suppression</code>
+              <p>Dry-run any suppression rule to inspect matched count and verify zero confirmed true positives are affected.</p>
+            </div>
+            <div class="tool-item">
+              <code>checkmate_triage_batch</code>
+              <p>Write back <code>true_positive</code>, <code>false_positive</code>, or <code>needs_review</code> verdicts with checksum fan-out and durable exceptions.</p>
+            </div>
+            <div class="tool-item">
+              <code>checkmate_apply_suppression_rule</code>
+              <p>Persist scoped pattern rules (<code>pathRegex</code>, <code>globalHash</code>, <code>pathHash</code>, etc.) with wildcard guardrails and scan reconciliation.</p>
+            </div>
+            <div class="tool-item">
+              <code>checkmate_export_sanitised</code>
+              <p>Export sanitised <code>json</code>, <code>sarif</code>, <code>csv</code>, <code>pdf</code>, or a committable <code>.checkmate.yaml</code> policy.</p>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <h3 style="color: var(--text-bright); margin-bottom: 10px;">Connect Any MCP-Compatible AI Tool</h3>
+          <p style="color: var(--text-muted); margin-bottom: 14px;">
+            Add CheckMate to your IDE or CLI agent configuration. It shares the same SQLite database as CheckMate App, so agent triage decisions immediately clean up your desktop dashboard and carry forward across future scans unless surrounding code context changes.
+          </p>
+          <div class="code-box">
+            <button class="copy-btn" data-copy="mcp-config">Copy</button>
+            <pre id="mcp-config">{
+  "mcpServers": {
+    "checkmate": {
+      "command": "checkmate",
+      "args": ["mcp", "serve"]
+    }
+  }
+}</pre>
+          </div>
+
+          <div class="code-box" style="margin-top: 16px;">
+            <button class="copy-btn" data-copy="mcp-ephemeral">Copy</button>
+            <pre id="mcp-ephemeral"># One-shot stateless mode for CI / PR agents
+checkmate mcp serve --ephemeral
+
+# Remote team server (Streamable HTTP + REST write-back)
+checkmate api --port 17283 --data-path ~/.checkmate
+# MCP endpoint: POST /v1/mcp
+# Sanitised scan: GET /v1/scans/{scanId}/sanitised</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Desktop Application -->
+  <section id="desktop" class="section-alt">
+    <div class="container">
+      <span class="section-label">CheckMate Desktop App</span>
+      <h2>Executive &amp; analyst intelligence in a native cross-platform app</h2>
+      <p class="section-lead">
+        <a href="https://github.com/adedayo/checkmate-app">CheckMate App</a> brings the full CheckMate engine into a native desktop experience for macOS, Windows, Linux, and Docker web mode. Correlate findings across projects, identify reused secrets, prioritise remediation by ROI, and govern exceptions with full auditability.
+      </p>
+
+      <div class="media-frame" style="margin-bottom: 36px;">
+        <div class="media-bar">
+          <span class="dot dot-r"></span>
+          <span class="dot dot-y"></span>
+          <span class="dot dot-g"></span>
+          <span>CheckMate Desktop App · Executive Security Posture Dashboard</span>
+        </div>
+        <img src="assets/dashboard.png" alt="CheckMate Desktop App executive security posture dashboard" loading="lazy">
+      </div>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-icon green">0-100</div>
+          <h3>Executive Posture Dashboard</h3>
+          <p>Unified security posture rating across workspaces and repositories with real-time filtering, scan progress tracking, and interactive multi-scan SVG trend charts.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">AI</div>
+          <h3>BYO AI Auto-Triage</h3>
+          <p>Connect local air-gapped Ollama models or cloud providers (OpenAI, Anthropic, DeepSeek, vLLM). Auto-suppress high-confidence false positives with <code>REDACTED</code> prompt mode and permanent human override memory.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon green">ROI</div>
+          <h3>Reused Secrets &amp; ROI Playbook</h3>
+          <p>Correlates identical secret hashes across multiple repositories to detect lateral movement risk and ranks the top remediation actions that eliminate the most leak instances fastest.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">PROD</div>
+          <h3>Production vs. Test Profiling</h3>
+          <p>Separates live production credentials from test suites, mocks, and fixtures so engineering teams focus first on genuinely exploitable exposure.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon green">EXC</div>
+          <h3>Governed Exception Management</h3>
+          <p>First-class suppression rules with granular scopes (hash, file, directory, regex, project), mandatory justifications, optional expiry dates, and immutable audit trails.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-icon">OS</div>
+          <h3>Native Everywhere + Docker UI</h3>
+          <p>Install natively via Homebrew Cask (macOS), Winget/Installer (Windows), Linux tarball, or run headless web mode via <code>ghcr.io/adedayo/checkmate-app</code>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Guardrails -->
+  <section>
+    <div class="container">
+      <span class="section-label">Security By Design</span>
+      <h2>Non-negotiable architectural guardrails</h2>
+      <p class="section-lead">
+        CheckMate is built so that AI assistance and performance optimisations never weaken deterministic security guarantees or leak credentials.
+      </p>
+      <div class="guardrail-list">
+        <div class="guardrail">
+          <h3>1. AI never overwrites deterministic scores</h3>
+          <p>Finding severity, confidence, and raw scan totals remain pure functions of the deterministic engine. Triage verdicts and sanitised metrics are stored alongside them with full provenance.</p>
+        </div>
+        <div class="guardrail">
+          <h3>2. No plaintext secrets persisted</h3>
+          <p>CheckMate never writes raw secret values to SQLite. Only SHA-256 secret checksums and redacted previews are stored, while still enabling cross-project reuse detection.</p>
+        </div>
+        <div class="guardrail">
+          <h3>3. Stable finding identity &amp; drift tracking</h3>
+          <p>Deterministic <code>finding_id</code> hashes track findings across scans without joins, and <code>context_hash</code> resets prior triage automatically if surrounding code changes.</p>
+        </div>
+        <div class="guardrail">
+          <h3>4. Safe suppression guardrails</h3>
+          <p>Agent suppression rules reject wildcard catch-all regexes, preview blast radius before applying, refuse to silently suppress confirmed true positives, and log every action to <code>audit_log</code>.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Comparison Table -->
+  <section id="compare" class="section-alt">
+    <div class="container">
+      <span class="section-label">One Ecosystem, Four Interfaces</span>
+      <h2>Choose the right surface for every workflow</h2>
+      <p class="section-lead">
+        All CheckMate surfaces share the same detection engine, exception model, and SQLite database so findings triaged in one interface stay consistent everywhere.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Capability</th>
+              <th>CLI (<code>checkmate search</code>)</th>
+              <th>MCP Server (<code>checkmate mcp serve</code>)</th>
+              <th>API Server (<code>checkmate api</code>)</th>
+              <th>Desktop App (<code>checkmate-app</code>)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Best For</td>
+              <td>Developers, scripts, CI/CD</td>
+              <td>AI coding agents &amp; automated FP triage</td>
+              <td>Self-hosted teams, webhooks, cron</td>
+              <td>Security leads, analysts, visual triage</td>
+            </tr>
+            <tr>
+              <td>Local &amp; Remote Git Scanning</td>
+              <td><span class="badge badge-yes">Built-in</span></td>
+              <td><span class="badge badge-yes">Built-in</span></td>
+              <td><span class="badge badge-yes">Built-in</span></td>
+              <td><span class="badge badge-yes">Built-in</span></td>
+            </tr>
+            <tr>
+              <td>Git-Diff Scoped Scanning</td>
+              <td><span class="badge badge-opt">Via paths</span></td>
+              <td><span class="badge badge-yes">gitDiffBase</span></td>
+              <td><span class="badge badge-yes">Via /v1/mcp</span></td>
+              <td><span class="badge badge-opt">Project scan</span></td>
+            </tr>
+            <tr>
+              <td>AI False-Positive Triage</td>
+              <td><span class="badge badge-opt">Via MCP/API</span></td>
+              <td><span class="badge badge-yes">Agent-driven</span></td>
+              <td><span class="badge badge-yes">BYOK + Write-back</span></td>
+              <td><span class="badge badge-yes">BYO AI + Auto-Suppress</span></td>
+            </tr>
+            <tr>
+              <td>SARIF 2.1.0 + Suppressions</td>
+              <td><span class="badge badge-yes">Built-in</span></td>
+              <td><span class="badge badge-yes">Sanitised &amp; Audit</span></td>
+              <td><span class="badge badge-yes">?view=sanitised</span></td>
+              <td><span class="badge badge-yes">Exportable</span></td>
+            </tr>
+            <tr>
+              <td>Cross-Project Reused Secrets &amp; ROI</td>
+              <td><span class="badge badge-opt">Per scan</span></td>
+              <td><span class="badge badge-yes">Clustered worklist</span></td>
+              <td><span class="badge badge-yes">SQLite store</span></td>
+              <td><span class="badge badge-yes">Interactive dashboard</span></td>
+            </tr>
+            <tr>
+              <td>Governed Exceptions &amp; Audit Log</td>
+              <td><span class="badge badge-yes">.checkmate.yaml</span></td>
+              <td><span class="badge badge-yes">Preview &amp; Persist</span></td>
+              <td><span class="badge badge-yes">/v1/exceptions</span></td>
+              <td><span class="badge badge-yes">Full UI &amp; Audit</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Quick Start -->
+  <section id="quickstart">
+    <div class="container">
+      <span class="section-label">Quick Start</span>
+      <h2>Up and running in under a minute</h2>
+      <p class="section-lead">
+        Pick your installation path below. Everything runs locally on your machine or self-hosted inside your own infrastructure.
+      </p>
+
+      <div class="tabs" role="tablist">
+        <button class="tab-btn active" data-tab="tab-cli" role="tab" aria-selected="true">CLI</button>
+        <button class="tab-btn" data-tab="tab-app" role="tab" aria-selected="false">Desktop App</button>
+        <button class="tab-btn" data-tab="tab-mcp" role="tab" aria-selected="false">AI Agent MCP</button>
+        <button class="tab-btn" data-tab="tab-api" role="tab" aria-selected="false">API &amp; Docker</button>
+      </div>
+
+      <div id="tab-cli" class="tab-panel active">
+        <div class="code-box">
+          <button class="copy-btn" data-copy="qs-cli">Copy</button>
+          <pre id="qs-cli"># Install on macOS via Homebrew
+brew install adedayo/tap/checkmate
+
+# Scan a local project
+checkmate search /path/to/your/project
+
+# Scan a remote Git repository directly
+checkmate search https://github.com/example/repository.git
+
+# Export SARIF 2.1.0 for GitHub Code Scanning or generate a PDF audit report
+checkmate search --sarif /path/to/project &gt; results.sarif
+checkmate search --pdf /path/to/project
+
+# Start the Language Server Protocol (LSP) server for IDE integration
+checkmate lspServe</pre>
+        </div>
+      </div>
+
+      <div id="tab-app" class="tab-panel">
+        <div class="code-box">
+          <button class="copy-btn" data-copy="qs-app">Copy</button>
+          <pre id="qs-app"># macOS (Apple Silicon &amp; Intel) via Homebrew Cask (recommended)
+brew install --cask adedayo/tap/checkmate-app
+
+# Windows via Winget
+winget install adedayo.checkmate-app
+
+# Headless Web Mode via Docker (shared ~/.checkmate SQLite store)
+docker run -d \
+  --name checkmate-app \
+  -p 8080:8080 \
+  -v ~/.checkmate:/root/.checkmate \
+  ghcr.io/adedayo/checkmate-app:latest</pre>
+        </div>
+      </div>
+
+      <div id="tab-mcp" class="tab-panel">
+        <div class="code-box">
+          <button class="copy-btn" data-copy="qs-mcp">Copy</button>
+          <pre id="qs-mcp"># Run persistent stdio MCP server (shares ~/.checkmate/checkmate.db with Desktop App)
+checkmate mcp serve
+
+# Run ephemeral stdio MCP server for stateless CI or PR reviews
+checkmate mcp serve --ephemeral
+
+# Example agent prompt once connected:
+# "Use CheckMate to scan this repo, inspect flagged locations in context,
+#  suppress verified false positives, and export a sanitised SARIF report."</pre>
+        </div>
+      </div>
+
+      <div id="tab-api" class="tab-panel">
+        <div class="code-box">
+          <button class="copy-btn" data-copy="qs-api">Copy</button>
+          <pre id="qs-api"># Start the self-hosted API + Streamable HTTP MCP server (/v1/mcp)
+checkmate api --port 17283 --data-path ~/.checkmate
+
+# Or pull the multi-mode container image
+docker pull ghcr.io/adedayo/checkmate
+
+# Run a local Ollama sidecar for air-gapped BYOK AI triage
+docker compose -f docker-compose.ollama.yml up -d</pre>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="container footer-inner">
+    <div>
+      <strong style="color: var(--text-bright);">CheckMate</strong> · Created by <a href="https://github.com/adedayo">Dr. Adedayo Adetoye</a> · BSD 3-Clause License
+    </div>
+    <div class="footer-links">
+      <a href="https://github.com/adedayo/checkmate">CLI Repository</a>
+      <a href="https://github.com/adedayo/checkmate-app">Desktop App Repository</a>
+      <a href="https://github.com/adedayo/checkmate/releases">Releases</a>
+      <a href="https://github.com/adedayo/checkmate/blob/main/docs/features.md">Feature Guide</a>
+      <a href="https://github.com/adedayo/checkmate/blob/main/openspec/specs/api-contract/openapi.yaml">OpenAPI Spec</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  document.querySelectorAll('.tab-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var target = btn.getAttribute('data-tab');
+      document.querySelectorAll('.tab-btn').forEach(function (b) {
+        b.classList.remove('active');
+        b.setAttribute('aria-selected', 'false');
+      });
+      document.querySelectorAll('.tab-panel').forEach(function (p) {
+        p.classList.remove('active');
+      });
+      btn.classList.add('active');
+      btn.setAttribute('aria-selected', 'true');
+      var panel = document.getElementById(target);
+      if (panel) panel.classList.add('active');
+    });
+  });
+
+  document.querySelectorAll('.copy-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id = btn.getAttribute('data-copy');
+      var el = document.getElementById(id);
+      if (!el || !navigator.clipboard) return;
+      navigator.clipboard.writeText(el.textContent).then(function () {
+        var orig = btn.textContent;
+        btn.textContent = 'Copied';
+        setTimeout(function () { btn.textContent = orig; }, 1600);
+      });
+    });
+  });
+</script>
+</body>
+</html>
