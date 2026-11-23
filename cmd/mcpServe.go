@@ -64,6 +64,10 @@ var mcpServeCmd = &cobra.Command{
 		defer stop()
 
 		srv := mcp.NewServer(db, appVersion)
+		defer srv.Close()
+		if mcpEphemeral {
+			defer srv.CleanupTrackedCheckouts()
+		}
 		return srv.ServeStdio(ctx, os.Stdin, os.Stdout)
 	},
 }

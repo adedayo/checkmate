@@ -3,9 +3,10 @@ package store
 import (
 	"time"
 
-	"github.com/adedayo/checkmate/pkg/core/diagnostics"
-	"github.com/adedayo/checkmate/pkg/core/projects"
 	"github.com/adedayo/checkmate/pkg/auth"
+	"github.com/adedayo/checkmate/pkg/core/diagnostics"
+	gitutils "github.com/adedayo/checkmate/pkg/core/git"
+	"github.com/adedayo/checkmate/pkg/core/projects"
 	"github.com/adedayo/checkmate/pkg/sdk"
 )
 
@@ -63,6 +64,10 @@ type PlatformStore interface {
 	// Agent MCP & Triage write-back
 	GetScanProjectID(scanID string) (string, error)
 	GetScanFileCount(scanID string) (int, error)
+	GetScanRecord(scanID string) (*ScanRecord, error)
+	GetScanAcquisitionReport(scanID string) (*gitutils.AcquisitionReport, error)
+	GetScanRetainedCheckouts(scanID string) (map[string]string, error)
+	ClearScanRetainedCheckouts(scanID string) error
 	GetScanFindings(scanID string) ([]*StoredFinding, error)
 	UpdateFindingTriage(scanID, findingID string, update TriageUpdate) (int, error)
 	RecomputeScanSummary(scanID string) (*SanitisedSummary, error)

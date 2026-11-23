@@ -8,6 +8,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/go-git/go-git/v5/plumbing/transport"
 	"gopkg.in/yaml.v3"
 )
 
@@ -38,16 +39,32 @@ type GitAuth struct {
 	User, Credential string
 }
 
+// SSHAuthConfig configures native SSH authentication for git clones.
+type SSHAuthConfig struct {
+	PrivateKeyPath string
+	Passphrase     string
+	User           string
+	UseAgent       bool
+}
+
 type GitCloneOptions struct {
 	// Directory to clone into
 	BaseDir string
-	// Authentication detail
+	// Authentication detail (legacy HTTP basic auth)
 	Auth *GitAuth
-	// Depth limit cloning/fetching to the specified number of commits from the tip of
-	// each remote branch history.
+	// AuthMethod overrides Auth and AuthResolver when set.
+	AuthMethod transport.AuthMethod
+	// AuthResolver resolves credentials per repository URL and optional service ID.
+	AuthResolver AuthResolver
+	// ServiceID optionally identifies a configured GitService in GitServiceConfig.
+	ServiceID string
+	// Depth limits cloning/fetching to the specified number of commits from the tip of
+	// each remote branch history. 0 means full history.
 	Depth int
 	// If set, checkout the specified commit
 	CommitHash string
+	// InsecureSkipTLS disables TLS certificate verification when true. Defaults to false.
+	InsecureSkipTLS bool
 }
 
 type RepositoryCloneSpec struct {
@@ -77,6 +94,7 @@ type GitService struct {
 	AccountName     string         //used to track Github user/org name
 	AccountType     string         //(GitHub) User or Organization
 	Type            GitServiceType `json:"_"`
+	InsecureSkipTLS bool           `json:"InsecureSkipTLS,omitempty" yaml:"InsecureSkipTLS,omitempty"`
 }
 
 func (svc GitService) MakeAuth() *GitAuth {

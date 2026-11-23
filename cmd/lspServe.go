@@ -32,58 +32,73 @@ POSSIBILITY OF SUCH DAMAGE.
 */
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
-	"github.com/adedayo/checkmate/pkg/core/diagnostics"
+	common "github.com/adedayo/checkmate/pkg/core"
 	"github.com/adedayo/checkmate/pkg/lsp"
+	"github.com/adedayo/checkmate/pkg/store"
+	"github.com/adedayo/checkmate/pkg/store/sqlite"
+	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 var (
-	// allowedOrigins = []string{}
-	lspExclusions string
+	lspExclusions      string
+	lspDataPath        string
+	lspNoDB            bool
+	lspNoWorkspaceScan bool
 )
-
-// const (
-//headerLengthPrefix is the content length preamble
-// headerLengthPrefix = "Content-Length:"
-// )
 
 // lspServeCmd represents the lspServe command
 var lspServeCmd = &cobra.Command{
 	Use:   "lspServe",
 	Short: "Drive code security analysis using the Language Server Protocol",
-	Long:  `Drive code security analysis using the Language Server Protocol`,
+	Long:  `Starts CheckMate as an LSP 3.17 Language Server over stdin/stdout for real-time in-editor secret detection and Quick Fix suppressions.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		var wld diagnostics.ExcludeDefinition
-		if lspExclusions != "" {
-			data, err := os.ReadFile(lspExclusions)
+		// Keep stdout strictly reserved for Content-Length framed JSON-RPC messages.
+		log.SetOutput(os.Stderr)
+
+		var dbStore store.PlatformStore
+		if !lspNoDB {
+			expanded, err := homedir.Expand(lspDataPath)
 			if err != nil {
-				log.Printf("Warning: %s. Continuing with no exclusion", err.Error())
+				log.Printf("Warning: cannot expand data path %s: %v. Running without SQLite exceptions.", lspDataPath, err)
+			} else if db, err := sqlite.New(expanded); err != nil {
+				log.Printf("Warning: cannot open SQLite store at %s: %v. Running without SQLite exceptions.", expanded, err)
 			} else {
-				if err := yaml.Unmarshal(data, &wld); err != nil {
-					log.Printf("Warning: %s. Continuing with no exclusion", err.Error())
-				}
+				dbStore = db
+				defer func() { _ = db.Close() }()
 			}
 		}
-		var wl diagnostics.ExclusionProvider
-		container := diagnostics.ExcludeContainer{
-			ExcludeDef:   &wld,
-			Repositories: args,
+
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer stop()
+
+		server := lsp.NewServer(lsp.ServerOptions{
+			ExclusionFile:        lspExclusions,
+			Store:                dbStore,
+			DisableWorkspaceScan: lspNoWorkspaceScan,
+			Version:              appVersion,
+		})
+		code, err := server.Serve(ctx, os.Stdin, os.Stdout)
+		if err != nil && err != context.Canceled {
+			log.Printf("LSP server error: %v", err)
 		}
-		if w, err := diagnostics.CompileExcludes(container); err != nil {
-			log.Printf("Warning: %s. Continuing with no exclusion", err.Error())
-		} else {
-			wl = w
+		if code != 0 {
+			os.Exit(code)
 		}
-		server := lsp.NewSecurityServer(wl)
-		server.Start(os.Stdin, os.Stdout)
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(lspServeCmd)
 	lspServeCmd.Flags().StringVarP(&lspExclusions, "exclusion", "w", "", "Use provided exclusion yaml configuration")
+	lspServeCmd.Flags().StringVar(&lspDataPath, "data-path", "~/.checkmate", fmt.Sprintf("Location of %s data and SQLite database for shared exceptions", common.AppDisplayName))
+	lspServeCmd.Flags().BoolVar(&lspNoDB, "no-db", false, "Disable reading and writing shared SQLite exceptions (persist Quick Fixes to workspace .checkmate.yaml instead)")
+	lspServeCmd.Flags().BoolVar(&lspNoWorkspaceScan, "no-workspace-scan", false, "Skip automatic background workspace scan on initialized")
 }

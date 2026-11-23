@@ -184,13 +184,15 @@ func addRoutes() {
 	v1.HandleFunc("/system/health", systemHealth).Methods(http.MethodGet)
 	v1.HandleFunc("/system/ready", systemReady).Methods(http.MethodGet)
 	v1.HandleFunc("/findings/search", searchFindings).Methods(http.MethodPost)
+	v1.HandleFunc("/findings/{findingId}/context", getFindingContext).Methods(http.MethodGet)
 	v1.HandleFunc("/findings/{findingId}/triage", triageFinding).Methods(http.MethodPost)
 	v1.HandleFunc("/findings/{findingId}/triage", recordFindingTriage).Methods(http.MethodPut)
 
 	// Agent MCP & Triage endpoints
-	v1.HandleFunc("/mcp", handleMCP).Methods(http.MethodPost, http.MethodDelete)
+	v1.HandleFunc("/mcp", handleMCP).Methods(http.MethodGet, http.MethodPost, http.MethodDelete)
 	v1.HandleFunc("/scans/{scanId}/triage/batch", submitBatchTriage).Methods(http.MethodPost)
 	v1.HandleFunc("/scans/{scanId}/sanitised", getSanitisedScan).Methods(http.MethodGet)
+	v1.HandleFunc("/scans/{scanId}/checkout", deleteScanCheckout).Methods(http.MethodDelete)
 
 	// Settings & AI
 	v1.HandleFunc("/settings/ai", getAISettings).Methods(http.MethodGet)

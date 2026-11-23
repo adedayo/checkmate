@@ -97,3 +97,13 @@ Merged from change 007-agent-mcp-triage (migration `006_agent_triage`).
 - **`scans` additions:** `sanitised_summary` (JSON-serialised `store.SanitisedSummary`) updated via `RecomputeScanSummary(scanID)` at scan completion and after every triage or suppression mutation. Deterministic raw columns (`total_findings`, `findings_by_severity`, `score`) are never mutated.
 - **Drift-aware carry-forward:** During `persistFindingBatch`, prior `triage_status`, `triage_source`, `triaged_at`, and `ai_annotation` for `(project_id, finding_id)` carry forward on rescan only when prior `context_hash` is empty or matches the new finding's `context_hash`; drifted context resets `triage_status` to `untriaged`.
 - **Exception preview & application:** `PreviewExceptionOnScan` and `ApplyExceptionToScan` reuse `newExceptionMatcher` so preview, mid-scan reconciliation, and future scans agree identically on matched findings.
+
+## Authenticated Git Acquisition & Failure Reporting
+
+Merged from change 008-git-checkout-auth-and-reliability.
+
+- **Authenticated cloning:** `sqlite.DB.RunScan` supplies a `gitutils.ChainedAuthResolver` backed by `d.GetGitConfigManager()` (honouring each repository's `GitServiceID`, falling back to hostname match and environment tokens / SSH) via `SecretSearchOptions.AuthResolver`.
+- **Acquisition outcome persistence:** `RunScan` persists the scan's `gitutils.AcquisitionReport` (and `retainedCheckouts` when `KeepCheckouts` is enabled) under `scans.additional_info`.
+- **Total clone failure marks scan `failed`:** When `AcquisitionReport.Succeeded == 0 && AcquisitionReport.Failed > 0`, `RunScan` marks the scan `status = 'failed'` and publishes a failure event rather than marking `complete` with 0 findings.
+- **Store accessors:** `PlatformStore` exposes `GetScanAcquisitionReport(scanID)`, `GetScanRetainedCheckouts(scanID)`, `ClearScanRetainedCheckouts(scanID)`, and `GetScanRecord(scanID)`.
+

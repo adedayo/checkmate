@@ -1200,6 +1200,25 @@ paths:
                 type: object
 
   /v1/mcp:
+    get:
+      operationId: streamMCPNotifications
+      summary: Streamable HTTP MCP SSE notification stream (progress and scan lifecycle events)
+      tags: [scans]
+      parameters:
+        - name: Mcp-Session-Id
+          in: header
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Server-Sent Events stream of JSON-RPC 2.0 notifications
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        "406":
+          description: Accept header must include text/event-stream
     post:
       operationId: handleMCPRequest
       summary: Streamable HTTP Model Context Protocol (MCP) JSON-RPC 2.0 endpoint
@@ -1226,6 +1245,36 @@ paths:
       responses:
         "204":
           description: Session closed
+
+  /v1/scans/{scanId}/checkout:
+    delete:
+      operationId: deleteScanCheckout
+      summary: Delete any retained remote Git checkout associated with a scan
+      tags: [scans]
+      parameters:
+        - name: scanId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Retained checkout cleaned up
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  scanId:
+                    type: string
+                  removedPaths:
+                    type: array
+                    items:
+                      type: string
+                  cleaned:
+                    type: boolean
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /v1/scans/{scanId}/stream:
     get:
@@ -1646,6 +1695,44 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Exception"
+
+  /v1/findings/{findingId}/context:
+    get:
+      operationId: getFindingContext
+      summary: Return surrounding source code context lines for a finding
+      tags: [findings]
+      parameters:
+        - name: findingId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: scanId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: before
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+        - name: after
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Numbered source code lines around the finding
+          content:
+            application/json:
+              schema:
+                type: object
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /v1/findings/{findingId}/triage:
     post:

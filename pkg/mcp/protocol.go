@@ -35,6 +35,24 @@ type Response struct {
 	Error   *RPCError       `json:"error,omitempty"`
 }
 
+// Notification is a server-initiated JSON-RPC 2.0 notification message.
+type Notification struct {
+	JSONRPC string      `json:"jsonrpc"`
+	Method  string      `json:"method"`
+	Params  interface{} `json:"params,omitempty"`
+}
+
+type requestMeta struct {
+	ProgressToken json.RawMessage `json:"progressToken,omitempty"`
+}
+
+type progressNotificationParams struct {
+	ProgressToken json.RawMessage `json:"progressToken"`
+	Progress      int64           `json:"progress"`
+	Total         int64           `json:"total,omitempty"`
+	Message       string          `json:"message,omitempty"`
+}
+
 // RPCError is a JSON-RPC 2.0 error object.
 type RPCError struct {
 	Code    int         `json:"code"`
@@ -93,6 +111,7 @@ type listToolsResult struct {
 type callToolParams struct {
 	Name      string          `json:"name"`
 	Arguments json.RawMessage `json:"arguments,omitempty"`
+	Meta      *requestMeta    `json:"_meta,omitempty"`
 }
 
 // ContentBlock is a text content block returned from a tool or prompt.

@@ -564,13 +564,13 @@
       <div class="grid-3">
         <div class="card">
           <div class="card-icon">&gt;_</div>
-          <h3>High-Recall CLI Scanner</h3>
-          <p>Scan local directories, individual files, or remote Git repositories directly by URL using <code>checkmate search</code>.</p>
+          <h3>High-Recall CLI &amp; Private Git</h3>
+          <p>Scan local directories, individual files, or public and private remote Git repositories (HTTPS &amp; SSH) using <code>checkmate search</code>.</p>
           <ul>
-            <li>Parallel worker pool with literal prefiltering</li>
-            <li>Detects credentials, private keys, certificates &amp; keystores</li>
-            <li>Exclude test files or supply <code>.checkmate.yaml</code> policies</li>
-            <li>Stream findings live with <code>--running-commentary</code></li>
+            <li>Parallel worker pool with literal prefiltering &amp; canonical ordering</li>
+            <li>Unified Git auth: <code>git_config</code>, <code>--git-token</code>, <code>--ssh-key</code>, <code>ssh-agent</code> &amp; env tokens</li>
+            <li>TLS verified by default, configurable <code>--git-depth</code>, structured failure reporting</li>
+            <li>Exclude test files, supply <code>.checkmate.yaml</code>, or stream live commentary</li>
           </ul>
         </div>
 
@@ -587,14 +587,14 @@
         </div>
 
         <div class="card">
-          <div class="card-icon">API</div>
-          <h3>Self-Hosted API, LSP &amp; Go SDK</h3>
-          <p>Run CheckMate continuously as a team service, inside editors, or embedded directly inside Go tooling.</p>
+          <div class="card-icon">LSP</div>
+          <h3>LSP 3.17, Self-Hosted API &amp; Go SDK</h3>
+          <p>Catch secrets inline while you type, run CheckMate as a team service, or embed it directly inside Go tooling.</p>
           <ul>
-            <li><code>checkmate api</code>: <code>/v1/</code> REST, WebSocket &amp; SSE streaming</li>
+            <li><code>checkmate lspServe</code>: LSP 3.17 real-time diagnostics, workspace scans &amp; Quick Fix suppressions</li>
+            <li><code>checkmate api</code>: <code>/v1/</code> REST, WebSocket, SSE &amp; Streamable HTTP MCP</li>
             <li>JWT auth, scoped <code>cm_</code> API keys &amp; HMAC webhooks</li>
-            <li><code>checkmate lspServe</code> for real-time IDE warnings</li>
-            <li>Importable Go library via <code>pkg/sdk</code> and GitHub Action</li>
+            <li>Importable Go SDK (<code>pkg/sdk</code>) with <code>ScanPathWithReport</code> &amp; GitHub Action</li>
           </ul>
         </div>
       </div>
@@ -629,11 +629,27 @@
           <div class="tool-grid">
             <div class="tool-item">
               <code>checkmate_scan</code>
-              <p>Scan paths, projects, or a <code>gitDiffBase</code> and return compact cluster counts instead of dumping raw noise.</p>
+              <p>Scan local paths, private Git URLs, or a <code>gitDiffBase</code>. Supports <code>async: true</code>, live <code>notifications/progress</code>, <code>keepCheckout</code>, and structured acquisition error reporting.</p>
+            </div>
+            <div class="tool-item">
+              <code>checkmate_get_scan_status</code>
+              <p>Poll live file progress and final cluster overview for long-running asynchronous scans on large monorepos.</p>
             </div>
             <div class="tool-item">
               <code>checkmate_get_worklist</code>
-              <p>Group untriaged findings by <code>checksum</code>, <code>directory</code>, <code>file</code>, or <code>rule</code> with exact file/line/column coordinates.</p>
+              <p>Group untriaged findings by <code>checksum</code>, <code>directory</code>, <code>file</code>, or <code>rule</code> with configurable <code>samplesPerGroup</code> and local/retained file pointers.</p>
+            </div>
+            <div class="tool-item">
+              <code>checkmate_list_findings</code>
+              <p>Paginate individual canonically ordered findings filtered by file, rule, checksum, severity, or triage status without the worklist sample cap.</p>
+            </div>
+            <div class="tool-item">
+              <code>checkmate_get_finding_context</code>
+              <p>Inspect numbered source code lines around any finding from local disk or a retained remote checkout, enabling remote HTTP MCP triage.</p>
+            </div>
+            <div class="tool-item">
+              <code>checkmate_cleanup_checkout</code>
+              <p>Delete <code>0700</code> retained remote Git checkouts after triage completes and record an immutable <code>audit_log</code> entry.</p>
             </div>
             <div class="tool-item">
               <code>checkmate_preview_suppression</code>
@@ -673,13 +689,13 @@
 
           <div class="code-box" style="margin-top: 16px;">
             <button class="copy-btn" data-copy="mcp-ephemeral">Copy</button>
-            <pre id="mcp-ephemeral"># One-shot stateless mode for CI / PR agents
+            <pre id="mcp-ephemeral"># One-shot stateless mode for CI / PR agents (auto-cleans retained checkouts)
 checkmate mcp serve --ephemeral
 
-# Remote team server (Streamable HTTP + REST write-back)
+# Remote team server (Streamable HTTP + SSE + REST write-back)
 checkmate api --port 17283 --data-path ~/.checkmate
-# MCP endpoint: POST /v1/mcp
-# Sanitised scan: GET /v1/scans/{scanId}/sanitised</pre>
+# MCP JSON-RPC: POST /v1/mcp  |  SSE progress: GET /v1/mcp  |  Close: DELETE /v1/mcp
+# Finding context: GET /v1/findings/{findingId}/context  |  Sanitised: GET /v1/scans/{scanId}/sanitised</pre>
           </div>
         </div>
       </div>
@@ -738,8 +754,8 @@ checkmate api --port 17283 --data-path ~/.checkmate
 
         <div class="card">
           <div class="card-icon">OS</div>
-          <h3>Native Everywhere + Docker UI</h3>
-          <p>Install natively via Homebrew Cask (macOS), Winget/Installer (Windows), Linux tarball, or run headless web mode via <code>ghcr.io/adedayo/checkmate-app</code>.</p>
+          <h3>Authenticated Git, Context &amp; Native UI</h3>
+          <p>Clones private HTTPS and SSH repositories using saved Git Services or SSH keys, surfaces explicit clone failure reasons instead of empty scans, inspects surrounding source lines, and ships via Homebrew Cask, Winget, Linux, and Docker.</p>
         </div>
       </div>
     </div>
@@ -802,11 +818,25 @@ checkmate api --port 17283 --data-path ~/.checkmate
               <td>Security leads, analysts, visual triage</td>
             </tr>
             <tr>
-              <td>Local &amp; Remote Git Scanning</td>
-              <td><span class="badge badge-yes">Built-in</span></td>
-              <td><span class="badge badge-yes">Built-in</span></td>
-              <td><span class="badge badge-yes">Built-in</span></td>
-              <td><span class="badge badge-yes">Built-in</span></td>
+              <td>Authenticated Git (HTTPS + SSH)</td>
+              <td><span class="badge badge-yes">Tokens, SSH &amp; env</span></td>
+              <td><span class="badge badge-yes">git_config + keepCheckout</span></td>
+              <td><span class="badge badge-yes">git_config + SSH</span></td>
+              <td><span class="badge badge-yes">Saved Git Services + SSH</span></td>
+            </tr>
+            <tr>
+              <td>Live Progress &amp; Async Scans</td>
+              <td><span class="badge badge-opt">Live commentary</span></td>
+              <td><span class="badge badge-yes">async + SSE progress</span></td>
+              <td><span class="badge badge-yes">WebSocket + SSE</span></td>
+              <td><span class="badge badge-yes">Real-time progress</span></td>
+            </tr>
+            <tr>
+              <td>In-Editor LSP 3.17 &amp; Quick Fixes</td>
+              <td><span class="badge badge-yes">checkmate lspServe</span></td>
+              <td><span class="badge badge-yes">Shared SQLite DB</span></td>
+              <td><span class="badge badge-yes">Shared SQLite DB</span></td>
+              <td><span class="badge badge-yes">Shared SQLite DB</span></td>
             </tr>
             <tr>
               <td>Git-Diff Scoped Scanning</td>
@@ -862,6 +892,7 @@ checkmate api --port 17283 --data-path ~/.checkmate
         <button class="tab-btn active" data-tab="tab-cli" role="tab" aria-selected="true">CLI</button>
         <button class="tab-btn" data-tab="tab-app" role="tab" aria-selected="false">Desktop App</button>
         <button class="tab-btn" data-tab="tab-mcp" role="tab" aria-selected="false">AI Agent MCP</button>
+        <button class="tab-btn" data-tab="tab-lsp" role="tab" aria-selected="false">Editor LSP</button>
         <button class="tab-btn" data-tab="tab-api" role="tab" aria-selected="false">API &amp; Docker</button>
       </div>
 
@@ -874,14 +905,15 @@ brew install adedayo/tap/checkmate
 # Scan a local project
 checkmate search /path/to/your/project
 
-# Scan a remote Git repository directly
-checkmate search https://github.com/example/repository.git
+# Scan a private HTTPS or SSH Git repository with explicit depth
+checkmate search --git-token-env GITHUB_TOKEN --git-depth 1 https://github.com/org/private-repo.git
+checkmate search --ssh-key ~/.ssh/id_ed25519 git@github.com:org/private-repo.git
 
 # Export SARIF 2.1.0 for GitHub Code Scanning or generate a PDF audit report
 checkmate search --sarif /path/to/project &gt; results.sarif
 checkmate search --pdf /path/to/project
 
-# Start the Language Server Protocol (LSP) server for IDE integration
+# Start the Language Server Protocol 3.17 (LSP) server for IDE integration
 checkmate lspServe</pre>
         </div>
       </div>
@@ -916,6 +948,28 @@ checkmate mcp serve --ephemeral
 # Example agent prompt once connected:
 # "Use CheckMate to scan this repo, inspect flagged locations in context,
 #  suppress verified false positives, and export a sanitised SARIF report."</pre>
+        </div>
+      </div>
+
+      <div id="tab-lsp" class="tab-panel">
+        <div class="code-box">
+          <button class="copy-btn" data-copy="qs-lsp">Copy</button>
+          <pre id="qs-lsp"># Start the LSP 3.17 server over stdio (shared ~/.checkmate DB + Quick Fix suppressions)
+checkmate lspServe
+
+# Neovim (0.11+):
+# vim.lsp.config("checkmate", { cmd = { "checkmate", "lspServe" }, root_markers = { ".git" } })
+# vim.lsp.enable("checkmate")
+
+# Helix (~/.config/helix/languages.toml):
+# [language-server.checkmate]
+# command = "checkmate"
+# args = ["lspServe"]
+
+# Zed (~/.config/zed/settings.json):
+# { "lsp": { "checkmate": { "binary": { "path": "checkmate", "arguments": ["lspServe"] } } } }
+
+# VS Code: configure your LSP client to launch "checkmate lspServe" (or add "--no-db" for .checkmate.yaml only)</pre>
         </div>
       </div>
 

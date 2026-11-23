@@ -5,16 +5,36 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/adedayo/checkmate/pkg/store"
 	"github.com/adedayo/checkmate/pkg/triage"
 	"github.com/google/uuid"
 )
+
+type notifyFuncKey struct{}
+
+type notifyFunc func(method string, params interface{})
+
+func withNotifier(ctx context.Context, fn notifyFunc) context.Context {
+	return context.WithValue(ctx, notifyFuncKey{}, fn)
+}
+
+func notifierFromContext(ctx context.Context) notifyFunc {
+	if ctx == nil {
+		return nil
+	}
+	if fn, ok := ctx.Value(notifyFuncKey{}).(notifyFunc); ok {
+		return fn
+	}
+	return nil
+}
 
 const serverInstructions = `CheckMate is a deterministic high-recall secret scanner with persistent triage and false-positive suppression.
 
@@ -28,9 +48,10 @@ Recommended agent triage workflow:
 
 // Server implements CheckMate's transport-agnostic Model Context Protocol server.
 type Server struct {
-	store   store.PlatformStore
-	triage  *triage.Service
-	version string
+	store    store.PlatformStore
+	triage   *triage.Service
+	sessions *sessionManager
+	version  string
 }
 
 // NewServer constructs a CheckMate MCP server backed by PlatformStore.
@@ -39,9 +60,25 @@ func NewServer(s store.PlatformStore, version string) *Server {
 		version = "dev"
 	}
 	return &Server{
-		store:   s,
-		triage:  triage.NewService(s),
-		version: version,
+		store:    s,
+		triage:   triage.NewService(s),
+		sessions: newSessionManager(),
+		version:  version,
+	}
+}
+
+// Close releases background session resources owned by the MCP server.
+func (s *Server) Close() {
+	if s.sessions != nil {
+		s.sessions.close()
+	}
+}
+
+// CleanupTrackedCheckouts removes any retained remote Git checkouts created
+// during this server's lifetime (used on --ephemeral server exit).
+func (s *Server) CleanupTrackedCheckouts() {
+	if s.triage != nil {
+		s.triage.CleanupAllTrackedCheckouts()
 	}
 }
 
@@ -60,6 +97,18 @@ func (s *Server) ServeStdio(ctx context.Context, r io.Reader, w io.Writer) error
 		return err
 	}
 
+	stdioCtx := withNotifier(ctx, func(method string, params interface{}) {
+		payload, err := json.Marshal(Notification{
+			JSONRPC: "2.0",
+			Method:  method,
+			Params:  params,
+		})
+		if err != nil {
+			return
+		}
+		_ = writeLine(payload)
+	})
+
 	for {
 		if ctx.Err() != nil {
 			return ctx.Err()
@@ -69,7 +118,7 @@ func (s *Server) ServeStdio(ctx context.Context, r io.Reader, w io.Writer) error
 		if len(line) > 0 {
 			trimmed := bytes.TrimSpace(line)
 			if len(trimmed) > 0 {
-				respBytes, hasResp := s.HandleMessage(ctx, trimmed)
+				respBytes, hasResp := s.HandleMessage(stdioCtx, trimmed)
 				if hasResp {
 					if werr := writeLine(respBytes); werr != nil {
 						return werr
@@ -87,17 +136,25 @@ func (s *Server) ServeStdio(ctx context.Context, r io.Reader, w io.Writer) error
 	}
 }
 
-// HTTPHandler returns an http.Handler implementing MCP Streamable HTTP transport.
+// HTTPHandler returns an http.Handler implementing MCP Streamable HTTP transport
+// (POST JSON-RPC, GET text/event-stream SSE notifications, DELETE session cleanup).
 func (s *Server) HTTPHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodDelete:
+			sessionID := strings.TrimSpace(r.Header.Get("Mcp-Session-Id"))
+			if sessionID != "" && s.sessions != nil {
+				s.sessions.delete(sessionID)
+			}
 			w.WriteHeader(http.StatusNoContent)
+			return
+		case http.MethodGet:
+			s.handleHTTPSSE(w, r)
 			return
 		case http.MethodPost:
 			// handled below
 		default:
-			w.Header().Set("Allow", "POST, DELETE")
+			w.Header().Set("Allow", "GET, POST, DELETE")
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
@@ -113,13 +170,31 @@ func (s *Server) HTTPHandler() http.Handler {
 			return
 		}
 
-		sessionID := r.Header.Get("Mcp-Session-Id")
+		sessionID := strings.TrimSpace(r.Header.Get("Mcp-Session-Id"))
 		if sessionID == "" {
 			sessionID = "mcp_" + uuid.New().String()[:12]
 		}
+		if s.sessions != nil {
+			s.sessions.getOrCreate(sessionID)
+		}
 		w.Header().Set("Mcp-Session-Id", sessionID)
 
-		respBytes, hasResp := s.HandleMessage(r.Context(), trimmed)
+		reqCtx := withNotifier(r.Context(), func(method string, params interface{}) {
+			if s.sessions == nil {
+				return
+			}
+			payload, merr := json.Marshal(Notification{
+				JSONRPC: "2.0",
+				Method:  method,
+				Params:  params,
+			})
+			if merr != nil {
+				return
+			}
+			s.sessions.notify(sessionID, payload)
+		})
+
+		respBytes, hasResp := s.HandleMessage(reqCtx, trimmed)
 		if !hasResp {
 			w.WriteHeader(http.StatusAccepted)
 			return
@@ -129,6 +204,52 @@ func (s *Server) HTTPHandler() http.Handler {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(respBytes)
 	})
+}
+
+func (s *Server) handleHTTPSSE(w http.ResponseWriter, r *http.Request) {
+	accept := r.Header.Get("Accept")
+	if accept != "" && !strings.Contains(accept, "text/event-stream") && !strings.Contains(accept, "*/*") {
+		http.Error(w, "Accept header must include text/event-stream", http.StatusNotAcceptable)
+		return
+	}
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	sessionID := strings.TrimSpace(r.Header.Get("Mcp-Session-Id"))
+	if sessionID == "" {
+		sessionID = "mcp_" + uuid.New().String()[:12]
+	}
+	sess := s.sessions.getOrCreate(sessionID)
+
+	w.Header().Set("Mcp-Session-Id", sessionID)
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+	_, _ = fmt.Fprintf(w, ": connected\n\n")
+	flusher.Flush()
+
+	keepalive := time.NewTicker(15 * time.Second)
+	defer keepalive.Stop()
+
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-sess.done:
+			return
+		case msg := <-sess.notifyCh:
+			_, _ = fmt.Fprintf(w, "event: message\ndata: %s\n\n", msg)
+			flusher.Flush()
+		case <-keepalive.C:
+			_, _ = fmt.Fprintf(w, ": keepalive\n\n")
+			flusher.Flush()
+		}
+	}
 }
 
 // HandleMessage processes a single JSON-RPC 2.0 request or batch array.
@@ -250,7 +371,11 @@ func (s *Server) dispatch(ctx context.Context, req *Request) *Response {
 		if err := json.Unmarshal(req.Params, &p); err != nil {
 			return errorResponse(req.ID, ErrCodeInvalidParams, "invalid tools/call params: "+err.Error())
 		}
-		res, rpcErr := s.callTool(ctx, p.Name, p.Arguments)
+		var progressToken json.RawMessage
+		if p.Meta != nil && len(bytes.TrimSpace(p.Meta.ProgressToken)) > 0 && string(bytes.TrimSpace(p.Meta.ProgressToken)) != "null" {
+			progressToken = p.Meta.ProgressToken
+		}
+		res, rpcErr := s.callTool(ctx, p.Name, p.Arguments, progressToken)
 		if rpcErr != nil {
 			return errorResponse(req.ID, rpcErr.Code, rpcErr.Message)
 		}
@@ -324,6 +449,30 @@ func (s *Server) listTools() []Tool {
 						"type":        "string",
 						"description": "Optional path to a .checkmate.yaml exclusion policy file.",
 					},
+					"async": map[string]interface{}{
+						"type":        "boolean",
+						"default":     false,
+						"description": "When true, starts the scan in the background and immediately returns { scanId, projectId, status: 'running' }. Poll progress with checkmate_get_scan_status.",
+					},
+					"keepCheckout": map[string]interface{}{
+						"type":        "boolean",
+						"default":     false,
+						"description": "When true, retains cloned remote Git repositories in a 0700 per-scan directory so files can be inspected directly or via checkmate_get_finding_context. Clean up afterwards with checkmate_cleanup_checkout.",
+					},
+				},
+			},
+		},
+		{
+			Name:        "checkmate_get_scan_status",
+			Description: "Poll live progress and final overview for an asynchronous or historical CheckMate scan.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"scanId"},
+				"properties": map[string]interface{}{
+					"scanId": map[string]interface{}{
+						"type":        "string",
+						"description": "Scan ID returned by checkmate_scan.",
+					},
 				},
 			},
 		},
@@ -358,6 +507,11 @@ func (s *Server) listTools() []Tool {
 						"type":        "string",
 						"description": "Optional severity filter (CRITICAL, HIGH, MEDIUM, LOW, INFO).",
 					},
+					"samplesPerGroup": map[string]interface{}{
+						"type":        "integer",
+						"default":     5,
+						"description": "Maximum number of sample locations to include per group (default 5, max 50).",
+					},
 					"limit": map[string]interface{}{
 						"type":        "integer",
 						"default":     25,
@@ -368,6 +522,50 @@ func (s *Server) listTools() []Tool {
 						"default":     0,
 						"description": "Pagination offset into sorted groups.",
 					},
+				},
+			},
+		},
+		{
+			Name:        "checkmate_list_findings",
+			Description: "Retrieve a paginated, canonically ordered list of individual findings for a scan without the worklist sample cap. Useful for dense files or targeted rule/checksum queries.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"scanId"},
+				"properties": map[string]interface{}{
+					"scanId":            map[string]interface{}{"type": "string"},
+					"file":              map[string]interface{}{"type": "string", "description": "Filter by exact file path or trailing path suffix."},
+					"ruleId":            map[string]interface{}{"type": "string"},
+					"secretChecksum":    map[string]interface{}{"type": "string"},
+					"triageStatus":      map[string]interface{}{"type": "string", "enum": []string{"untriaged", "true_positive", "false_positive", "needs_review"}},
+					"severity":          map[string]interface{}{"type": "string"},
+					"includeSuppressed": map[string]interface{}{"type": "boolean", "default": false},
+					"limit":             map[string]interface{}{"type": "integer", "default": 50, "description": "Page size (1-200)."},
+					"offset":            map[string]interface{}{"type": "integer", "default": 0},
+				},
+			},
+		},
+		{
+			Name:        "checkmate_get_finding_context",
+			Description: "Return numbered source code lines surrounding a finding from local disk or a retained remote checkout (falling back to stored source_context). Useful for remote HTTP MCP agents or remote Git URL scans.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"scanId", "findingId"},
+				"properties": map[string]interface{}{
+					"scanId":      map[string]interface{}{"type": "string"},
+					"findingId":   map[string]interface{}{"type": "string"},
+					"beforeLines": map[string]interface{}{"type": "integer", "default": 20},
+					"afterLines":  map[string]interface{}{"type": "integer", "default": 20},
+				},
+			},
+		},
+		{
+			Name:        "checkmate_cleanup_checkout",
+			Description: "Delete any retained remote Git checkout directory created for a scan (when keepCheckout=true), clear its reference in SQLite, and record an audit log entry.",
+			InputSchema: map[string]interface{}{
+				"type":     "object",
+				"required": []string{"scanId"},
+				"properties": map[string]interface{}{
+					"scanId": map[string]interface{}{"type": "string"},
 				},
 			},
 		},
@@ -485,9 +683,24 @@ func suppressionScopeSchema() map[string]interface{} {
 	}
 }
 
-func (s *Server) callTool(ctx context.Context, name string, rawArgs json.RawMessage) (*CallToolResult, *RPCError) {
+func (s *Server) callTool(ctx context.Context, name string, rawArgs json.RawMessage, progressToken json.RawMessage) (*CallToolResult, *RPCError) {
 	if len(rawArgs) == 0 {
 		rawArgs = json.RawMessage(`{}`)
+	}
+
+	var progressFn triage.ProgressFunc
+	if len(progressToken) > 0 {
+		if notify := notifierFromContext(ctx); notify != nil {
+			tok := append(json.RawMessage(nil), progressToken...)
+			progressFn = func(progress, total int64, message string) {
+				notify("notifications/progress", progressNotificationParams{
+					ProgressToken: tok,
+					Progress:      progress,
+					Total:         total,
+					Message:       message,
+				})
+			}
+		}
 	}
 
 	var (
@@ -501,7 +714,20 @@ func (s *Server) callTool(ctx context.Context, name string, rawArgs json.RawMess
 		if err = json.Unmarshal(rawArgs, &req); err != nil {
 			return nil, &RPCError{Code: ErrCodeInvalidParams, Message: "invalid checkmate_scan arguments: " + err.Error()}
 		}
-		payload, err = s.triage.Scan(ctx, req)
+		if req.Async {
+			payload, err = s.triage.StartScanAsync(ctx, req, progressFn)
+		} else {
+			payload, err = s.triage.ScanWithProgress(ctx, req, progressFn)
+		}
+
+	case "checkmate_get_scan_status":
+		var req struct {
+			ScanID string `json:"scanId"`
+		}
+		if err = json.Unmarshal(rawArgs, &req); err != nil {
+			return nil, &RPCError{Code: ErrCodeInvalidParams, Message: "invalid checkmate_get_scan_status arguments: " + err.Error()}
+		}
+		payload, err = s.triage.GetScanStatus(ctx, req.ScanID)
 
 	case "checkmate_get_worklist":
 		var req triage.WorklistRequest
@@ -509,6 +735,29 @@ func (s *Server) callTool(ctx context.Context, name string, rawArgs json.RawMess
 			return nil, &RPCError{Code: ErrCodeInvalidParams, Message: "invalid checkmate_get_worklist arguments: " + err.Error()}
 		}
 		payload, err = s.triage.GetWorklist(ctx, req)
+
+	case "checkmate_list_findings":
+		var req triage.ListFindingsRequest
+		if err = json.Unmarshal(rawArgs, &req); err != nil {
+			return nil, &RPCError{Code: ErrCodeInvalidParams, Message: "invalid checkmate_list_findings arguments: " + err.Error()}
+		}
+		payload, err = s.triage.ListFindings(ctx, req)
+
+	case "checkmate_get_finding_context":
+		var req triage.FindingContextRequest
+		if err = json.Unmarshal(rawArgs, &req); err != nil {
+			return nil, &RPCError{Code: ErrCodeInvalidParams, Message: "invalid checkmate_get_finding_context arguments: " + err.Error()}
+		}
+		payload, err = s.triage.GetFindingContext(ctx, req)
+
+	case "checkmate_cleanup_checkout":
+		var req struct {
+			ScanID string `json:"scanId"`
+		}
+		if err = json.Unmarshal(rawArgs, &req); err != nil {
+			return nil, &RPCError{Code: ErrCodeInvalidParams, Message: "invalid checkmate_cleanup_checkout arguments: " + err.Error()}
+		}
+		payload, err = s.triage.CleanupCheckout(ctx, req.ScanID)
 
 	case "checkmate_preview_suppression":
 		var req triage.PreviewSuppressionRequest
@@ -543,6 +792,15 @@ func (s *Server) callTool(ctx context.Context, name string, rawArgs json.RawMess
 	}
 
 	if err != nil {
+		var acqErr *triage.AcquisitionFailureError
+		if errors.As(err, &acqErr) && acqErr.Overview != nil {
+			b, _ := json.MarshalIndent(acqErr.Overview, "", "  ")
+			return &CallToolResult{
+				Content:           []ContentBlock{{Type: "text", Text: string(b)}},
+				StructuredContent: acqErr.Overview,
+				IsError:           true,
+			}, nil
+		}
 		return &CallToolResult{
 			Content: []ContentBlock{{Type: "text", Text: err.Error()}},
 			IsError: true,

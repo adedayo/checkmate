@@ -57,6 +57,19 @@ import (
 // defaultCloneConcurrency bounds simultaneous clones.
 const defaultCloneConcurrency = 4
 
+// resolveCloneDepth returns the depth passed to go-git.
+// Zero defaults to 1 (shallow working tree) unless FullHistory is true or
+// CloneDepth < 0, in which case 0 (full history) is returned.
+func resolveCloneDepth(options SecretSearchOptions) int {
+	if options.FullHistory || options.CloneDepth < 0 {
+		return 0
+	}
+	if options.CloneDepth > 0 {
+		return options.CloneDepth
+	}
+	return 1
+}
+
 // resolveCloneConcurrency applies option, then environment, then the default.
 // As with the other tuning knobs, an unusable value is ignored rather than
 // fatal.
@@ -83,10 +96,67 @@ func resolveCloneConcurrency(options SecretSearchOptions) int {
 // unfilled slot for a file that exists.
 type rootRegistry struct {
 	entries []atomic.Pointer[repoCloneAndDetail]
+
+	reportMu sync.Mutex
+	report   gitutils.AcquisitionReport
 }
 
 func newRootRegistry(size int) *rootRegistry {
 	return &rootRegistry{entries: make([]atomic.Pointer[repoCloneAndDetail], size)}
+}
+
+func (r *rootRegistry) recordSuccess(sanitisedTarget, retainedPath string) {
+	r.reportMu.Lock()
+	defer r.reportMu.Unlock()
+	r.report.Attempted++
+	r.report.Succeeded++
+	if retainedPath != "" && sanitisedTarget != "" {
+		if r.report.RetainedPaths == nil {
+			r.report.RetainedPaths = make(map[string]string)
+		}
+		r.report.RetainedPaths[sanitisedTarget] = retainedPath
+	}
+}
+
+func (r *rootRegistry) recordFailure(rawTarget string, err error) {
+	r.reportMu.Lock()
+	defer r.reportMu.Unlock()
+	safeTarget := gitutils.SanitiseRepoURL(rawTarget)
+	msg := ""
+	if err != nil {
+		msg = err.Error()
+		if rawTarget != safeTarget && rawTarget != "" {
+			msg = strings.ReplaceAll(msg, rawTarget, safeTarget)
+		}
+	}
+	r.report.Attempted++
+	r.report.Failed++
+	r.report.Failures = append(r.report.Failures, gitutils.AcquisitionFailure{
+		Target:    safeTarget,
+		ErrorKind: gitutils.ClassifyCloneError(err),
+		Message:   msg,
+	})
+}
+
+func (r *rootRegistry) acquisitionReport() gitutils.AcquisitionReport {
+	r.reportMu.Lock()
+	defer r.reportMu.Unlock()
+	out := gitutils.AcquisitionReport{
+		Attempted: r.report.Attempted,
+		Succeeded: r.report.Succeeded,
+		Failed:    r.report.Failed,
+	}
+	if len(r.report.Failures) > 0 {
+		out.Failures = make([]gitutils.AcquisitionFailure, len(r.report.Failures))
+		copy(out.Failures, r.report.Failures)
+	}
+	if len(r.report.RetainedPaths) > 0 {
+		out.RetainedPaths = make(map[string]string, len(r.report.RetainedPaths))
+		for k, v := range r.report.RetainedPaths {
+			out.RetainedPaths[k] = v
+		}
+	}
+	return out
 }
 
 func (r *rootRegistry) set(index int, detail repoCloneAndDetail) {
@@ -171,20 +241,14 @@ func resolveLocationType(repo projects.Repository) string {
 // and scp-style shorthand such as git@github.com:owner/repo.git, which has no
 // scheme but is not a path either.
 func isRemoteLocation(location string) bool {
+	trimmed := strings.TrimSpace(location)
+	lower := strings.ToLower(trimmed)
 	for _, scheme := range []string{"https://", "http://", "git://", "ssh://", "git+ssh://"} {
-		if strings.HasPrefix(location, scheme) {
+		if strings.HasPrefix(lower, scheme) {
 			return true
 		}
 	}
-	// scp-style: user@host:path, with the colon after the host and no leading
-	// slash. A Windows drive letter ("C:\src") has its colon at index 1, and
-	// an absolute or relative path has no "@" before the colon.
-	if at := strings.Index(location, "@"); at > 0 {
-		if colon := strings.Index(location[at:], ":"); colon > 0 {
-			return true
-		}
-	}
-	return false
+	return gitutils.IsSSHURL(trimmed)
 }
 
 // acquireRepositories fixes each repository's index, then acquires them
@@ -230,6 +294,7 @@ func acquireRepositories(ctx context.Context, project *projects.Project, pm proj
 		case "filesystem":
 			//Published immediately: there is nothing to acquire, so this tree
 			//is scanned while the clones are still running.
+			registry.recordSuccess(p.Location, "")
 			registry.set(i, repoCloneAndDetail{
 				CloneDetail: gitutils.CloneDetail{Location: p.Location, Repository: p.Location},
 			})
@@ -284,22 +349,22 @@ func acquireRepositories(ctx context.Context, project *projects.Project, pm proj
 				defer func() { <-sem }()
 
 				p := job.repo
-				cloneOptions := &gitutils.GitCloneOptions{
-					BaseDir: path.Join(pm.GetCodeBaseDir(), project.ID),
-					//Shallow. Secret scanning of a *filesystem* checkout only
-					//ever reads the working tree, so the history is bytes
-					//downloaded and never opened. History scanning is a
-					//separate concern driven by the git service layer, and
-					//asks for its own depth.
-					Depth: 1,
+				resolver := options.AuthResolver
+				if resolver == nil {
+					resolver = &gitutils.ChainedAuthResolver{
+						Config: gitConfig,
+					}
 				}
-				if service, err := gitConfig.FindService(p.GitServiceID); err == nil {
-					cloneOptions.Auth = service.MakeAuth()
-				} else {
-					log.Printf("Error finding Git service: %v, Project: %#v", err, p)
+				cloneOptions := &gitutils.GitCloneOptions{
+					BaseDir:         path.Join(pm.GetCodeBaseDir(), project.ID),
+					Depth:           resolveCloneDepth(options),
+					AuthResolver:    resolver,
+					ServiceID:       p.GitServiceID,
+					InsecureSkipTLS: options.InsecureSkipTLS,
 				}
 
-				reporter.Note(fmt.Sprintf("cloning repository %s", p.Location),
+				safeURL := gitutils.SanitiseRepoURL(p.Location)
+				reporter.Note(fmt.Sprintf("cloning repository %s", safeURL),
 					completed.Load(), total)
 
 				//Ask the git server about the repository — archived, disabled
@@ -311,14 +376,18 @@ func acquireRepositories(ctx context.Context, project *projects.Project, pm proj
 
 				clone, err := gitutils.Clone(ctx, p.Location, cloneOptions)
 				if err != nil {
-					//Registered and published anyway, exactly as before: Clone
-					//returns the intended location even on failure, an
-					//unreadable root contributes no files, and one
-					//unreachable repository must not abort the scan of the
-					//rest.
-					log.Printf("%v", err)
+					log.Printf("Failed to clone repository %s: %v", safeURL, err)
+					registry.recordFailure(p.Location, err)
+					reporter.Note(fmt.Sprintf("failed cloning repository %s", safeURL),
+						completed.Add(1), total)
+					return
 				}
 
+				retained := ""
+				if options.KeepCheckouts {
+					retained = clone.Location
+				}
+				registry.recordSuccess(clone.Repository, retained)
 				registry.set(job.index, repoCloneAndDetail{
 					Repository:  rp,
 					CloneDetail: clone,
@@ -326,7 +395,7 @@ func acquireRepositories(ctx context.Context, project *projects.Project, pm proj
 				})
 				roots <- util.IndexedRoot{Index: job.index, Path: clone.Location}
 
-				reporter.Note(fmt.Sprintf("cloned repository %s", p.Location),
+				reporter.Note(fmt.Sprintf("cloned repository %s", safeURL),
 					completed.Add(1), total)
 			}(job)
 		}
@@ -337,12 +406,18 @@ func acquireRepositories(ctx context.Context, project *projects.Project, pm proj
 	return registry, roots
 }
 
-// acquirePaths is acquireRepositories for the CLI and SDK path, where roots
-// arrive as a plain list of local paths and git URLs and there is no project
-// configuration, no authentication and no status checking.
+// acquirePaths acquires a plain list of local paths and remote git URLs
+// concurrently, resolving authentication through options.AuthResolver (or env
+// fallback when nil) and recording structured acquisition outcomes on the
+// returned rootRegistry.
 func acquirePaths(ctx context.Context, paths []string, options SecretSearchOptions) (*rootRegistry, <-chan util.IndexedRoot) {
 	registry := newRootRegistry(len(paths))
 	roots := make(chan util.IndexedRoot, len(paths))
+
+	resolver := options.AuthResolver
+	if resolver == nil {
+		resolver = gitutils.NewEnvAuthResolver()
+	}
 
 	type cloneJob struct {
 		index int
@@ -352,7 +427,8 @@ func acquirePaths(ctx context.Context, paths []string, options SecretSearchOptio
 	seen := make(map[string]struct{}, len(paths))
 
 	for i, p := range paths {
-		if !gitURL.MatchString(p) {
+		if !isRemoteLocation(p) && !gitURL.MatchString(p) {
+			registry.recordSuccess(p, "")
 			registry.set(i, repoCloneAndDetail{
 				CloneDetail: gitutils.CloneDetail{Location: p, Repository: p},
 			})
@@ -378,12 +454,24 @@ func acquirePaths(ctx context.Context, paths []string, options SecretSearchOptio
 			concurrency = len(jobs)
 		}
 
+		depth := resolveCloneDepth(options)
+
 		var wg sync.WaitGroup
 		sem := make(chan struct{}, concurrency)
 
-		for _, job := range jobs {
+		for idx, job := range jobs {
+			if ctx.Err() != nil {
+				for _, remaining := range jobs[idx:] {
+					registry.recordFailure(remaining.url, ctx.Err())
+				}
+				wg.Wait()
+				return
+			}
 			select {
 			case <-ctx.Done():
+				for _, remaining := range jobs[idx:] {
+					registry.recordFailure(remaining.url, ctx.Err())
+				}
 				wg.Wait()
 				return
 			case sem <- struct{}{}:
@@ -395,22 +483,23 @@ func acquirePaths(ctx context.Context, paths []string, options SecretSearchOptio
 				defer func() { <-sem }()
 
 				clone, err := gitutils.Clone(ctx, job.url, &gitutils.GitCloneOptions{
-					Depth: 1,
-					//Empty unless the caller nominated somewhere, in which
-					//case the clone lands under a directory the process is
-					//known to be able to write to rather than wherever it
-					//happens to have been started from.
-					BaseDir: options.CloneBaseDir,
+					Depth:           depth,
+					BaseDir:         options.CloneBaseDir,
+					AuthResolver:    resolver,
+					InsecureSkipTLS: options.InsecureSkipTLS,
 				})
 				if err != nil {
-					//Unlike the project path this one does not publish a root
-					//on failure, matching what this entry point has always
-					//done: a URL that could not be cloned is simply not
-					//scanned.
-					log.Printf("Failed to clone repository %s: %s\n", job.url, err.Error())
+					safeURL := gitutils.SanitiseRepoURL(job.url)
+					log.Printf("Failed to clone repository %s: %s\n", safeURL, err.Error())
+					registry.recordFailure(job.url, err)
 					return
 				}
 
+				retained := ""
+				if options.KeepCheckouts {
+					retained = clone.Location
+				}
+				registry.recordSuccess(clone.Repository, retained)
 				registry.set(job.index, repoCloneAndDetail{CloneDetail: clone, isClone: true})
 				roots <- util.IndexedRoot{Index: job.index, Path: clone.Location}
 			}(job)

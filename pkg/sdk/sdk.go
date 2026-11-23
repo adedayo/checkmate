@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/adedayo/checkmate/pkg/core/diagnostics"
+	gitutils "github.com/adedayo/checkmate/pkg/core/git"
 	secrets "github.com/adedayo/checkmate/pkg/plugin/secrets-finder/pkg"
 	"gopkg.in/yaml.v3"
 )
@@ -27,16 +28,53 @@ func NewScanner(opts Options) *Scanner {
 
 // ScanPath scans one or more local filesystem paths or git repository URLs
 // and returns all findings. Blocks until the scan completes.
+// Returns a non-nil error if all targets fail acquisition.
 //
 // Paths can be any mix of:
 //   - Absolute or relative local filesystem directories
-//   - Git repository URLs (https:// or git@)
+//   - Git repository URLs (https://, ssh://, or git@)
 func (s *Scanner) ScanPath(ctx context.Context, paths ...string) ([]Finding, error) {
-	var findings []Finding
-	for f := range s.ScanStream(ctx, paths...) {
-		findings = append(findings, f)
+	rep, err := s.ScanPathWithReport(ctx, paths...)
+	if rep == nil {
+		return nil, err
 	}
-	return findings, nil
+	return rep.Findings, err
+}
+
+// ScanPathWithReport scans one or more paths or git repository URLs and returns
+// both findings and structured AcquisitionReport outcomes. If all targets fail
+// acquisition, a non-nil error is returned alongside the report.
+func (s *Scanner) ScanPathWithReport(ctx context.Context, paths ...string) (*ScanReport, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	secOpts := s.buildSecretSearchOptions()
+	findingsCh, pathsCh, reportCh := secrets.SearchSecretsOnPathsWithReport(ctx, paths, secOpts, "", "", nil)
+
+	var findings []Finding
+	for diag := range findingsCh {
+		select {
+		case <-ctx.Done():
+			return &ScanReport{Findings: findings}, ctx.Err()
+		default:
+			findings = append(findings, s.convertDiagnostic(diag))
+		}
+	}
+	<-pathsCh
+	acq := <-reportCh
+
+	rep := &ScanReport{
+		Findings:    findings,
+		Acquisition: acq,
+	}
+	if acq.Succeeded == 0 && acq.Failed > 0 {
+		if len(acq.Failures) > 0 {
+			f := acq.Failures[0]
+			return rep, fmt.Errorf("failed to acquire %s (%s): %s", f.Target, f.ErrorKind, f.Message)
+		}
+		return rep, fmt.Errorf("all %d scan target(s) failed acquisition", acq.Failed)
+	}
+	return rep, nil
 }
 
 // ScanGitRepo clones and scans a remote git repository (full history).
@@ -92,12 +130,24 @@ func (s *Scanner) ScanStreamWithProgress(ctx context.Context, paths ...string) (
 
 // buildSecretSearchOptions translates SDK Options to the internal secrets package options.
 func (s *Scanner) buildSecretSearchOptions() secrets.SecretSearchOptions {
+	resolver := s.opts.AuthResolver
+	if resolver == nil && s.opts.GitAuth != nil {
+		resolver = &gitutils.ChainedAuthResolver{
+			ExplicitAuth: s.opts.GitAuth,
+		}
+	}
 	opts := secrets.SecretSearchOptions{
 		ShowSource:            s.opts.ShowSource,
 		CalculateChecksum:     s.opts.CalculateChecksum,
 		ExcludeTestFiles:      s.opts.ExcludeTestFiles,
 		ConfidentialFilesOnly: s.opts.SensitiveFilesOnly,
 		Exclusions:            diagnostics.MakeEmptyExcludes(),
+		AuthResolver:          resolver,
+		CloneDepth:            s.opts.GitDepth,
+		FullHistory:           s.opts.GitDepth == 0,
+		KeepCheckouts:         s.opts.KeepCheckouts,
+		CloneBaseDir:          s.opts.CloneBaseDir,
+		InsecureSkipTLS:       s.opts.InsecureSkipTLS,
 	}
 
 	if s.opts.ExclusionFile != "" {

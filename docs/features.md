@@ -206,3 +206,64 @@ generic ones doing genuine detection work.
 Multi-megabyte single-line files remain the slowest thing the engine does. If a
 scan is slow, that is the first place to look - run with `--verbose` to see the
 file being scanned.
+
+---
+
+## 7. In-Editor LSP 3.17 Server (`checkmate lspServe`)
+
+**Capabilities:**
+`checkmate lspServe` runs a Language Server Protocol 3.17 server over stdio, providing real-time debounced secret diagnostics as you type, asynchronous background workspace scanning, shared exception awareness (`~/.checkmate/checkmate.db` plus workspace `.checkmate.yaml`), and Quick Fix code actions to suppress verified false positives by checksum or file path without writing plaintext secrets.
+
+```bash
+# Default: shares ~/.checkmate/checkmate.db and auto-discovers workspace .checkmate.yaml
+checkmate lspServe
+
+# Stateless YAML-only mode (persists Quick Fix suppressions to workspace .checkmate.yaml)
+checkmate lspServe --no-db --no-workspace-scan
+```
+
+### Editor Configuration Examples
+
+**VS Code** (using any generic LSP client extension or custom `vscode-languageclient` launcher):
+```json
+{
+  "checkmate.lsp.command": "checkmate",
+  "checkmate.lsp.args": ["lspServe"]
+}
+```
+
+**Neovim** (`nvim-lspconfig` / built-in `vim.lsp.config` in Neovim 0.11+):
+```lua
+vim.lsp.config("checkmate", {
+  cmd = { "checkmate", "lspServe" },
+  root_markers = { ".git", ".checkmate.yaml" },
+  filetypes = { "go", "python", "javascript", "typescript", "yaml", "json", "toml", "sh" },
+})
+vim.lsp.enable("checkmate")
+```
+
+**Zed** (`~/.config/zed/settings.json`):
+```json
+{
+  "lsp": {
+    "checkmate": {
+      "binary": {
+        "path": "checkmate",
+        "arguments": ["lspServe"]
+      }
+    }
+  }
+}
+```
+
+**Helix** (`~/.config/helix/languages.toml`):
+```toml
+[language-server.checkmate]
+command = "checkmate"
+args = ["lspServe"]
+
+[[language]]
+name = "go"
+language-servers = ["gopls", "checkmate"]
+```
+

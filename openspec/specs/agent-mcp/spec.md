@@ -90,3 +90,30 @@ Exports the triaged and sanitised scan result.
 - **Prompts:**
   - `triage_scan(scanId, target)` — Coarse-to-fine FP triage workflow (directory → checksum → singletons → preview → apply → export).
   - `audit_changes(target, baseRef)` — Git-diff focused secret audit workflow for PRs and local changes.
+
+## Hardening, Async Scans, Remote Checkout Triage & SSE
+
+Merged from change 009-mcp-hardening-and-remote-triage.
+
+### R9 — Async Scan, Live Progress & `checkmate_get_scan_status`
+
+- `checkmate_scan` supports `async` (`bool`, default `false`) and `keepCheckout` (`bool`, default `false`).
+- `checkmate_scan` returns `acquisition` (`AcquisitionReport`), `retainedCheckouts`, and `localCheckoutPath`. When all targets fail acquisition, `checkmate_scan` returns `isError: true` with the structured failure overview.
+- When `_meta.progressToken` is supplied on a synchronous `checkmate_scan`, the server emits coalesced `notifications/progress` JSON-RPC notifications over stdio or the session's HTTP SSE stream.
+- `checkmate_get_scan_status(scanId)` returns live progress (`filesScanned`, `totalFiles`, `currentFile`, `status`) and final `overview` or `error`.
+
+### R10 — `checkmate_list_findings` & Configurable `samplesPerGroup`
+
+- `checkmate_get_worklist` accepts `samplesPerGroup` (`int`, default `5`, max `50`).
+- `checkmate_list_findings(scanId, file?, ruleId?, secretChecksum?, triageStatus?, severity?, includeSuppressed?, limit?, offset?)` returns canonically ordered paginated findings without the 5-sample worklist cap.
+
+### R11 — Remote Checkout Context & Cleanup
+
+- Worklist and finding-list locations include `localFile` (verified inside the retained checkout directory) when a scan retains remote checkouts.
+- `checkmate_get_finding_context(scanId, findingId, beforeLines?, afterLines?)` returns numbered source lines around the finding from local disk or a retained checkout (falling back to stored `source_context`).
+- `checkmate_cleanup_checkout(scanId)` deletes retained checkout files, clears `retainedCheckouts` in SQLite, and logs an `audit_log` entry. Retained checkouts are also cleaned up automatically on `--ephemeral` exit and after `CHECKMATE_CHECKOUT_TTL` (default 24h).
+
+### R12 — Streamable HTTP SSE (`GET /v1/mcp`)
+
+- `GET /v1/mcp` with `Accept: text/event-stream` and `Mcp-Session-Id` streams server-initiated JSON-RPC notifications (including `notifications/progress`) over SSE until client disconnect or `DELETE /v1/mcp`.
+

@@ -12,7 +12,7 @@ This file is read by AI coding agents working in this repo (OpenSpec convention)
 - **Detection engine:** `pkg/plugin/secrets-finder/` — in-repo (entropy + structural context + pattern matching), with `pkg/core` for shared types. Scans files in parallel behind a literal prefilter; see the `scan-engine` capability spec.
 - **Git:** `go-git/go-git/v5` + `github.com/adedayo/git-service-driver`
 - **Scheduler:** `robfig/cron/v3`
-- **LSP:** `github.com/adedayo/go-lsp` (Language Server Protocol server for in-editor integration)
+- **LSP:** Built-in stdlib LSP 3.17 server (`pkg/lsp`, `Content-Length` JSON-RPC 2.0 over stdio) for in-editor secret detection and Quick Fix suppressions
 - **CLI:** `spf13/cobra` + `spf13/viper`
 - **Report formats:** SARIF 2.1.0 (primary), CSV, HTML, PDF (native)
 - **Container:** Single multi-mode image on `ghcr.io/adedayo/checkmate`; Docker Compose for self-hosted stack
@@ -43,8 +43,8 @@ This file is read by AI coding agents working in this repo (OpenSpec convention)
 - `openspec/specs/` — accepted, current capability specs
 - `openspec/changes/<id>/` — in-flight changes: `proposal.md`, `design.md`, `tasks.md`, `specs/<capability>/spec.md`
 - On completing a change, archive it: merge spec deltas into `openspec/specs/` and move the change folder to `openspec/archive/`
-- Accepted capabilities: `agent-mcp`, `ai-triage`, `api-contract`, `authentication`, `data-store`, `exception-management`, `sarif-export`, `scan-engine`, `sdk`, `webhooks`
-- Archived changes: `001-clean-slate-platform`, `003-scan-engine-performance`, `007-agent-mcp-triage`
+- Accepted capabilities: `agent-mcp`, `ai-triage`, `api-contract`, `authentication`, `data-store`, `exception-management`, `git-acquisition`, `lsp-server`, `sarif-export`, `scan-engine`, `sdk`, `webhooks`
+- Archived changes: `001-clean-slate-platform`, `003-scan-engine-performance`, `007-agent-mcp-triage`, `008-git-checkout-auth-and-reliability`, `009-mcp-hardening-and-remote-triage`, `010-lsp-server-modernisation`
 - Current active changes:
   - `changes/002-app-modernisation/` — in progress
   - `changes/004-chunk-boundary-minimisation/` — scaffolded, not started. Reduces

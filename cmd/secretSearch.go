@@ -32,16 +32,21 @@ POSSIBILITY OF SUCH DAMAGE.
 */
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
 
 	common "github.com/adedayo/checkmate/pkg/core"
 	"github.com/adedayo/checkmate/pkg/core/diagnostics"
+	gitutils "github.com/adedayo/checkmate/pkg/core/git"
 	secrets "github.com/adedayo/checkmate/pkg/plugin/secrets-finder/pkg"
 	"github.com/adedayo/checkmate/pkg/report"
 	"github.com/adedayo/checkmate/pkg/reports/pdf"
+	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
@@ -52,6 +57,9 @@ var (
 	sensitiveFiles, sensitiveFilesOnly                    bool
 	calculateChecksum, verbose, reportIgnored             bool
 	generateSampleExclusion, skipTestFiles                bool
+	gitToken, gitTokenEnv, sshKeyPath                     string
+	gitDepth                                              int
+	insecureSkipTLS                                       bool
 )
 
 // searchCmd represents the search command
@@ -77,12 +85,54 @@ func init() {
 	searchCmd.Flags().BoolVar(&reportIgnored, "report-ignored", false, "Include ignored files and values in the reports")
 	searchCmd.Flags().BoolVar(&generateSampleExclusion, "sample-exclusion", false, "Generates a sample exclusion YAML file content with descriptions")
 	searchCmd.Flags().BoolVar(&skipTestFiles, "exclude-tests", false, "Skip test files during scan")
+	searchCmd.Flags().StringVar(&gitToken, "git-token", "", "Personal access token or password for cloning private HTTPS git repositories")
+	searchCmd.Flags().StringVar(&gitTokenEnv, "git-token-env", "", "Environment variable name containing a git HTTPS access token")
+	searchCmd.Flags().StringVar(&sshKeyPath, "ssh-key", "", "Path to an SSH private key file for cloning SSH git repositories")
+	searchCmd.Flags().IntVar(&gitDepth, "git-depth", 1, "Git clone depth (0 clones full history)")
+	searchCmd.Flags().BoolVar(&insecureSkipTLS, "insecure-skip-tls", false, "Skip TLS certificate verification when cloning git repositories")
+}
+
+func buildCLIAuthResolver(token, tokenEnv, sshKey string) gitutils.AuthResolver {
+	resolvedToken := strings.TrimSpace(token)
+	if resolvedToken == "" && strings.TrimSpace(tokenEnv) != "" {
+		resolvedToken = strings.TrimSpace(os.Getenv(strings.TrimSpace(tokenEnv)))
+	}
+
+	resolver := &gitutils.ChainedAuthResolver{}
+	if resolvedToken != "" {
+		resolver.ExplicitAuth = &gitutils.GitAuth{
+			User:       gitutils.CHECKMATE_USER,
+			Credential: resolvedToken,
+		}
+	}
+	if strings.TrimSpace(sshKey) != "" {
+		resolver.ExplicitSSH = &gitutils.SSHAuthConfig{
+			PrivateKeyPath: strings.TrimSpace(sshKey),
+			Passphrase:     os.Getenv("CHECKMATE_SSH_KEY_PASSPHRASE"),
+		}
+	}
+
+	// Optionally load ~/.checkmate/config/GitServiceConfig.yaml if present.
+	if home, err := homedir.Dir(); err == nil {
+		cfgDir := filepath.Join(home, ".checkmate")
+		cfgFile := filepath.Join(cfgDir, "config", gitutils.GIT_SERVICE_CONFIG_FILE)
+		if _, err := os.Stat(cfgFile); err == nil {
+			resolver.ConfigManager = gitutils.NewGitConfigManager(cfgDir)
+		}
+	}
+	return resolver
 }
 
 func search(cmd *cobra.Command, args []string) {
+	if code := runSearchCommand(cmd, args); code != 0 {
+		os.Exit(code)
+	}
+}
+
+func runSearchCommand(cmd *cobra.Command, args []string) int {
 	if len(args) == 0 {
 		_ = cmd.Usage()
-		return
+		return 0
 	}
 
 	if !asJSON && !sensitiveFiles && !generateSampleExclusion {
@@ -91,7 +141,7 @@ func search(cmd *cobra.Command, args []string) {
 
 	if generateSampleExclusion {
 		fmt.Printf("%s\n", diagnostics.GenerateSampleExclusion())
-		return
+		return 0
 	}
 
 	if sensitiveFiles {
@@ -102,7 +152,7 @@ func search(cmd *cobra.Command, args []string) {
 			log.Printf("Marshall Error: %s", err.Error())
 			fmt.Print("[]")
 		}
-		return
+		return 0
 	}
 
 	var excludeDefinitions = secrets.MakeCommonExclusions()
@@ -140,8 +190,12 @@ func search(cmd *cobra.Command, args []string) {
 		ConfidentialFilesOnly: sensitiveFilesOnly,
 		Exclusions:            exclusionProvider,
 		ExcludeTestFiles:      skipTestFiles,
+		AuthResolver:          buildCLIAuthResolver(gitToken, gitTokenEnv, sshKeyPath),
+		CloneDepth:            gitDepth,
+		FullHistory:           gitDepth == 0,
+		InsecureSkipTLS:       insecureSkipTLS,
 	}
-	issueChannel, paths := secrets.SearchSecretsOnPaths(args, options)
+	issueChannel, paths, reportCh := secrets.SearchSecretsOnPathsWithReport(context.Background(), args, options, "", "", nil)
 
 	for issue := range issueChannel {
 		aggregator.AddDiagnostic(issue)
@@ -152,8 +206,17 @@ func search(cmd *cobra.Command, args []string) {
 		}
 	}
 	files := <-paths
+	acqReport := <-reportCh
+
+	for _, f := range acqReport.Failures {
+		fmt.Fprintf(os.Stderr, "Warning: failed to acquire %s (%s): %s\n", f.Target, f.ErrorKind, f.Message)
+	}
+	if acqReport.Succeeded == 0 && acqReport.Failed > 0 {
+		fmt.Fprintf(os.Stderr, "Error: all %d scan target(s) failed to acquire\n", acqReport.Failed)
+		return 1
+	}
+
 	issues := aggregator.Aggregate()
-	// fmt.Printf("\n,Files: %#v\n", files)
 
 	if asJSON {
 		if x, err := json.MarshalIndent(issues, "", " "); err == nil {
@@ -172,8 +235,9 @@ func search(cmd *cobra.Command, args []string) {
 		path, err := pdf.GenerateReport("", options.ShowSource, len(files), issues...)
 		if err != nil {
 			fmt.Printf("\nError: %s%s\n", err.Error(), path)
-			return
+			return 1
 		}
 		fmt.Printf("Report generated at %s\n", path)
 	}
+	return 0
 }

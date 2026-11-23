@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	diagnostics "github.com/adedayo/checkmate/pkg/core/diagnostics"
+	gitutils "github.com/adedayo/checkmate/pkg/core/git"
 	"github.com/adedayo/checkmate/pkg/core/util"
 )
 
@@ -75,63 +76,54 @@ func SearchSecretsOnPaths(paths []string, options SecretSearchOptions) (chan *di
 func SearchSecretsOnPathsWithProgress(paths []string, options SecretSearchOptions,
 	projectID, scanID string,
 	progressCallback func(diagnostics.Progress)) (chan *diagnostics.SecurityDiagnostic, chan []util.RepositoryIndexedFile) {
+	out, pathsOut, _ := SearchSecretsOnPathsWithReport(context.Background(), paths, options, projectID, scanID, progressCallback)
+	return out, pathsOut
+}
+
+// SearchSecretsOnPathsWithReport is SearchSecretsOnPathsWithProgress that also
+// accepts a context and returns a single-element buffered channel delivering
+// the scan's AcquisitionReport when the scan completes.
+func SearchSecretsOnPathsWithReport(ctx context.Context, paths []string, options SecretSearchOptions,
+	projectID, scanID string,
+	progressCallback func(diagnostics.Progress)) (chan *diagnostics.SecurityDiagnostic, chan []util.RepositoryIndexedFile, <-chan gitutils.AcquisitionReport) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	out := make(chan *diagnostics.SecurityDiagnostic)
 	pathsOut := make(chan []util.RepositoryIndexedFile)
+	reportOut := make(chan gitutils.AcquisitionReport, 1)
 
-	//Git URLs are cloned concurrently and each root is scanned as soon as it
-	//is available; local paths need no acquisition and go first. Indices come
-	//from the caller's argument order, so a finding's repository no longer
-	//depends on which of two independently-randomised map iterations happened
-	//to agree — which is what decided it before.
-	ctx := context.Background()
 	registry, roots := acquirePaths(ctx, paths, options)
-
-	//transpose rewrites a diagnostic's location from the local checkout back
-	//to the repository it came from, and tags it with whatever the clone told
-	//us about that repository.
-	//
-	//It used to be registered as the finders' diagnostic consumer, which meant
-	//it ran on whichever goroutine happened to be broadcasting and had to
-	//stash its output in a mutex-guarded map keyed by location, to be picked
-	//up again once the file finished. The pool already returns findings
-	//grouped by file, so the map, the mutex and the possibility of a
-	//diagnostic whose location never matched its file's — and which therefore
-	//stayed in that map until the process exited — all go away together.
 	transpose := repoTagger(registry)
 
-	//Coalesced onto a ticker rather than emitted per file. A nil callback
-	//yields a reporter that counts but emits nothing, so the non-progress
-	//callers pay only the counter.
 	reporter := newProgressReporter(projectID, scanID,
 		resolveProgressInterval(options), progressCallback)
 
 	go func() {
 		allFiles := []util.RepositoryIndexedFile{}
 		defer func() {
-			//Close emits the final, exact completion event. It must run before
-			//the caller observes the paths channel closing, since that is the
-			//signal callers use to treat the scan as finished.
 			reporter.Close()
-			//clean downloaded repositories
-			for _, location := range registry.cloneLocations() {
-				_ = os.RemoveAll(location)
+			acqReport := registry.acquisitionReport()
+			if options.OnAcquisitionComplete != nil {
+				options.OnAcquisitionComplete(acqReport)
 			}
+			// Only delete temporary checkouts when KeepCheckouts is false.
+			if !options.KeepCheckouts {
+				for _, location := range registry.cloneLocations() {
+					_ = os.RemoveAll(location)
+				}
+			}
+			reportOut <- acqReport
+			close(reportOut)
 			close(out)
 			pathsOut <- allFiles
 			close(pathsOut)
 		}()
 
-		//This signature promises the caller the full file list, so the slice
-		//has to be accumulated. Streaming still buys the important half:
-		//scanning starts on the first file instead of after the last
-		//directory has been read. Phase 8 addresses the accumulation itself.
 		files, walkStats := util.WalkRoots(ctx, roots, util.WalkOptions{
 			PruneDirs: exclusionPruneDirs(options.Exclusions),
 		})
 
-		//The total is not known until the walk finishes, so it is the running
-		//discovered count and becomes exact when it does. The reporter clamps
-		//it up to the position so progress can never exceed 100%.
 		statsDone := make(chan struct{})
 		go func() {
 			defer close(statsDone)
@@ -143,9 +135,6 @@ func SearchSecretsOnPathsWithProgress(paths []string, options SecretSearchOption
 		runScanPipeline(ctx, options, files, func(result fileScanResult) {
 			allFiles = append(allFiles, result.File)
 
-			//Completion, not commencement — see FileDone. Recorded for every
-			//file, including those with no findings, or the count would track
-			//findings rather than work done.
 			reporter.FileDone(result.File.File)
 
 			if len(result.Diagnostics) == 0 {
@@ -161,15 +150,8 @@ func SearchSecretsOnPathsWithProgress(paths []string, options SecretSearchOption
 			}
 		})
 
-		//Wait for the stats goroutine before the deferred Close emits the
-		//final event, so the total it reports is the exact one.
 		<-statsDone
 
-		//Files complete in whichever order the pool finishes them, so the list
-		//is sorted before it is handed over. Callers treat it as the set of
-		//files scanned, but it is also what the perf harness counts and what a
-		//caller could reasonably persist, and a set that reorders itself
-		//between identical runs is a diff nobody can act on.
 		sort.Slice(allFiles, func(i, j int) bool {
 			if allFiles[i].RepositoryIndex != allFiles[j].RepositoryIndex {
 				return allFiles[i].RepositoryIndex < allFiles[j].RepositoryIndex
@@ -178,5 +160,5 @@ func SearchSecretsOnPathsWithProgress(paths []string, options SecretSearchOption
 		})
 	}()
 
-	return out, pathsOut
+	return out, pathsOut, reportOut
 }

@@ -159,6 +159,14 @@ func main() {
 
 When `Options.ExclusionFile` is set, the SDK reads a `.checkmate.yaml` file containing exclusion definitions (path globs, rule overrides, etc.) and merges them with the built-in common exclusions. Invalid exclusion files produce a log warning but do not abort the scan.
 
+## Git Acquisition & Structured Reporting
+
+Merged from change 008-git-checkout-auth-and-reliability.
+
+- `sdk.Options` includes `GitAuth *gitutils.GitAuth`, `AuthResolver gitutils.AuthResolver`, `GitDepth int` (default `1` via `DefaultOptions()`, `0` for full history), `KeepCheckouts bool` (default `false`), `CloneBaseDir string`, and `InsecureSkipTLS bool` (default `false`).
+- `Scanner.ScanPathWithReport(ctx, paths...) (*ScanReport, error)` returns both `Findings []Finding` and `Acquisition gitutils.AcquisitionReport`.
+- `Scanner.ScanPath`, `Scanner.ScanGitRepo`, and `Scanner.ScanPathWithReport` return a non-nil error when all scan targets fail acquisition (`Succeeded == 0 && Failed > 0`).
+
 ## Deferred
 
 - **SDK tests:** Unit and integration tests for the SDK surface.

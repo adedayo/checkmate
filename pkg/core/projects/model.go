@@ -146,7 +146,7 @@ func (desc ProjectDescriptionWire) ToProjectDescription() (ProjectDescription, e
 
 func sanitiseRepositories(repository []Repository) []Repository {
 	for i, r := range repository {
-		r.Location = gitutils.GitToHTTPS(r.Location)
+		r.Location = gitutils.SanitiseRepoURL(r.Location)
 		repository[i] = r
 	}
 

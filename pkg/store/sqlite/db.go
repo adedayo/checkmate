@@ -575,9 +575,86 @@ func (d *DB) RemediateIssue(exclude diagnostics.ExcludeRequirement) diagnostics.
 	return diagnostics.PolicyUpdateResult{Status: "success"}
 }
 
-// GetCodeContext returns surrounding code context for a finding location.
+// GetCodeContext returns file content or surrounding code context for a finding
+// location, resolving retained remote checkouts when available and falling back
+// to stored source_context if the file is no longer on disk.
 func (d *DB) GetCodeContext(cnt common.CodeContext) string {
-	// TODO: implement file reading with context lines
+	loc := strings.TrimSpace(cnt.Location)
+	if loc == "" {
+		return ""
+	}
+
+	resolvedPath := loc
+	if cnt.ScanID != "" {
+		if retained, err := d.GetScanRetainedCheckouts(cnt.ScanID); err == nil && len(retained) > 0 {
+			if mapped := ResolveRetainedFilePath(loc, retained); mapped != "" {
+				resolvedPath = mapped
+			}
+		}
+	}
+
+	if info, err := os.Stat(resolvedPath); err == nil && !info.IsDir() {
+		// Cap direct reads at 1 MiB to keep memory bounded.
+		const maxBytes = 1 << 20
+		f, err := os.Open(resolvedPath)
+		if err == nil {
+			defer func() { _ = f.Close() }()
+			buf := make([]byte, maxBytes)
+			n, _ := f.Read(buf)
+			return string(buf[:n])
+		}
+	}
+
+	// Fallback to persisted source_context for this file/scan.
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	var src sql.NullString
+	if cnt.ScanID != "" {
+		_ = d.db.QueryRowContext(context.Background(),
+			`SELECT source_context FROM findings WHERE scan_id = ? AND file_path = ? AND source_context != '' LIMIT 1`,
+			cnt.ScanID, loc).Scan(&src)
+	} else if cnt.ProjectID != "" {
+		_ = d.db.QueryRowContext(context.Background(),
+			`SELECT source_context FROM findings WHERE project_id = ? AND file_path = ? AND source_context != '' LIMIT 1`,
+			cnt.ProjectID, loc).Scan(&src)
+	}
+	if src.Valid {
+		return src.String
+	}
+	return ""
+}
+
+// ResolveRetainedFilePath maps a finding's transposed remote repository URL
+// file path (e.g. "https://host/org/repo.git/pkg/a.go") back to the on-disk
+// file under a retained checkout directory, rejecting any path traversal.
+func ResolveRetainedFilePath(filePath string, retained map[string]string) string {
+	if len(retained) == 0 || filePath == "" {
+		return ""
+	}
+	for repoURL, localDir := range retained {
+		if repoURL == "" || localDir == "" {
+			continue
+		}
+		prefixes := []string{strings.TrimRight(repoURL, "/")}
+		if strings.HasSuffix(prefixes[0], ".git") {
+			prefixes = append(prefixes, strings.TrimSuffix(prefixes[0], ".git"))
+		} else {
+			prefixes = append(prefixes, prefixes[0]+".git")
+		}
+		for _, prefix := range prefixes {
+			withSlash := prefix + "/"
+			if strings.HasPrefix(filePath, withSlash) {
+				rel := strings.TrimPrefix(filePath, withSlash)
+				cleanBase := filepath.Clean(localDir)
+				candidate := filepath.Clean(filepath.Join(cleanBase, filepath.FromSlash(rel)))
+				relCheck, err := filepath.Rel(cleanBase, candidate)
+				if err != nil || relCheck == ".." || strings.HasPrefix(relCheck, ".."+string(os.PathSeparator)) || filepath.IsAbs(relCheck) {
+					return ""
+				}
+				return candidate
+			}
+		}
+	}
 	return ""
 }
 
@@ -784,13 +861,32 @@ func (d *DB) RunScan(
 		secOptions.Exclusions = exProvider
 	}
 
-	// Clones land in the store's managed code directory, under the project.
-	// Left unset the scanner clones into the process's working directory,
-	// which for a desktop application launched from the Finder or a desktop
-	// launcher is "/" — the clone then fails on permissions and the scan
-	// silently reads nothing. Set here rather than left to each caller because
-	// every caller of this store has the same right answer available.
-	secOptions.CloneBaseDir = filepath.Join(d.GetCodeBaseDir(), projectID)
+	// Clones land in the store's managed code directory, under the project
+	// (or under project/scanID when KeepCheckouts is enabled so each retained
+	// scan checkout is cleanly isolated for inspection and cleanup).
+	if secOptions.CloneBaseDir == "" {
+		if secOptions.KeepCheckouts {
+			secOptions.CloneBaseDir = filepath.Join(d.GetCodeBaseDir(), projectID, scanID)
+		} else {
+			secOptions.CloneBaseDir = filepath.Join(d.GetCodeBaseDir(), projectID)
+		}
+	}
+
+	// Resolve Git credentials through the store's git_config table (matching
+	// explicit GitServiceID and repository hostname) plus env / ssh-agent fallback.
+	if secOptions.AuthResolver == nil {
+		repoServiceIDs := make(map[string]string, len(proj.Repositories))
+		for _, repo := range proj.Repositories {
+			if repo.GitServiceID != "" {
+				repoServiceIDs[repo.Location] = repo.GitServiceID
+				repoServiceIDs[gitutils.SanitiseRepoURL(repo.Location)] = repo.GitServiceID
+			}
+		}
+		secOptions.AuthResolver = &gitutils.ChainedAuthResolver{
+			ConfigManager:  newGitConfigManager(d),
+			RepoServiceIDs: repoServiceIDs,
+		}
+	}
 
 	//Progress is reported through the same coalescing reporter the scanner
 	//path uses. A nil monitor is tolerated so callers that do not want
@@ -808,8 +904,8 @@ func (d *DB) RunScan(
 		CurrentFile: "starting scan ...",
 	})
 
-	findingsCh, pathsCh := secrets.SearchSecretsOnPathsWithProgress(
-		targets, secOptions, projectID, scanID, monitor)
+	findingsCh, pathsCh, reportCh := secrets.SearchSecretsOnPathsWithReport(
+		ctx, targets, secOptions, projectID, scanID, monitor)
 
 	startTime := time.Now()
 	var allFindings []*diagnostics.SecurityDiagnostic
@@ -882,6 +978,18 @@ func (d *DB) RunScan(
 	d.reconcileSuppressions(ctx, scanID, projectID, allFindings)
 
 	files := <-pathsCh
+	acqReport := <-reportCh
+
+	// Persist acquisition metadata (and any retained checkout paths) into
+	// scans.additional_info regardless of whether the scan succeeds or fails.
+	d.persistAcquisitionMetadata(ctx, scanID, acqReport)
+
+	// Total acquisition failure: never present a scan that could not clone any
+	// target as a clean 0-finding result.
+	if acqReport.Succeeded == 0 && acqReport.Failed > 0 {
+		d.markScanFailedWithAcquisition(ctx, scanID, acqReport)
+		return
+	}
 
 	// Findings arrive in file-completion order, which is nondeterministic now
 	// that files are scanned in parallel. Everything derived from the slice
@@ -967,16 +1075,29 @@ func (d *DB) RunScan(
 }
 
 func (d *DB) markScanFailed(ctx context.Context, scanID string) {
+	d.markScanFailedWithAcquisition(ctx, scanID, gitutils.AcquisitionReport{})
+}
+
+func (d *DB) markScanFailedWithAcquisition(ctx context.Context, scanID string, acq gitutils.AcquisitionReport) {
 	d.mu.Lock()
 	_, _ = d.db.ExecContext(ctx,
 		`UPDATE scans SET status = 'failed', completed_at = ? WHERE id = ?`,
 		time.Now().UTC().Format(time.RFC3339), scanID)
 	d.mu.Unlock()
 
+	eventData := map[string]interface{}{"status": "failed"}
+	if acq.Failed > 0 {
+		eventData["acquisition"] = acq
+		if len(acq.Failures) > 0 {
+			eventData["error"] = fmt.Sprintf("acquisition failed for %s (%s): %s",
+				acq.Failures[0].Target, acq.Failures[0].ErrorKind, acq.Failures[0].Message)
+		}
+	}
+
 	d.broker.Publish(store.ScanEvent{
 		ScanID: scanID,
 		Type:   store.EventComplete,
-		Data:   map[string]interface{}{"status": "failed"},
+		Data:   eventData,
 	})
 
 	if d.webhookDispatcher != nil {
@@ -985,6 +1106,144 @@ func (d *DB) markScanFailed(ctx context.Context, scanID string) {
 			"status": "failed",
 		})
 	}
+}
+
+func (d *DB) persistAcquisitionMetadata(ctx context.Context, scanID string, acq gitutils.AcquisitionReport) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	var raw sql.NullString
+	_ = d.db.QueryRowContext(ctx, `SELECT additional_info FROM scans WHERE id = ?`, scanID).Scan(&raw)
+
+	info := make(map[string]interface{})
+	if raw.Valid && raw.String != "" && raw.String != "{}" {
+		_ = json.Unmarshal([]byte(raw.String), &info)
+	}
+	info["acquisition"] = acq
+	if len(acq.RetainedPaths) > 0 {
+		info["retainedCheckouts"] = acq.RetainedPaths
+	}
+	encoded, err := json.Marshal(info)
+	if err != nil {
+		return
+	}
+	_, _ = d.db.ExecContext(ctx, `UPDATE scans SET additional_info = ? WHERE id = ?`, string(encoded), scanID)
+}
+
+// GetScanAcquisitionReport returns the persisted AcquisitionReport for scanID.
+func (d *DB) GetScanAcquisitionReport(scanID string) (*gitutils.AcquisitionReport, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	var raw sql.NullString
+	err := d.db.QueryRowContext(context.Background(),
+		`SELECT additional_info FROM scans WHERE id = ?`, scanID).Scan(&raw)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("scan not found: %s", scanID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !raw.Valid || raw.String == "" || raw.String == "{}" {
+		return nil, nil
+	}
+	var wrapper struct {
+		Acquisition *gitutils.AcquisitionReport `json:"acquisition"`
+	}
+	if err := json.Unmarshal([]byte(raw.String), &wrapper); err != nil {
+		return nil, err
+	}
+	return wrapper.Acquisition, nil
+}
+
+// GetScanRetainedCheckouts returns the map of sanitisedRepoURL -> localDir
+// retained on disk for scanID, if any.
+func (d *DB) GetScanRetainedCheckouts(scanID string) (map[string]string, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	var raw sql.NullString
+	err := d.db.QueryRowContext(context.Background(),
+		`SELECT additional_info FROM scans WHERE id = ?`, scanID).Scan(&raw)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("scan not found: %s", scanID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !raw.Valid || raw.String == "" || raw.String == "{}" {
+		return nil, nil
+	}
+	var wrapper struct {
+		RetainedCheckouts map[string]string `json:"retainedCheckouts"`
+	}
+	if err := json.Unmarshal([]byte(raw.String), &wrapper); err != nil {
+		return nil, err
+	}
+	return wrapper.RetainedCheckouts, nil
+}
+
+// ClearScanRetainedCheckouts removes retainedCheckouts metadata from
+// scans.additional_info once retained checkouts have been deleted from disk.
+func (d *DB) ClearScanRetainedCheckouts(scanID string) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	var raw sql.NullString
+	err := d.db.QueryRowContext(context.Background(),
+		`SELECT additional_info FROM scans WHERE id = ?`, scanID).Scan(&raw)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("scan not found: %s", scanID)
+	}
+	if err != nil {
+		return err
+	}
+	info := make(map[string]interface{})
+	if raw.Valid && raw.String != "" && raw.String != "{}" {
+		_ = json.Unmarshal([]byte(raw.String), &info)
+	}
+	delete(info, "retainedCheckouts")
+	if acqMap, ok := info["acquisition"].(map[string]interface{}); ok {
+		delete(acqMap, "retainedPaths")
+	}
+	encoded, err := json.Marshal(info)
+	if err != nil {
+		return err
+	}
+	_, err = d.db.ExecContext(context.Background(),
+		`UPDATE scans SET additional_info = ? WHERE id = ?`, string(encoded), scanID)
+	return err
+}
+
+// GetScanRecord returns status and timestamp metadata for a single scan.
+func (d *DB) GetScanRecord(scanID string) (*store.ScanRecord, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	var id, projID, status string
+	var startedAt, completedAt sql.NullString
+	err := d.db.QueryRowContext(context.Background(),
+		`SELECT id, project_id, status, started_at, completed_at FROM scans WHERE id = ?`,
+		scanID).Scan(&id, &projID, &status, &startedAt, &completedAt)
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("scan not found: %s", scanID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	record := &store.ScanRecord{
+		ID:        id,
+		ProjectID: projID,
+		Status:    status,
+	}
+	if startedAt.Valid && startedAt.String != "" {
+		record.StartedAt, _ = time.Parse(time.RFC3339, startedAt.String)
+	}
+	if completedAt.Valid && completedAt.String != "" {
+		t, _ := time.Parse(time.RFC3339, completedAt.String)
+		record.CompletedAt = &t
+	}
+	return record, nil
 }
 
 // ─── Row scanners ─────────────────────────────────────────────────────────────

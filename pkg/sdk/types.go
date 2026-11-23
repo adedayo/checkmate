@@ -1,6 +1,10 @@
 package sdk
 
-import "time"
+import (
+	"time"
+
+	gitutils "github.com/adedayo/checkmate/pkg/core/git"
+)
 
 // SecretType is a structured taxonomy of secret types that CheckMate can detect.
 // It replaces the previous opaque rule-name strings.
@@ -208,6 +212,27 @@ type Options struct {
 
 	// ExcludePatterns is a list of glob patterns to exclude from scanning.
 	ExcludePatterns []string
+
+	// GitAuth supplies explicit HTTPS credentials for cloning remote git repositories.
+	GitAuth *gitutils.GitAuth
+
+	// AuthResolver supplies a custom credential resolver for remote git repositories.
+	AuthResolver gitutils.AuthResolver
+
+	// GitDepth limits git clone depth. DefaultOptions sets 1 (shallow working tree);
+	// 0 clones full history.
+	GitDepth int
+
+	// KeepCheckouts preserves cloned repositories under CloneBaseDir (mode 0700)
+	// after scan completion instead of deleting them. Defaults to false.
+	KeepCheckouts bool
+
+	// CloneBaseDir overrides the base directory where remote git URLs are cloned.
+	CloneBaseDir string
+
+	// InsecureSkipTLS disables TLS certificate verification for git clones.
+	// Defaults to false.
+	InsecureSkipTLS bool
 }
 
 // DefaultOptions returns the recommended defaults for most use cases.
@@ -215,7 +240,15 @@ func DefaultOptions() Options {
 	return Options{
 		ShowSource:        true,
 		CalculateChecksum: true,
+		GitDepth:          1,
 	}
+}
+
+// ScanReport contains both findings and structured target acquisition outcomes
+// from a ScanPathWithReport call.
+type ScanReport struct {
+	Findings    []Finding                  `json:"findings"`
+	Acquisition gitutils.AcquisitionReport `json:"acquisition"`
 }
 
 // ScanProgress is emitted during streaming scans to report progress.

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/adedayo/checkmate/pkg/core/diagnostics"
+	gitutils "github.com/adedayo/checkmate/pkg/core/git"
 )
 
 // SecretSearchOptions search options for the secret finder plugin
@@ -73,4 +74,29 @@ type SecretSearchOptions struct {
 	//Callers with somewhere proper to put a checkout should say so. The
 	//desktop app and the API server both have a managed code base directory.
 	CloneBaseDir string `json:"CloneBaseDir" yaml:"CloneBaseDir"`
+
+	//AuthResolver resolves Git transport credentials (HTTPS tokens, SSH keys,
+	//ssh-agent, git_config services) for remote repositories. When nil, the
+	//scanner falls back to environment credentials and anonymous access.
+	AuthResolver gitutils.AuthResolver `json:"-" yaml:"-"`
+
+	//CloneDepth limits git clone depth. Zero defaults to 1 (shallow working
+	//tree) unless FullHistory is true or CloneDepth < 0, in which case full
+	//history (go-git Depth: 0) is cloned.
+	CloneDepth int `json:"CloneDepth,omitempty" yaml:"CloneDepth,omitempty"`
+
+	//FullHistory disables shallow cloning so full Git history is cloned.
+	FullHistory bool `json:"FullHistory,omitempty" yaml:"FullHistory,omitempty"`
+
+	//KeepCheckouts preserves cloned repositories under CloneBaseDir (mode 0700)
+	//after scan completion instead of deleting them in defer. Defaults to false.
+	KeepCheckouts bool `json:"KeepCheckouts,omitempty" yaml:"KeepCheckouts,omitempty"`
+
+	//InsecureSkipTLS disables TLS certificate verification for git clones.
+	//Defaults to false.
+	InsecureSkipTLS bool `json:"InsecureSkipTLS,omitempty" yaml:"InsecureSkipTLS,omitempty"`
+
+	//OnAcquisitionComplete, when non-nil, is invoked once all scan targets have
+	//been acquired with the resulting AcquisitionReport.
+	OnAcquisitionComplete func(gitutils.AcquisitionReport) `json:"-" yaml:"-"`
 }
