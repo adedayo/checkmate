@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/adedayo/checkmate/pkg/core/diagnostics"
 )
@@ -52,7 +53,6 @@ var (
 	secretStringIndicators = setupSecretStringsIndicators()
 	commonSecrets          = []*regexp.Regexp{}
 	encodedSecrets         = map[string]*regexp.Regexp{}
-	vendorSecrets          = map[string]*regexp.Regexp{}
 	upperCase              = regexp.MustCompile(`[A-Z]`)
 	lowerCase              = regexp.MustCompile(`[a-z]`)
 	digit                  = regexp.MustCompile(`\d`)
@@ -76,7 +76,6 @@ var (
 func init() {
 	setupCommonSecrets()
 	setupEncodedSecrets()
-	setupVendorSecrets()
 }
 
 func setupCommonSecrets() {
@@ -91,33 +90,69 @@ func setupEncodedSecrets() {
 	}
 }
 
-func setupVendorSecrets() {
+type lazyRegex struct {
+	once    sync.Once
+	pattern string
+	re      *regexp.Regexp
+}
+
+func (lr *lazyRegex) get() *regexp.Regexp {
+	lr.once.Do(func() {
+		if re, err := regexp.Compile(lr.pattern); err == nil {
+			lr.re = re
+		}
+	})
+	return lr.re
+}
+
+type vendorRuleCatalog struct {
+	sortedIDs []string
+	patterns  map[string]string
+	rules     []lazyRegex
+}
+
+func (c *vendorRuleCatalog) regexAt(index int) *regexp.Regexp {
+	if index < 0 || index >= len(c.rules) {
+		return nil
+	}
+	return c.rules[index].get()
+}
+
+// vendorCatalog lazily parses the embedded Gitleaks rule set and merges it
+// with CheckMate's built-in vendor rules on first scan use rather than in
+// init(). Each individual rule's *regexp.Regexp is compiled lazily on first
+// admission behind the literal prefilter, so short-lived CLI/pre-commit runs
+// never pay to compile hundreds of rules that cannot match the staged diff.
+var vendorCatalog = sync.OnceValue(func() *vendorRuleCatalog {
+	patterns := make(map[string]string, len(vendorSecretPatterns)+256)
 	for desc, sec := range vendorSecretPatterns {
-		vendorSecrets[desc] = regexp.MustCompile(sec)
+		patterns[desc] = sec
 	}
 
-	// Integrate Gitleaks rules
 	gitleaksPatterns := loadGitleaksPatterns()
 	for desc, regexStr := range gitleaksPatterns {
-		// Only add it if we don't already have our own rule for it
-		// to prevent duplicates or overriding Checkmate specific rules.
-		if _, exists := vendorSecrets[desc]; !exists {
-			// We already compiled it inside loadGitleaksPatterns to check if Go supports it,
-			// so MustCompile here is safe.
-			vendorSecrets[desc] = regexp.MustCompile(regexStr)
+		if _, exists := patterns[desc]; !exists {
+			patterns[desc] = regexStr
 		}
 	}
 
-	// Compute the deterministic vendor rule evaluation order once, after the
-	// rule set is fully populated. Both isVendorSecret (first-match-wins) and
-	// vendor finder construction consume this, so they always agree on
-	// precedence between rules that match the same value.
-	sortedVendorSecretIDs = make([]string, 0, len(vendorSecrets))
-	for id := range vendorSecrets {
-		sortedVendorSecretIDs = append(sortedVendorSecretIDs, id)
+	sortedIDs := make([]string, 0, len(patterns))
+	for id := range patterns {
+		sortedIDs = append(sortedIDs, id)
 	}
-	sort.Strings(sortedVendorSecretIDs)
-}
+	sort.Strings(sortedIDs)
+
+	rules := make([]lazyRegex, len(sortedIDs))
+	for i, id := range sortedIDs {
+		rules[i].pattern = patterns[id]
+	}
+
+	return &vendorRuleCatalog{
+		sortedIDs: sortedIDs,
+		patterns:  patterns,
+		rules:     rules,
+	}
+})
 
 func setupSecretStringsIndicators() string {
 	// Iterate in sorted key order. These patterns are joined into an
@@ -157,11 +192,11 @@ func MakeCommonExclusions() diagnostics.ExcludeDefinition {
 	return diagnostics.ExcludeDefinition{
 		PathExclusionRegExs: []string{
 			`.*[.](?i:html?|css)`, //HTML and CSS files
-			`.*/[.]git/.*`,        //skip git files
-			`.*/(?i:package-lock|npm-shrinkwrap)[.]json`, //package-lock.json and npm-shrinkwrap.json files are high false positive files
-			`.*/node_modules/.*`,                         //node compiled libraries
-			`.*[.]md`,                                    //Markdown files
-			`.*[.](?i:lock|xib|storyboard)`,              //lock, xib and storyboard files
+			`(?:^|.*/)[.]git/.*`,  //skip git files
+			`(?:^|.*/)(?i:package-lock|npm-shrinkwrap)[.]json`, //package-lock.json and npm-shrinkwrap.json files are high false positive files
+			`(?:^|.*/)node_modules/.*`,                         //node compiled libraries
+			`.*[.]md`,                                          //Markdown files
+			`.*[.](?i:lock|xib|storyboard)`,                    //lock, xib and storyboard files
 		},
 	}
 
@@ -171,9 +206,11 @@ func MergeExclusions(defs ...diagnostics.ExcludeDefinition) (excl diagnostics.Ex
 
 	excl.PathRegexExcludedRegExs = make(map[string][]string)
 	excl.PerFileExcludedStrings = make(map[string][]string)
+	excl.PerFileExcludedHashes = make(map[string][]string)
 	for _, def := range defs {
 		excl.GloballyExcludedRegExs = unique(append(excl.GloballyExcludedRegExs, def.GloballyExcludedRegExs...))
 		excl.GloballyExcludedStrings = unique(append(excl.GloballyExcludedStrings, def.GloballyExcludedStrings...))
+		excl.GloballyExcludedHashes = unique(append(excl.GloballyExcludedHashes, def.GloballyExcludedHashes...))
 		excl.PathExclusionRegExs = unique(append(excl.PathExclusionRegExs, def.PathExclusionRegExs...))
 		for p, v := range def.PathRegexExcludedRegExs {
 			if _, present := excl.PathRegexExcludedRegExs[p]; present {
@@ -187,6 +224,13 @@ func MergeExclusions(defs ...diagnostics.ExcludeDefinition) (excl diagnostics.Ex
 				excl.PerFileExcludedStrings[p] = unique(append(excl.PerFileExcludedStrings[p], v...))
 			} else {
 				excl.PerFileExcludedStrings[p] = unique(v)
+			}
+		}
+		for p, v := range def.PerFileExcludedHashes {
+			if _, present := excl.PerFileExcludedHashes[p]; present {
+				excl.PerFileExcludedHashes[p] = unique(append(excl.PerFileExcludedHashes[p], v...))
+			} else {
+				excl.PerFileExcludedHashes[p] = unique(v)
 			}
 		}
 	}

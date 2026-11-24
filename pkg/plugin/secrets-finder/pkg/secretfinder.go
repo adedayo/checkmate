@@ -17,8 +17,9 @@ func FindSecret(rif util.RepositoryIndexedFile, source io.Reader, matcher MatchP
 	}
 
 	go func() {
+		ignoreTracker := &inlineIgnoreTracker{}
 		defer func() {
-			for _, d := range aggregator.Aggregate() {
+			for _, d := range ignoreTracker.Filter(aggregator.Aggregate()) {
 				out <- d
 			}
 			close(out)
@@ -30,7 +31,7 @@ func FindSecret(rif util.RepositoryIndexedFile, source io.Reader, matcher MatchP
 			providers = append(providers, c.(diagnostics.SecurityDiagnosticsProvider))
 		}
 		common.RegisterDiagnosticsConsumer(collector, providers...)
-		sourceConsumers := []util.ResourceConsumer{}
+		sourceConsumers := []util.ResourceConsumer{ignoreTracker}
 		for _, c := range consumers {
 			sourceConsumers = append(sourceConsumers, c.(util.ResourceConsumer))
 		}

@@ -115,11 +115,13 @@ func isVendorSecret(data string, candidates *prefilter.Set) (description string,
 	// description, the confidence and every finding property derived from them
 	// — is unchanged. A nil set means "no gating", which is what the direct
 	// callers in tests and the disabled-prefilter path get.
-	for i, desc := range sortedVendorSecretIDs {
-		if candidates != nil && !candidates.Has(vendorRuleIndices()[i]) {
+	cat := vendorCatalog()
+	ruleIndices := vendorRuleIndices()
+	for i, desc := range cat.sortedIDs {
+		if candidates != nil && !candidates.Has(ruleIndices[i]) {
 			continue
 		}
-		if re, ok := vendorSecrets[desc]; ok && re.FindStringSubmatchIndex(data) != nil {
+		if re := cat.regexAt(i); re != nil && re.FindStringSubmatchIndex(data) != nil {
 			return desc, true
 		}
 	}
@@ -127,8 +129,8 @@ func isVendorSecret(data string, candidates *prefilter.Set) (description string,
 	return
 }
 
-// vendorRuleIndices maps position in sortedVendorSecretIDs to the rule's bit
-// position in a prefilter Set.
+// vendorRuleIndices maps position in vendorCatalog().sortedIDs to the rule's
+// bit position in a prefilter Set.
 //
 // Computed once, and positionally aligned rather than looked up by name on
 // each iteration: the loop above runs per candidate secret, and a map lookup
@@ -136,13 +138,14 @@ func isVendorSecret(data string, candidates *prefilter.Set) (description string,
 // to save a slice of a few hundred ints.
 //
 // A rule the matcher does not know — which cannot happen while both are built
-// from `vendorSecrets`, but would be a silent disaster if it ever did — maps
+// from `vendorCatalog`, but would be a silent disaster if it ever did — maps
 // to -1, and Set.Has(-1) is false, so the belt-and-braces here is to treat an
 // unknown rule as always-run rather than never-run.
 var vendorRuleIndices = sync.OnceValue(func() []int {
 	m := vendorMatcher()
-	indices := make([]int, len(sortedVendorSecretIDs))
-	for i, desc := range sortedVendorSecretIDs {
+	sortedIDs := vendorCatalog().sortedIDs
+	indices := make([]int, len(sortedIDs))
+	for i, desc := range sortedIDs {
 		if index, ok := m.IndexOf(desc); ok {
 			indices[i] = index
 		} else {
@@ -151,16 +154,6 @@ var vendorRuleIndices = sync.OnceValue(func() []int {
 	}
 	return indices
 })
-
-// sortedVendorSecretIDs is the deterministic evaluation order for vendor
-// rules, computed once. It is shared by isVendorSecret and by vendor finder
-// construction so both resolve overlaps the same way.
-//
-// It is populated by setupVendorSecrets during package init rather than by a
-// variable initialiser: package-level variables are initialised BEFORE init()
-// runs, so computing it here would capture `vendorSecrets` while it is still
-// empty and silently disable every vendor rule.
-var sortedVendorSecretIDs []string
 
 func isCommonSecret(data string) bool {
 	for _, re := range commonSecrets {

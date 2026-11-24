@@ -133,14 +133,9 @@ func makeVendorSecretsFinders(options SecretSearchOptions) []common.ResourceToSe
 	// diagnostics.SubsumeOverlapping resolves overlapping findings
 	// positionally, so an unstable rule order changes which rule is credited
 	// with a secret — and therefore the derived finding ID.
-	ids := make([]string, 0, len(vendorSecrets))
-	for id := range vendorSecrets {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-
-	finders := make([]common.ResourceToSecurityDiagnostics, 0, len(ids))
-	for _, id := range ids {
+	cat := vendorCatalog()
+	finders := make([]common.ResourceToSecurityDiagnostics, 0, len(cat.sortedIDs))
+	for i, id := range cat.sortedIDs {
 		sf := secretStringFinder{
 			secretFinder{
 				ExclusionProvider: options.Exclusions,
@@ -148,7 +143,7 @@ func makeVendorSecretsFinders(options SecretSearchOptions) []common.ResourceToSe
 			},
 		}
 		sf.providerID = id
-		sf.res = []*regexp.Regexp{vendorSecrets[id]}
+		sf.vendorRuleIndex = i + 1
 		finders = append(finders, &sf)
 	}
 	return finders

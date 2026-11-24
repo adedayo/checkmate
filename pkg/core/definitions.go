@@ -819,7 +819,7 @@ var (
 		`.ypr`:                 `BYOB Project File`,
 	}
 
-	tfe1 = makeMap("txt,xml,docx,xlsx,pptx,odt,fodt,ods,fods,odp,fodp,odb,js,json,yml,yaml,md,cnf,conf,config,sh,zsh,bash,cmd,sql,bat,pp,key,csr,crt,pem,csv,cf,pre,htm,html," + sourceFileExts)
+	tfe1 = makeMap("txt,xml,docx,xlsx,pptx,odt,fodt,ods,fods,odp,fodp,odb,js,mjs,cjs,jsx,tsx,json,yml,yaml,toml,ini,cfg,properties,env,local,development,production,staging,tf,tfvars,hcl,npmrc,pypirc,netrc,htpasswd,pgpass,dockercfg,kubeconfig,dockerfile,kts,md,cnf,conf,config,sh,zsh,bash,cmd,sql,bat,pp,key,csr,crt,pem,csv,cf,pre,htm,html," + sourceFileExts)
 	tfe2 = map[string]string{
 		`.123`:             `Lotus 1-2-3 Spreadsheet`,
 		`.12m`:             `Lotus 1-2-3 SmartMaster File`,
@@ -2090,9 +2090,13 @@ var (
 	TextFileExtensions = appendMaps(tfe1, tfe2, SourceFileExtensions)
 	//DangerousFileNames are file names commonly associated with secrets, should not be stored in source code management systems
 	DangerousFileNames = map[string]string{
-		`id_rsa`:   `SSH private key`,
-		`id_dsa`:   `SSH private key`,
-		`keystore`: `Java key store`,
+		`id_rsa`:        `SSH private key`,
+		`id_dsa`:        `SSH private key`,
+		`id_ed25519`:    `SSH private key`,
+		`id_ecdsa`:      `SSH private key`,
+		`id_ed25519_sk`: `SSH private key`,
+		`id_ecdsa_sk`:   `SSH private key`,
+		`keystore`:      `Java key store`,
 	}
 	//CertsAndKeyStores are potential certificate and keystore files that should not be stored in source code repositories
 	CertsAndKeyStores = map[string]string{

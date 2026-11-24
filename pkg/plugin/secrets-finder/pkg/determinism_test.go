@@ -130,12 +130,13 @@ func TestScanIsRepeatable(t *testing.T) {
 // confidence, which drives overlap resolution — so this order decides which
 // finding survives and what its ID is.
 func TestVendorSecretEvaluationOrderIsSorted(t *testing.T) {
-	if !sort.StringsAreSorted(sortedVendorSecretIDs) {
+	cat := vendorCatalog()
+	if !sort.StringsAreSorted(cat.sortedIDs) {
 		t.Error("vendor secret evaluation order is not sorted")
 	}
-	if len(sortedVendorSecretIDs) != len(vendorSecrets) {
+	if len(cat.sortedIDs) != len(cat.patterns) {
 		t.Errorf("evaluation order covers %d rules but %d are registered",
-			len(sortedVendorSecretIDs), len(vendorSecrets))
+			len(cat.sortedIDs), len(cat.patterns))
 	}
 
 	const token = "ghp_016C4Cbb1c0FfFfFfFfFfFfFfFfFfFfFfFf00"

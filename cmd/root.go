@@ -58,15 +58,21 @@ var rootCmd = &cobra.Command{
 func Execute(version string) {
 	appVersion = version
 	rootCmd.Long = fmt.Sprintf(`Prevent a breach. Use %s to find hard-coded secrets in code, configuration, logs and other files.
-	
-	Version: %s
 
-	Author: Dr. Adedayo Adetoye (Dayo) <https://github.com/adedayo>
-	`, common.AppName, version)
+  Version: %s
+  Author: Dr. Adedayo Adetoye (Dayo) <https://github.com/adedayo>
+
+Quick Start:
+  %s hook install                    Install as a Git pre-commit hook
+  %s hook run                        Scan staged Git changes (fast, redacted, exit 1 on findings)
+  %s search <path|url>               Scan local files, directories, or Git repositories
+  %s describe                        Machine-readable CLI manifest for AI agents (--format json|markdown)
+  %s mcp serve --ephemeral           Start an MCP server for AI coding agents
+`, common.AppName, version, common.AppName, common.AppName, common.AppName, common.AppName, common.AppName)
 
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
 	}
 }
 

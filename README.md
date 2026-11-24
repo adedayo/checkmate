@@ -134,14 +134,24 @@ checkmate search --pdf /path/to/project
 | Flag | Description |
 |---|---|
 | `--calculate-checksums` | Compute checksums of detected secrets (default: true) |
+| `--data-path <dir>` | CheckMate data directory for optional read-only SQLite exceptions (default: `~/.checkmate`) |
+| `--diff-only` | With `--staged`, report only findings on added or modified lines (default: true) |
 | `--exclude-tests` | Skip test files during scanning |
-| `-e, --exclusion <file>` | Use an exclusion YAML configuration file |
+| `-e, --exclusion <file>` | Use an exclusion YAML configuration file (fails closed with exit 2 if unreadable or invalid) |
+| `--fail-on-findings` | Exit `1` when unexcluded findings at or above `--min-confidence` are detected (`2` on error) |
+| `--filename <name>` | Virtual filename used with `--stdin` for extension and exclusion matching |
+| `--format <fmt>` | Output format: `json`, `text`, `sarif`, `pdf`, or `agent` |
 | `--git-depth <n>` | Git clone depth (`1` shallow default, `0` for full history) |
 | `--git-token <token>` | Personal access token or password for private HTTPS git repositories |
 | `--git-token-env <var>` | Environment variable name containing a git HTTPS access token |
 | `--insecure-skip-tls` | Opt-in to skip TLS certificate verification when cloning git repositories |
 | `--json` | Generate output in JSON format (default: true) |
+| `--min-confidence <lvl>` | Minimum confidence to report or block on: `info`, `low`, `medium`, `high`, `critical` |
+| `--no-auto-exclusion` | Disable automatic loading of repo-root `.checkmate.yaml` |
+| `--no-db` | Disable reading shared SQLite exceptions |
 | `--pdf` | Generate a native PDF audit report |
+| `-q, --quiet` | Suppress text output when no findings are detected |
+| `--redact` | Mask raw secret values in output while keeping SHA-256 checksums |
 | `--report-ignored` | Include ignored files and values in reports |
 | `--running-commentary` | Stream results as they are found (useful for large repos) |
 | `--sample-exclusion` | Generate a sample exclusion YAML file |
@@ -150,7 +160,43 @@ checkmate search --pdf /path/to/project
 | `--sensitive-files-only` | Scan only for sensitive files (certificates, key stores) |
 | `-s, --source` | Include source code evidence in results (default: true) |
 | `--ssh-key <path>` | Path to an SSH private key file for cloning SSH git repositories |
+| `--staged` | Scan staged changes directly from the Git index (ignores unstaged working-tree edits) |
+| `--stdin` | Read content to scan from standard input |
 | `--verbose` | Enable verbose output |
+
+### Git Pre-Commit Hooks & AI-Native CLI Discovery
+
+Block accidental secret leaks before they enter Git history with sub-second staged-diff scanning:
+
+```bash
+# Install CheckMate as your repository's Git pre-commit hook
+checkmate hook install
+
+# Run manually on staged Git index changes (redacted terminal output, exit 1 on findings, exit 2 on error)
+checkmate hook run
+
+# Run with structured AI-agent JSON output (includes status, exitCode, redacted findings, and nextSteps)
+checkmate hook run --staged --format json
+
+# Pipe content before writing or staging a file
+git show :.env | checkmate search --stdin --filename .env --format agent --fail-on-findings
+
+# Self-describing capability manifest for AI coding agents (JSON or Markdown)
+checkmate describe
+checkmate describe --format markdown
+```
+
+You can also integrate CheckMate via the [pre-commit](https://pre-commit.com/) framework using `.pre-commit-hooks.yaml`:
+
+```yaml
+repos:
+  - repo: https://github.com/adedayo/checkmate
+    rev: v1.8.0
+    hooks:
+      - id: checkmate-staged
+```
+
+To suppress a verified false positive, add its `sha256` to repo-root `.checkmate.yaml` (`PerFileExcludedHashes` or `GloballyExcludedHashes`), or append `checkmate:ignore` to the line (or `checkmate:ignore-next-line` on the line above).
 
 ### API Server
 

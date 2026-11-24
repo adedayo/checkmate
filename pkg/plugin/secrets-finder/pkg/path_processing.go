@@ -21,10 +21,30 @@ var (
 	TenMB                           = int64(1024 * 1000 * 10) // 10Mb
 )
 
-// determineAndCloneRepositories was replaced by acquirePaths in roots.go: it
-// cloned serially, and it keyed the result by URL in a map whose iteration
-// order then decided each repository's index — independently of the second map
-// iteration that built the walk roots, so the two could disagree.
+// IsScannableTextPath reports whether a file path should be scanned for
+// embedded text secrets based on its extension (case-insensitive), extensionless
+// status, or known secret-bearing dotfile prefix (such as .env or .env.local).
+func IsScannableTextPath(path, ext string) bool {
+	if ext == "" {
+		return true
+	}
+	lowerExt := strings.ToLower(ext)
+	if _, present := common.TextFileExtensions[lowerExt]; present {
+		return true
+	}
+	base := path
+	if idx := strings.LastIndexAny(path, `/\`); idx >= 0 {
+		base = path[idx+1:]
+	}
+	return strings.HasPrefix(strings.ToLower(base), ".env")
+}
+
+// IsRecognisedSourceExt reports whether ext is in the recognised parsable
+// source extension set (exempt from the 10MB cutoff).
+func IsRecognisedSourceExt(ext string) bool {
+	_, present := recognisedFiles[strings.ToLower(ext)]
+	return present
+}
 
 type confidentialFilesFinder struct {
 	diagnostics.DefaultSecurityDiagnosticsProvider
@@ -225,14 +245,14 @@ func (pathBSF pathBasedSourceSecretFinder) consumePathGated(rif util.RepositoryI
 	ext := gate.Ext
 	cutOffSize := TenMB
 
-	if _, present := common.TextFileExtensions[ext]; present || ext == "" { //now scan files without extensions
+	if IsScannableTextPath(path, ext) { //scan known text/config extensions, .env.* dotfiles, and files without extensions
 		if f, err := os.Open(path); err == nil {
 			defer func() {
 				_ = f.Close()
 			}()
 			//don't scan files larger than cutOffSize, unless they are in recognisedFiles
 			//don't scan files without extension, unless they are smaller than cutOffSize and contain plaintext content
-			if _, present := recognisedFiles[ext]; !present {
+			if !IsRecognisedSourceExt(ext) {
 				//Skip searching file not in standard recognised parsable files and greater than 10Mb in size
 				if stat, err := f.Stat(); err == nil && stat.Size() > cutOffSize {
 					if pathBSF.options.ReportIgnored {

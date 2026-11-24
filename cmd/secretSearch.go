@@ -35,20 +35,22 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	common "github.com/adedayo/checkmate/pkg/core"
 	"github.com/adedayo/checkmate/pkg/core/diagnostics"
 	gitutils "github.com/adedayo/checkmate/pkg/core/git"
 	secrets "github.com/adedayo/checkmate/pkg/plugin/secrets-finder/pkg"
+	"github.com/adedayo/checkmate/pkg/precommit"
 	"github.com/adedayo/checkmate/pkg/report"
 	"github.com/adedayo/checkmate/pkg/reports/pdf"
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -60,14 +62,47 @@ var (
 	gitToken, gitTokenEnv, sshKeyPath                     string
 	gitDepth                                              int
 	insecureSkipTLS                                       bool
+
+	searchFormat          string
+	searchFailOnFindings  bool
+	searchRedact          bool
+	searchMinConfidence   string
+	searchStaged          bool
+	searchDiffOnly        bool
+	searchStdin           bool
+	searchFilename        string
+	searchNoAutoExclusion bool
+	searchDataPath        string
+	searchNoDB            bool
+	searchQuiet           bool
 )
 
 // searchCmd represents the search command
 var searchCmd = &cobra.Command{
 	Use:   "search <path | git url> [<path | git url>...]",
-	Short: "Searches for secrets in files in local file system paths or git repositories",
-	Long:  `Searches for secrets in files in local file system paths or git repositories`,
-	Run:   search,
+	Short: "Searches for secrets in local paths, staged Git changes, stdin, or remote Git repositories",
+	Long: `Searches for secrets in files in local file system paths, staged Git index
+changes (--staged), standard input (--stdin), or remote Git repositories.
+
+Exit codes when --fail-on-findings is enabled:
+  0  Clean (no findings at or above --min-confidence)
+  1  One or more potential secrets found
+  2  Operational, Git, target acquisition, or configuration error`,
+	Example: `  # Scan a local directory (JSON array output)
+  checkmate search /path/to/project
+
+  # Scan staged Git changes with redacted terminal report and non-zero exit on findings
+  checkmate search --staged --format text --redact --fail-on-findings
+
+  # AI-agent structured JSON envelope with redaction and gating exit code
+  checkmate search --staged --format agent --fail-on-findings
+
+  # Scan piped content from stdin using filename context
+  git show :.env | checkmate search --stdin --filename .env --format text --redact --fail-on-findings
+
+  # Generate SARIF 2.1.0 for GitHub Code Scanning
+  checkmate search --format sarif /path/to/project > results.sarif`,
+	Run: search,
 }
 
 func init() {
@@ -78,6 +113,18 @@ func init() {
 	searchCmd.Flags().BoolVar(&asJSON, "json", true, "Generate JSON output")
 	searchCmd.Flags().BoolVar(&asSARIF, "sarif", false, "Generate SARIF 2.1.0 output")
 	searchCmd.Flags().BoolVar(&asPDF, "pdf", false, "Generate a PDF report")
+	searchCmd.Flags().StringVar(&searchFormat, "format", "", "Output format: json, text, sarif, pdf, or agent (overrides --json/--sarif/--pdf)")
+	searchCmd.Flags().BoolVar(&searchFailOnFindings, "fail-on-findings", false, "Exit with code 1 when unexcluded findings at or above --min-confidence are detected (exit 2 on errors)")
+	searchCmd.Flags().BoolVar(&searchRedact, "redact", false, "Redact secret values in output while keeping SHA-256 checksums")
+	searchCmd.Flags().StringVar(&searchMinConfidence, "min-confidence", "info", "Minimum confidence level to report/block on: info, low, medium, high, critical")
+	searchCmd.Flags().BoolVar(&searchStaged, "staged", false, "Scan staged changes from the Git index instead of working-tree files")
+	searchCmd.Flags().BoolVar(&searchDiffOnly, "diff-only", true, "When used with --staged, only report findings on added or modified lines")
+	searchCmd.Flags().BoolVar(&searchStdin, "stdin", false, "Read content to scan from standard input")
+	searchCmd.Flags().StringVar(&searchFilename, "filename", "stdin", "Virtual filename used with --stdin for extension, confidentiality, and exclusion matching")
+	searchCmd.Flags().BoolVar(&searchNoAutoExclusion, "no-auto-exclusion", false, "Disable automatic discovery of repo-root .checkmate.yaml")
+	searchCmd.Flags().StringVar(&searchDataPath, "data-path", "~/.checkmate", "Location of CheckMate data directory for optional read-only SQLite exceptions")
+	searchCmd.Flags().BoolVar(&searchNoDB, "no-db", false, "Disable reading shared SQLite exceptions from --data-path")
+	searchCmd.Flags().BoolVarP(&searchQuiet, "quiet", "q", false, "Suppress text output when no findings are detected")
 	searchCmd.Flags().BoolVar(&sensitiveFiles, "sensitive-files", false, "List all registered sensitive files and their description")
 	searchCmd.Flags().BoolVar(&sensitiveFilesOnly, "sensitive-files-only", false, "Only search for sensitive files (e.g. certificates, key stores etc.)")
 	searchCmd.Flags().BoolVar(&runningCommentary, "running-commentary", false, "Generate a running commentary of results. Useful for analysis of large input data")
@@ -129,115 +176,295 @@ func search(cmd *cobra.Command, args []string) {
 	}
 }
 
-func runSearchCommand(cmd *cobra.Command, args []string) int {
-	if len(args) == 0 {
-		_ = cmd.Usage()
-		return 0
+func resolveSearchFormat(cmd *cobra.Command) (string, error) {
+	if strings.TrimSpace(searchFormat) != "" {
+		f := strings.ToLower(strings.TrimSpace(searchFormat))
+		switch f {
+		case "json", "text", "sarif", "pdf", "agent":
+			return f, nil
+		default:
+			return "", fmt.Errorf("unsupported format %q (expected json, text, sarif, pdf, or agent)", searchFormat)
+		}
 	}
 
-	if !asJSON && !sensitiveFiles && !generateSampleExclusion {
-		fmt.Printf("Starting %s %s (https://github.com/adedayo/checkmate)\n", common.AppName, appVersion)
+	jsonExplicit := cmd != nil && cmd.Flags().Changed("json")
+	if asSARIF && !jsonExplicit {
+		return "sarif", nil
 	}
+	if asPDF && !jsonExplicit {
+		return "pdf", nil
+	}
+	if !asJSON && !asSARIF && !asPDF {
+		return "text", nil
+	}
+	return "json", nil
+}
+
+func runSearchCommand(cmd *cobra.Command, args []string) int {
+	return runSearchCommandIO(cmd, args, os.Stdin, os.Stdout, os.Stderr)
+}
+
+func runSearchCommandIO(cmd *cobra.Command, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	start := time.Now()
 
 	if generateSampleExclusion {
-		fmt.Printf("%s\n", diagnostics.GenerateSampleExclusion())
+		_, _ = fmt.Fprintf(stdout, "%s\n", diagnostics.GenerateSampleExclusion())
 		return 0
 	}
 
 	if sensitiveFiles {
-		println("Sensitive files")
+		_, _ = fmt.Fprintln(stderr, "Sensitive files")
 		if x, err := json.MarshalIndent(common.GetSensitiveFilesDescriptors(), "", " "); err == nil {
-			fmt.Printf("%s\n", x)
+			_, _ = fmt.Fprintf(stdout, "%s\n", x)
 		} else {
 			log.Printf("Marshall Error: %s", err.Error())
-			fmt.Print("[]")
+			_, _ = fmt.Fprint(stdout, "[]")
 		}
 		return 0
 	}
 
-	var excludeDefinitions = secrets.MakeCommonExclusions()
+	if !searchStaged && !searchStdin && len(args) == 0 {
+		_ = cmd.Usage()
+		return 0
+	}
 
-	if exclusion != "" {
-		data, err := os.ReadFile(exclusion)
+	format, err := resolveSearchFormat(cmd)
+	if err != nil {
+		return emitSearchError(stdout, stderr, format, err.Error(), "Use --format json, text, sarif, pdf, or agent.")
+	}
+
+	minConf, err := precommit.ParseConfidence(searchMinConfidence)
+	if err != nil {
+		return emitSearchError(stdout, stderr, format, err.Error(), "Valid levels are info, low, medium, high, and critical.")
+	}
+
+	effectiveRedact := searchRedact
+	if format == "agent" && (cmd == nil || !cmd.Flags().Changed("redact")) {
+		effectiveRedact = true
+	}
+
+	ctx := context.Background()
+	var issues []*diagnostics.SecurityDiagnostic
+	filesScanned := 0
+	mode := "paths"
+	scopeLabel := "file(s)"
+
+	switch {
+	case searchStaged:
+		mode = "staged-files"
+		if searchDiffOnly {
+			mode = "staged-diff"
+		}
+		scopeLabel = "staged file(s)"
+		res, err := precommit.ScanStaged(ctx, precommit.StagedScanOptions{
+			DiffOnly:              searchDiffOnly,
+			ShowSource:            showSource,
+			CalculateChecksum:     calculateChecksum,
+			ExcludeTestFiles:      skipTestFiles,
+			ConfidentialFilesOnly: sensitiveFilesOnly,
+			ReportIgnored:         reportIgnored,
+			Verbose:               verbose,
+			ExclusionOptions: &precommit.ExclusionOptions{
+				ExplicitFile: exclusion,
+				AutoDiscover: !searchNoAutoExclusion,
+				DataPath:     searchDataPath,
+				NoDB:         searchNoDB,
+			},
+		})
 		if err != nil {
-			log.Printf("Warning: %s. Continuing with no exclusion", err.Error())
-		} else {
-			if err := yaml.Unmarshal(data, &excludeDefinitions); err != nil {
-				log.Printf("Warning: %s. Continuing with common/default exclusion", err.Error())
-				excludeDefinitions = secrets.MakeCommonExclusions()
+			return emitSearchError(stdout, stderr, format, err.Error(), "Ensure you are inside a Git repository when using --staged.")
+		}
+		issues = res.Diagnostics
+		filesScanned = res.FilesScanned
+
+	case searchStdin:
+		mode = "stdin"
+		scopeLabel = "input"
+		repoRoot, _ := precommit.RepoRoot(ctx, "")
+		if repoRoot == "" {
+			repoRoot, _ = os.Getwd()
+		}
+		exclProvider, err := precommit.LoadExclusions(precommit.ExclusionOptions{
+			RepoRoot:     repoRoot,
+			ExplicitFile: exclusion,
+			AutoDiscover: !searchNoAutoExclusion,
+			DataPath:     searchDataPath,
+			NoDB:         searchNoDB,
+		})
+		if err != nil {
+			return emitSearchError(stdout, stderr, format, err.Error(), "Check the YAML syntax and regex patterns in your exclusion file.")
+		}
+		res, err := precommit.ScanReader(ctx, stdin, precommit.ReaderScanOptions{
+			Filename:              searchFilename,
+			ShowSource:            showSource,
+			CalculateChecksum:     calculateChecksum,
+			ExcludeTestFiles:      skipTestFiles,
+			ConfidentialFilesOnly: sensitiveFilesOnly,
+			Exclusions:            exclProvider,
+		})
+		if err != nil {
+			return emitSearchError(stdout, stderr, format, err.Error(), "")
+		}
+		issues = res.Diagnostics
+		filesScanned = res.FilesScanned
+
+	default:
+		repoRoot, _ := precommit.RepoRoot(ctx, "")
+		if repoRoot == "" {
+			repoRoot, _ = os.Getwd()
+		}
+		exclProvider, err := precommit.LoadExclusions(precommit.ExclusionOptions{
+			RepoRoot:     repoRoot,
+			ExplicitFile: exclusion,
+			AutoDiscover: !searchNoAutoExclusion,
+			DataPath:     searchDataPath,
+			NoDB:         searchNoDB,
+			Repositories: args,
+		})
+		if err != nil {
+			return emitSearchError(stdout, stderr, format, err.Error(), "Check the YAML syntax and regex patterns in your exclusion file.")
+		}
+
+		aggregator := common.MakeSimpleAggregator()
+		options := secrets.SecretSearchOptions{
+			ShowSource:            showSource,
+			CalculateChecksum:     calculateChecksum,
+			Verbose:               verbose,
+			ReportIgnored:         reportIgnored,
+			ConfidentialFilesOnly: sensitiveFilesOnly,
+			Exclusions:            exclProvider,
+			ExcludeTestFiles:      skipTestFiles,
+			AuthResolver:          buildCLIAuthResolver(gitToken, gitTokenEnv, sshKeyPath),
+			CloneDepth:            gitDepth,
+			FullHistory:           gitDepth == 0,
+			InsecureSkipTLS:       insecureSkipTLS,
+		}
+		issueChannel, paths, reportCh := secrets.SearchSecretsOnPathsWithReport(ctx, args, options, "", "", nil)
+
+		for issue := range issueChannel {
+			aggregator.AddDiagnostic(issue)
+			if runningCommentary {
+				if x, err := json.MarshalIndent(issue, "", " "); err == nil {
+					_, _ = fmt.Fprintf(stdout, "\n%s\n", x)
+				}
+			}
+		}
+		files := <-paths
+		acqReport := <-reportCh
+
+		for _, f := range acqReport.Failures {
+			_, _ = fmt.Fprintf(stderr, "Warning: failed to acquire %s (%s): %s\n", f.Target, f.ErrorKind, f.Message)
+		}
+		if acqReport.Succeeded == 0 && acqReport.Failed > 0 {
+			errCode := 1
+			if searchFailOnFindings {
+				errCode = 2
+			}
+			msg := fmt.Sprintf("all %d scan target(s) failed to acquire", acqReport.Failed)
+			if format == "agent" {
+				_ = precommit.WriteAgentEnvelope(stdout, precommit.AgentEnvelope{
+					Tool:     common.AppName,
+					Version:  appVersion,
+					Status:   "error",
+					ExitCode: errCode,
+					Mode:     mode,
+					Error:    msg,
+					Findings: []precommit.AgentFinding{},
+				})
 			} else {
-				//Successfully loaded exclusion. Merge with common exclusions
-				excludeDefinitions = secrets.MergeExclusions(excludeDefinitions, secrets.MakeCommonExclusions())
+				_, _ = fmt.Fprintf(stderr, "Error: %s\n", msg)
 			}
+			return errCode
 		}
+		issues = aggregator.Aggregate()
+		filesScanned = len(files)
 	}
-	container := diagnostics.ExcludeContainer{
-		ExcludeDef:   &excludeDefinitions,
-		Repositories: args,
-	}
-	var exclusionProvider diagnostics.ExclusionProvider
-	if excludeProvider, err := diagnostics.CompileExcludes(container); err != nil {
-		log.Printf("Warning: %s. Continuing with no exclusion", err.Error())
-	} else {
-		exclusionProvider = excludeProvider
-	}
-	aggregator := common.MakeSimpleAggregator()
-	options := secrets.SecretSearchOptions{
-		ShowSource:            showSource,
-		CalculateChecksum:     calculateChecksum,
-		Verbose:               verbose,
-		ReportIgnored:         reportIgnored,
-		ConfidentialFilesOnly: sensitiveFilesOnly,
-		Exclusions:            exclusionProvider,
-		ExcludeTestFiles:      skipTestFiles,
-		AuthResolver:          buildCLIAuthResolver(gitToken, gitTokenEnv, sshKeyPath),
-		CloneDepth:            gitDepth,
-		FullHistory:           gitDepth == 0,
-		InsecureSkipTLS:       insecureSkipTLS,
-	}
-	issueChannel, paths, reportCh := secrets.SearchSecretsOnPathsWithReport(context.Background(), args, options, "", "", nil)
 
-	for issue := range issueChannel {
-		aggregator.AddDiagnostic(issue)
-		if runningCommentary {
-			if x, err := json.MarshalIndent(issue, "", " "); err == nil {
-				fmt.Printf("\n%s\n", x)
-			}
+	issues = precommit.FilterByConfidence(issues, minConf, reportIgnored)
+	if effectiveRedact {
+		precommit.RedactDiagnostics(issues)
+	}
+	if issues == nil {
+		issues = []*diagnostics.SecurityDiagnostic{}
+	}
+
+	exitCode := 0
+	if searchFailOnFindings && precommit.CountBlockingFindings(issues, minConf) > 0 {
+		exitCode = 1
+	}
+
+	duration := time.Since(start)
+	switch format {
+	case "agent":
+		env := precommit.BuildAgentEnvelope(appVersion, mode, minConf, effectiveRedact, filesScanned, duration, exitCode, issues)
+		if err := precommit.WriteAgentEnvelope(stdout, env); err != nil {
+			_, _ = fmt.Fprintf(stderr, "Error encoding agent output: %v\n", err)
+			return 2
 		}
-	}
-	files := <-paths
-	acqReport := <-reportCh
-
-	for _, f := range acqReport.Failures {
-		fmt.Fprintf(os.Stderr, "Warning: failed to acquire %s (%s): %s\n", f.Target, f.ErrorKind, f.Message)
-	}
-	if acqReport.Succeeded == 0 && acqReport.Failed > 0 {
-		fmt.Fprintf(os.Stderr, "Error: all %d scan target(s) failed to acquire\n", acqReport.Failed)
-		return 1
-	}
-
-	issues := aggregator.Aggregate()
-
-	if asJSON {
+	case "text":
+		if err := precommit.WriteTextReport(stdout, issues, precommit.TextReportOptions{
+			Quiet:        searchQuiet,
+			HookMode:     searchFailOnFindings,
+			FilesScanned: filesScanned,
+			Duration:     duration,
+			ScopeLabel:   scopeLabel,
+		}); err != nil {
+			_, _ = fmt.Fprintf(stderr, "Error writing text report: %v\n", err)
+			return 2
+		}
+	case "sarif":
+		if err := report.GenerateSARIF(stdout, issues); err != nil {
+			_, _ = fmt.Fprintf(stderr, "SARIF Generation Error: %s\n", err.Error())
+			return 2
+		}
+	case "pdf":
+		path, err := pdf.GenerateReport("", showSource, filesScanned, issues...)
+		if err != nil {
+			_, _ = fmt.Fprintf(stderr, "Error: %s%s\n", err.Error(), path)
+			return 2
+		}
+		_, _ = fmt.Fprintf(stdout, "Report generated at %s\n", path)
+	default: // json
 		if x, err := json.MarshalIndent(issues, "", " "); err == nil {
-			fmt.Printf("%s\n", x)
+			_, _ = fmt.Fprintf(stdout, "%s\n", x)
 		} else {
 			log.Printf("Marshall Error: %s", err.Error())
-			fmt.Print("[]")
+			_, _ = fmt.Fprint(stdout, "[]")
+		}
+		if asSARIF && searchFormat == "" {
+			if err := report.GenerateSARIF(stdout, issues); err != nil {
+				log.Printf("SARIF Generation Error: %s", err.Error())
+			}
+		}
+		if asPDF && searchFormat == "" {
+			path, err := pdf.GenerateReport("", showSource, filesScanned, issues...)
+			if err != nil {
+				_, _ = fmt.Fprintf(stderr, "Error: %s%s\n", err.Error(), path)
+				return 2
+			}
+			_, _ = fmt.Fprintf(stdout, "Report generated at %s\n", path)
 		}
 	}
-	if asSARIF {
-		if err := report.GenerateSARIF(os.Stdout, issues); err != nil {
-			log.Printf("SARIF Generation Error: %s", err.Error())
-		}
+
+	return exitCode
+}
+
+func emitSearchError(stdout, stderr io.Writer, format, msg, hint string) int {
+	if format == "agent" {
+		_ = precommit.WriteAgentEnvelope(stdout, precommit.AgentEnvelope{
+			Tool:     common.AppName,
+			Version:  appVersion,
+			Status:   "error",
+			ExitCode: 2,
+			Error:    msg,
+			Hint:     hint,
+			Findings: []precommit.AgentFinding{},
+		})
+		return 2
 	}
-	if asPDF {
-		path, err := pdf.GenerateReport("", options.ShowSource, len(files), issues...)
-		if err != nil {
-			fmt.Printf("\nError: %s%s\n", err.Error(), path)
-			return 1
-		}
-		fmt.Printf("Report generated at %s\n", path)
+	_, _ = fmt.Fprintf(stderr, "Error: %s\n", msg)
+	if hint != "" {
+		_, _ = fmt.Fprintf(stderr, "Hint: %s\n", hint)
 	}
-	return 0
+	return 2
 }

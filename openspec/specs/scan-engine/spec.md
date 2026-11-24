@@ -408,3 +408,23 @@ synthetic bytes and was verified to fail against the pre-change engine (1
 finding) and pass against the current one (0). The two other tests in
 `chunkboundary_test.go` pass against both engines and are labelled in the file
 as forward-looking property tests rather than guards.
+
+---
+
+## Pre-Commit Startup Performance, Coverage & Inline Suppression
+
+Merged from change `011-pre-commit-cli` (Accepted).
+
+- **R13 — Lazy Rule Initialisation & Per-Class Construction (Finding-Identical):**
+  - Package `init()` MUST NOT eagerly parse `gitleaks.toml` or compile vendor regexes.
+  - The literal prefilter supports `prefilter.BuildPatterns` directly from pattern strings; each vendor `*regexp.Regexp` compiles lazily on first admission via per-rule `sync.Once`.
+  - `ScanContext` builds each extension `finderClass` lazily on first encountered extension.
+- **R14 — Config/Dotfile Coverage, Exclusion Correctness & Inline Suppression (Product Decision):**
+  - `common.TextFileExtensions` and `IsScannableTextPath` cover `.env`, `.env.*`, `.local`, `.development`, `.production`, `.staging`, `.properties`, `.ini`, `.cfg`, `.toml`, `.tf`, `.tfvars`, `.hcl`, `.npmrc`, `.pypirc`, `.netrc`, `.tsx`, `.jsx`, `.cjs`, `.kts`, `.dockerfile`, `.htpasswd`, `.pgpass`, `.dockercfg`, `.kubeconfig` with case-insensitive extension matching.
+  - `common.DangerousFileNames` and `checkConfidential` recognise `id_ed25519`, `id_ecdsa`, `id_ed25519_sk`, and `id_ecdsa_sk` (with `.pub` counterparts as `Info`).
+  - `secrets.MergeExclusions` preserves and deduplicates `GloballyExcludedHashes` and `PerFileExcludedHashes`.
+  - `MakeCommonExclusions` matches both root-relative and nested paths (`(?:^|.*/)...`) while preserving directory pruning.
+  - `ShouldExclude` and `ShouldExcludeHashOnPath` never strip a repository prefix equal to the entire `pathContext`.
+  - Inline comments `checkmate:ignore` (same line) and `checkmate:ignore-next-line` (preceding line) suppress matching findings (case-insensitive).
+  - `testdata/golden/reference-corpus.json` was deliberately re-recorded to capture `repo-a/.env`.
+

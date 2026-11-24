@@ -1,0 +1,15 @@
+- id: checkmate-staged
+  name: CheckMate secret scan (staged diff)
+  description: Scan staged Git changes for hard-coded secrets and sensitive files
+  entry: checkmate hook run --staged
+  language: system
+  pass_filenames: false
+  stages: [pre-commit]
+
+- id: checkmate-files
+  name: CheckMate secret scan (changed files)
+  description: Scan changed files passed by pre-commit for hard-coded secrets
+  entry: checkmate hook run
+  language: system
+  pass_filenames: true
+  stages: [pre-commit]

@@ -2,7 +2,7 @@ package secrets
 
 import (
 	_ "embed"
-	"regexp"
+	"regexp/syntax"
 
 	"github.com/pelletier/go-toml/v2"
 )
@@ -28,13 +28,13 @@ func loadGitleaksPatterns() map[string]string {
 		panic("Failed to parse embedded gitleaks.toml: " + err.Error())
 	}
 
-	patterns := make(map[string]string)
+	patterns := make(map[string]string, len(config.Rules))
 	for _, rule := range config.Rules {
 		if rule.Regex != "" {
 			// Some regexes in Gitleaks use advanced PCRE features (lookaheads, negative lookbehinds)
-			// that Go's standard regexp engine does not support. We gracefully skip these.
-			_, err := regexp.Compile(rule.Regex)
-			if err == nil {
+			// that Go's standard regexp engine does not support. Validate with syntax.Parse so we
+			// avoid eagerly compiling hundreds of NFA automata at process startup.
+			if _, err := syntax.Parse(rule.Regex, syntax.Perl); err == nil {
 				patterns[rule.Description] = rule.Regex
 			}
 		}

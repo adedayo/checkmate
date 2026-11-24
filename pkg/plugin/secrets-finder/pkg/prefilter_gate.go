@@ -19,7 +19,7 @@ import (
 // why it must not be per worker, and OnceValue rather than init() keeps that
 // cost off the startup path of commands that never scan.
 var vendorMatcher = sync.OnceValue(func() *prefilter.Matcher {
-	return prefilter.Build(vendorSecrets)
+	return prefilter.BuildPatterns(vendorCatalog().patterns)
 })
 
 // prefilterEnabled reports whether rule gating should be applied.
@@ -86,7 +86,7 @@ func newRuleGate(options SecretSearchOptions) *ruleGate {
 		if options.Verbose {
 			logPrefilterOnce.Do(func() {
 				log.Printf("secrets: prefilter disabled; all %d vendor rules will be evaluated against every file",
-					len(vendorSecrets))
+					len(vendorCatalog().sortedIDs))
 			})
 		}
 		return &ruleGate{active: false}

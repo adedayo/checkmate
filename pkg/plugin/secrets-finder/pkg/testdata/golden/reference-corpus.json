@@ -1,5 +1,28 @@
 [
   {
+    "location": "repo-a/.env",
+    "providerID": "Connection URI Secret",
+    "repositoryIndex": 0,
+    "excluded": false,
+    "startLine": 0,
+    "startChar": 13,
+    "endLine": 0,
+    "endChar": 57,
+    "highlightStart": "0:12",
+    "highlightEnd": "0:56",
+    "rawStart": 13,
+    "rawEnd": 57,
+    "headline": "MySQL Database Connection URI Secret",
+    "headlineConfidence": "High",
+    "reasons": [
+      "MySQL Database Connection URI Secret|High",
+      "Unbroken string may be a secret|Medium"
+    ],
+    "sha256": "6276f62b2c4fee9fe842d9f1cde973fdb8bed24fb94f48843c74c6cff81dbaeb",
+    "source": "mysql://root:r00tp4ssw0rd@127.0.0.1:3306/app",
+    "tags": []
+  },
+  {
     "location": "repo-a/certs/server.pem",
     "providerID": "ConfidentialFiles",
     "repositoryIndex": 0,

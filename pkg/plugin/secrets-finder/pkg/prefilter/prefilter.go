@@ -67,13 +67,26 @@ type Matcher struct {
 // Rules whose mandatory literal cannot be established are recorded as
 // residual and are returned by every lookup.
 func Build(rules map[string]*regexp.Regexp) *Matcher {
+	patterns := make(map[string]string, len(rules))
+	for id, re := range rules {
+		patterns[id] = re.String()
+	}
+	return BuildPatterns(patterns)
+}
+
+// BuildPatterns constructs a Matcher directly from rule regex pattern strings
+// without requiring each rule to be compiled into a *regexp.Regexp up front.
+//
+// Rules whose mandatory literal cannot be established are recorded as
+// residual and are returned by every lookup.
+func BuildPatterns(patterns map[string]string) *Matcher {
 	// Sort the rule IDs before doing anything else. Rule indices, node
 	// numbering and the seed-to-rule lists all derive from this order, so
 	// iterating the map directly would produce a structurally different
 	// automaton on each run. That is the same class of defect as the six
 	// determinism bugs found in phase 0.
-	ids := make([]string, 0, len(rules))
-	for id := range rules {
+	ids := make([]string, 0, len(patterns))
+	for id := range patterns {
 		ids = append(ids, id)
 	}
 	sort.Strings(ids)
@@ -89,7 +102,7 @@ func Build(rules map[string]*regexp.Regexp) *Matcher {
 
 	b := newTrieBuilder()
 	for i, id := range ids {
-		seeds, ok := extractSeeds(rules[id].String())
+		seeds, ok := extractSeeds(patterns[id])
 		if !ok {
 			m.residual = append(m.residual, id)
 			continue

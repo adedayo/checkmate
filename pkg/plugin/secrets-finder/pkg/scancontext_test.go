@@ -43,7 +43,7 @@ func TestScanContextMatchesGetFinderForFileType(t *testing.T) {
 		ext := ext
 		t.Run(extName(ext), func(t *testing.T) {
 			want := GetFinderForFileType(ext, options)
-			got := sc.providers[classForExtension(ext)]
+			got := sc.providerFor(classForExtension(ext))
 
 			if got == nil {
 				t.Fatalf("no cached provider for extension %q (class %q)", ext, classForExtension(ext))
@@ -74,17 +74,22 @@ func TestScanContextClassesAreDistinct(t *testing.T) {
 	options := baselineOptions()
 	sc := NewScanContext(options)
 
-	if len(sc.providers) != 8 {
-		t.Fatalf("expected 8 cached provider classes, got %d", len(sc.providers))
+	if len(sc.providers) != 0 {
+		t.Fatalf("expected lazy ScanContext to start with 0 built classes, got %d", len(sc.providers))
 	}
 
 	seen := map[string]finderClass{}
-	for class, provider := range sc.providers {
+	for _, class := range allFinderClasses {
+		provider := sc.providerFor(class)
 		key := strings.Join(providerIDsOf(t, provider), "|")
 		if other, dup := seen[key]; dup {
 			t.Fatalf("classes %q and %q resolve to identical finder sets", class, other)
 		}
 		seen[key] = class
+	}
+
+	if len(sc.providers) != 8 {
+		t.Fatalf("expected 8 cached provider classes after materialising all, got %d", len(sc.providers))
 	}
 }
 

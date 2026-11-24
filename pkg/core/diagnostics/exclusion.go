@@ -279,6 +279,24 @@ func (wl *defaultExclusionProvider) compileRegExs() error {
 	return combinedErr
 }
 
+// stripRepoPrefixes trims a repository base directory prefix from pathContext
+// so exclusion policies remain portable across checkouts, while never trimming
+// a prefix that equals pathContext itself (which happens when individual files
+// are passed as scan targets) or only matches a partial path segment.
+func stripRepoPrefixes(pathContext string, repositories []string) string {
+	for _, prefix := range repositories {
+		if prefix == "" || prefix == pathContext || !strings.HasPrefix(pathContext, prefix) {
+			continue
+		}
+		rest := pathContext[len(prefix):]
+		if strings.HasSuffix(prefix, "/") || strings.HasSuffix(prefix, `\`) ||
+			strings.HasPrefix(rest, "/") || strings.HasPrefix(rest, `\`) {
+			pathContext = rest
+		}
+	}
+	return pathContext
+}
+
 // ShouldExclude determines whether the supplied value should be excluded based on its value and the
 // path (if any) of the source file providing additional context
 func (wl *defaultExclusionProvider) ShouldExclude(pathContext, value string) bool {
@@ -288,10 +306,7 @@ func (wl *defaultExclusionProvider) ShouldExclude(pathContext, value string) boo
 		}
 	}
 
-	//allow policies to be portable by stripping off project repository base paths
-	for _, prefix := range wl.repositories {
-		pathContext = strings.TrimPrefix(pathContext, prefix)
-	}
+	pathContext = stripRepoPrefixes(pathContext, wl.repositories)
 
 	for p, mvs := range wl.PerFileExcludedStrings {
 		if p == pathContext {
@@ -335,10 +350,7 @@ func (wl *defaultExclusionProvider) ShouldExcludeHashOnPath(pathContext, hash st
 		}
 	}
 
-	//allow policies to be portable by stripping off project repository base paths
-	for _, prefix := range wl.repositories {
-		pathContext = strings.TrimPrefix(pathContext, prefix)
-	}
+	pathContext = stripRepoPrefixes(pathContext, wl.repositories)
 
 	for p, mvs := range wl.PerFileExcludedHashes {
 		if p == pathContext {

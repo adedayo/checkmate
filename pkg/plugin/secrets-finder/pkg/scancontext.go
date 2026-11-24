@@ -88,6 +88,9 @@ type ScanContext struct {
 	// file and the gate is refreshed from that file's content before any
 	// finder sees it.
 	gate *ruleGate
+	// inlineIgnore tracks 0-based line numbers suppressed via inline
+	// `checkmate:ignore` or `checkmate:ignore-next-line` directives.
+	inlineIgnore *inlineIgnoreTracker
 	// aggregator is the collector for the file currently being scanned. The
 	// diagnostic callbacks registered once at construction read it through the
 	// context, which is how a single registration can serve every file without
@@ -95,31 +98,50 @@ type ScanContext struct {
 	aggregator common.DiagnosticsAggregator
 }
 
-// NewScanContext builds every provider variant once and wires their diagnostic
-// output to the context.
+// NewScanContext creates a reusable per-worker scan context whose extension
+// provider classes are constructed lazily on first use.
 //
-// Note the diagnostic consumers are registered exactly once here, not per
-// file. Registering per file was what caused the old shared finders to
-// accumulate a consumer per scanned file, retaining every previous file's
-// aggregator for the lifetime of the process and fanning each broadcast out
-// over an ever-growing list of dead collectors.
+// Lazy construction keeps short-lived single-file or small-diff scans (such as
+// git pre-commit hooks) from paying to wire up all 8 finder classes when only
+// one or two file types are scanned, while retaining full reuse across files.
 func NewScanContext(options SecretSearchOptions) *ScanContext {
-	sc := &ScanContext{
-		options:   options,
-		providers: make(map[finderClass]MatchProvider, 8),
-		consumers: make(map[finderClass][]util.ResourceConsumer, 8),
-		gate:      newRuleGate(options),
+	return &ScanContext{
+		options:      options,
+		providers:    make(map[finderClass]MatchProvider, 8),
+		consumers:    make(map[finderClass][]util.ResourceConsumer, 8),
+		gate:         newRuleGate(options),
+		inlineIgnore: &inlineIgnoreTracker{},
+	}
+}
+
+var allFinderClasses = []finderClass{
+	classJava, classCPP, classXML, classYAML,
+	classRuby, classERuby, classConf, classDefault,
+}
+
+func (sc *ScanContext) ensureClass(class finderClass) {
+	if _, ok := sc.consumers[class]; ok {
+		return
 	}
 
-	build := map[finderClass]func() MatchProvider{
-		classJava:    func() MatchProvider { return NewJavaFinder(options) },
-		classCPP:     func() MatchProvider { return NewCPPSecretsFinders(options) },
-		classXML:     func() MatchProvider { return NewXMLSecretsFinders(options) },
-		classYAML:    func() MatchProvider { return NewYamlSecretsFinders(options) },
-		classRuby:    func() MatchProvider { return NewRubySecretsFinders(options) },
-		classERuby:   func() MatchProvider { return NewERubySecretsFinders(options) },
-		classConf:    func() MatchProvider { return NewConfigurationSecretsFinder(options) },
-		classDefault: func() MatchProvider { return defaultFinder(options) },
+	var provider MatchProvider
+	switch class {
+	case classJava:
+		provider = NewJavaFinder(sc.options)
+	case classCPP:
+		provider = NewCPPSecretsFinders(sc.options)
+	case classXML:
+		provider = NewXMLSecretsFinders(sc.options)
+	case classYAML:
+		provider = NewYamlSecretsFinders(sc.options)
+	case classRuby:
+		provider = NewRubySecretsFinders(sc.options)
+	case classERuby:
+		provider = NewERubySecretsFinders(sc.options)
+	case classConf:
+		provider = NewConfigurationSecretsFinder(sc.options)
+	default:
+		provider = defaultFinder(sc.options)
 	}
 
 	collect := func(diagnostic *diagnostics.SecurityDiagnostic) {
@@ -130,40 +152,39 @@ func NewScanContext(options SecretSearchOptions) *ScanContext {
 		}
 	}
 
-	for class, construct := range build {
-		provider := construct()
-		finders := provider.GetFinders()
+	finders := provider.GetFinders()
+	diagProviders := make([]diagnostics.SecurityDiagnosticsProvider, 0, len(finders))
 
-		diagProviders := make([]diagnostics.SecurityDiagnosticsProvider, 0, len(finders))
+	// The gate must be the first consumer: the multiplexer invokes
+	// consumers in order, so it has to compute the candidate set for the
+	// content before any rule is asked whether it may run.
+	resourceConsumers := make([]util.ResourceConsumer, 0, len(finders)+2)
+	resourceConsumers = append(resourceConsumers, sc.gate, sc.inlineIgnore)
 
-		// The gate must be the first consumer: the multiplexer invokes
-		// consumers in order, so it has to compute the candidate set for the
-		// content before any rule is asked whether it may run.
-		resourceConsumers := make([]util.ResourceConsumer, 0, len(finders)+1)
-		resourceConsumers = append(resourceConsumers, sc.gate)
+	for _, f := range finders {
+		diagProviders = append(diagProviders, f.(diagnostics.SecurityDiagnosticsProvider))
+		resourceConsumers = append(resourceConsumers, f.(util.ResourceConsumer))
 
-		for _, f := range finders {
-			diagProviders = append(diagProviders, f.(diagnostics.SecurityDiagnosticsProvider))
-			resourceConsumers = append(resourceConsumers, f.(util.ResourceConsumer))
-
-			// Attach the gate to every finder that can carry one. Vendor rules
-			// resolve to a real gate index and are skipped outright when their
-			// literal is absent; the generic assignment and string finders
-			// resolve to -1 and always run, but still need the gate so that
-			// the vendor classification they perform per candidate value
-			// (detectSecret → isVendorSecret) is gated too. That path was the
-			// dominant cost in the engine while it was not.
-			if gf, ok := f.(gatedFinder); ok {
-				gf.attachGate(sc.gate)
-			}
+		// Attach the gate to every finder that can carry one. Vendor rules
+		// resolve to a real gate index and are skipped outright when their
+		// literal is absent; the generic assignment and string finders
+		// resolve to -1 and always run, but still need the gate so that
+		// the vendor classification they perform per candidate value
+		// (detectSecret → isVendorSecret) is gated too. That path was the
+		// dominant cost in the engine while it was not.
+		if gf, ok := f.(gatedFinder); ok {
+			gf.attachGate(sc.gate)
 		}
-		common.RegisterDiagnosticsConsumer(collect, diagProviders...)
-
-		sc.providers[class] = provider
-		sc.consumers[class] = resourceConsumers
 	}
+	common.RegisterDiagnosticsConsumer(collect, diagProviders...)
 
-	return sc
+	sc.providers[class] = provider
+	sc.consumers[class] = resourceConsumers
+}
+
+func (sc *ScanContext) providerFor(class finderClass) MatchProvider {
+	sc.ensureClass(class)
+	return sc.providers[class]
 }
 
 // FindSecretsInFile scans a single file and returns its aggregated
@@ -179,8 +200,10 @@ func (sc *ScanContext) FindSecretsInFile(rif util.RepositoryIndexedFile, source 
 	fileType string, provideSource bool) []*diagnostics.SecurityDiagnostic {
 
 	class := classForExtension(fileType)
+	sc.ensureClass(class)
 	consumers := sc.consumers[class]
 
+	sc.inlineIgnore.Reset()
 	sc.aggregator = common.MakeSimpleAggregator()
 	defer func() { sc.aggregator = nil }()
 
@@ -188,7 +211,7 @@ func (sc *ScanContext) FindSecretsInFile(rif util.RepositoryIndexedFile, source 
 	// file, source toggle) to each consumer before streaming the content.
 	util.NewResourceMultiplexer(rif, &source, provideSource, consumers...)
 
-	return sc.aggregator.Aggregate()
+	return sc.inlineIgnore.Filter(sc.aggregator.Aggregate())
 }
 
 // Options returns the search options this context was built with.

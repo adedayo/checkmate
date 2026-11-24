@@ -20,7 +20,7 @@ const minFilterableFraction = 0.90
 // TestPrefilterCoversMostVendorRules guards the throughput property against
 // the real rule set rather than hand-written samples.
 func TestPrefilterCoversMostVendorRules(t *testing.T) {
-	m := prefilter.Build(vendorSecrets)
+	m := prefilter.BuildPatterns(vendorCatalog().patterns)
 
 	total := m.NumRules()
 	if total == 0 {
@@ -45,7 +45,7 @@ func TestPrefilterCoversMostVendorRules(t *testing.T) {
 // reports, so losing the filter on one of them matters far more than the
 // aggregate percentage suggests.
 func TestHighValueRulesAreFilterable(t *testing.T) {
-	m := prefilter.Build(vendorSecrets)
+	m := prefilter.BuildPatterns(vendorCatalog().patterns)
 
 	// Substrings of the rule descriptions used as IDs, since the full
 	// descriptions are long prose.
@@ -83,7 +83,7 @@ func TestHighValueRulesAreFilterable(t *testing.T) {
 // be worthwhile, since it is paid on every file whether or not anything is
 // skipped.
 func BenchmarkPrefilterScan(b *testing.B) {
-	m := prefilter.Build(vendorSecrets)
+	m := prefilter.BuildPatterns(vendorCatalog().patterns)
 	set := m.NewSet()
 
 	// Ordinary source with no secrets: the case that must be fast, because it

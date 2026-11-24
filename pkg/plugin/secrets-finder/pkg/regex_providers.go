@@ -109,8 +109,9 @@ type MatchProvider interface {
 // RegexFinder provides secret detection using regular expressions
 type RegexFinder struct {
 	diagnostics.DefaultSecurityDiagnosticsProvider
-	res      []*regexp.Regexp
-	regexIDs []string //used to map each regex above to a potentially unique ID.
+	res             []*regexp.Regexp
+	regexIDs        []string //used to map each regex above to a potentially unique ID.
+	vendorRuleIndex int      // 1-based index into vendorCatalog().rules when lazily compiled; 0 otherwise
 	//lineIndex and rif are per-file state, supplied by the resource
 	//multiplexer for each file rather than captured at construction. Keeping
 	//them out of the constructor is what allows a finder to be built once and
@@ -123,6 +124,12 @@ type RegexFinder struct {
 
 // GetRegularExpressions returns the underlying compiled regular expressions
 func (finder RegexFinder) GetRegularExpressions() []*regexp.Regexp {
+	if finder.vendorRuleIndex > 0 && len(finder.res) == 0 {
+		if re := vendorCatalog().regexAt(finder.vendorRuleIndex - 1); re != nil {
+			return []*regexp.Regexp{re}
+		}
+		return nil
+	}
 	return finder.res
 }
 
