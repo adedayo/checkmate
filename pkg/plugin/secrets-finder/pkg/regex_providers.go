@@ -715,6 +715,24 @@ func processAssignment(match []int, providerID, source string, startIndex int64,
 		} else if evidence.Description == descNotSecret && evidence.Confidence == diagnostics.High {
 			//for high-confidence non-secrets ignore the result even if variable name suggests so
 			return
+		} else if providerID == envFallbackProviderID {
+			// A non-empty, non-excluded hardcoded fallback literal for a secret env var
+			// (e.g. Deno.env.get("MY_API_SECRET") || "hardcoded_prod_secret_123" or
+			// process.env.STRIPE_KEY ?? "fallback_secret_999") is always a High-confidence
+			// fail-open fallback risk regardless of character-class casing.
+			if evidence.Confidence < diagnostics.High {
+				evidence.Description = descHardCodedSecret
+				evidence.Confidence = diagnostics.High
+			}
+		} else if isBenignDomainKeyVar(strings.TrimSpace(source[lhsStart:match[3]])) {
+			// Suppress unambiguous non-secret domain/schema keys (band_key, rate_key,
+			// plan_key, period_key, etc.) UNLESS the assigned value itself is a genuine
+			// vendor secret, encoded secret, or common credential (preserving recall).
+			if evidence.Description != descCommonSecret &&
+				evidence.Description != descEncodedSecret &&
+				evidence.Confidence < diagnostics.High {
+				return
+			}
 		}
 
 		codeStart := startIndex + lhsStart

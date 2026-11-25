@@ -26,7 +26,10 @@ var (
 	secretVar          = fmt.Sprintf(`(%s*?%s%s*?)`, javaVar, secretVarIndicator, javaVar)
 	secretVarCompile   = regexp.MustCompile(secretVar)
 	//TODO capture unquoted unbroken strings too
-	secretAssignment        = regexp.MustCompile(fmt.Sprintf(`%s\s*(?::[^=]+)?\s*[+]?!?==?\s*(%s)`, secretVar, stringLikeValues))
+	// Disallow newlines, semicolons, and braces inside optional TypeScript type annotations
+	// (`: Type`) so object properties like `moduleKeys: foo,` cannot bleed across lines
+	// into an unrelated `const invNumber = "..."` assignment below.
+	secretAssignment        = regexp.MustCompile(fmt.Sprintf(`%s\s*(?::[^=\n\r;{}]+)?\s*[+]?!?==?\s*(%s)`, secretVar, stringLikeValues))
 	envFallbackAssignment   = regexp.MustCompile(fmt.Sprintf(`(?i:(?:Deno\.env\.get\s*\(\s*["'\x60]|process\.env(?:\.|\[["'\x60])|import\.meta\.env(?:\.|\[["'\x60])))\s*%s\s*(?:["'\x60]\s*[\)\]]\s*)?(?:\|\||\?\?)\s*(%s)`, secretVar, stringLikeValues))
 	confAssignment          = regexp.MustCompile(fmt.Sprintf(`%s\s*[+]?!?=?\s*(%s)`, secretVar, stringLikeValues))
 	secretCPPAssignment     = regexp.MustCompile(fmt.Sprintf(`%s\s*[+]?!?==?\s*L?(%s)`, secretVar, stringLikeValues))
@@ -59,6 +62,9 @@ var (
 	digit                  = regexp.MustCompile(`\d`)
 	numbers                = regexp.MustCompile(`^\d+$`)
 	rfc4122UUID            = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+	isoDateOnlyOrRange     = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}(?:[-_]\d{4}-\d{2}-\d{2})*$`)
+	lowercaseSlugPattern   = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[-_][a-z0-9]+)+$`)
+	pureHexWithHyphens     = regexp.MustCompile(`^[0-9a-f-]+$`)
 	githubActionsExpr      = regexp.MustCompile(`^\$\{\{[\s\S]*\}\}$`)
 	pureTemplateExpr       = regexp.MustCompile(`^(?:\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$[A-Za-z_][A-Za-z0-9_]*|\{\{[\s]*[A-Za-z0-9_.$| ()-]+[\s]*\}\})$`)
 	space                  = regexp.MustCompile(`\s`)

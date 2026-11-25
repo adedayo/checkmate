@@ -330,7 +330,7 @@ checkmate describe --format markdown
 ```yaml
 repos:
   - repo: https://github.com/adedayo/checkmate
-    rev: v1.8.1
+    rev: v1.8.2
     hooks:
       - id: checkmate-staged
 ```

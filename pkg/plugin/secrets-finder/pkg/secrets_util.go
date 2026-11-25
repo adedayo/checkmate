@@ -73,7 +73,7 @@ func detectSecret(secContext secretContext) diagnostics.Evidence {
 		} else {
 			evidence.Confidence = diagnostics.Medium
 		}
-	} else if !isStaticAssetPath(data) && float64(len(secret)) > float64(minSecretLength) && float64(len(secret)) <= 256 &&
+	} else if !isStaticAssetPath(data) && !isLowercaseSlugIdentifier(secret) && float64(len(secret)) > float64(minSecretLength) && float64(len(secret)) <= 256 &&
 		getShannonEntropy(secret) > entropyCutoff*math.Log2(float64(len(secret))) && digit.FindStringSubmatchIndex(secret) != nil {
 		//for strings up to 64 characters in length, check that the entropy is at most half the maximum entropy possible for that data
 		//also check that there is at least a number in the secret
@@ -327,14 +327,19 @@ func isTypeScriptTypeExpr(raw string) bool {
 }
 
 // isDividerString reports whether s consists exclusively of decorative divider
-// characters (-, =, _, *, #), which would otherwise match hex/base64 heuristics.
+// characters (-, =, _, *, #, ~), ignoring surrounding whitespace and literal
+// newline/tab escape sequences (\n, \r, \t) common in console separator strings.
 func isDividerString(s string) bool {
-	if len(s) == 0 {
+	cleaned := strings.TrimSpace(s)
+	// Strip literal escape sequences like \n, \r, \t inside source string literals.
+	cleaned = strings.NewReplacer(`\n`, "", `\r`, "", `\t`, "").Replace(cleaned)
+	cleaned = strings.TrimSpace(cleaned)
+	if len(cleaned) == 0 {
 		return false
 	}
-	for i := 0; i < len(s); i++ {
-		switch s[i] {
-		case '-', '=', '_', '*', '#':
+	for i := 0; i < len(cleaned); i++ {
+		switch cleaned[i] {
+		case '-', '=', '_', '*', '#', '~':
 		default:
 			return false
 		}
@@ -342,15 +347,93 @@ func isDividerString(s string) bool {
 	return true
 }
 
-// isStaticAssetPath identifies relative/absolute static asset paths (such as
-// `/assets/chunk-a1b2c3d4e5f67890.js` or `./img/logo-9f86d081.png`) so content
-// hashes in asset filenames do not trigger generic entropy or hex heuristics.
-// Evaluated only after vendor-token matching so real tokens are never masked.
+// isLowercaseSlugIdentifier identifies short all-lowercase human-readable
+// kebab-case or snake_case slugs (e.g. "starter-25", "growth-100",
+// "ai_vision_pack_500") that are domain codes rather than random secrets.
+// Excludes pure-hex strings so 16+ char hex tokens are never skipped.
+func isLowercaseSlugIdentifier(raw string) bool {
+	if len(raw) == 0 || len(raw) >= 24 {
+		return false
+	}
+	if !lowercaseSlugPattern.MatchString(raw) {
+		return false
+	}
+	// Preserve pure hex strings (even with hyphens) for secret inspection.
+	if pureHexWithHyphens.MatchString(raw) && len(raw) >= 16 {
+		return false
+	}
+	return true
+}
+
+// isBenignDomainKeyVar reports whether a variable/property name matched the
+// generic `key` indicator solely as a benign domain/schema/UI key (e.g.
+// band_key, rate_key, plan_key, module_key, period_key, primary_key,
+// keyboard_shortcut) rather than a cryptographic or API secret key.
+func isBenignDomainKeyVar(rawVar string) bool {
+	if rawVar == "" {
+		return false
+	}
+	// Normalise camelCase / PascalCase / kebab-case to lowercase snake_case.
+	var b strings.Builder
+	b.Grow(len(rawVar) + 4)
+	for i := 0; i < len(rawVar); i++ {
+		c := rawVar[i]
+		if c >= 'A' && c <= 'Z' {
+			if i > 0 && rawVar[i-1] != '_' && rawVar[i-1] != '-' {
+				b.WriteByte('_')
+			}
+			b.WriteByte(c + ('a' - 'A'))
+		} else if c == '-' {
+			b.WriteByte('_')
+		} else {
+			b.WriteByte(c)
+		}
+	}
+	norm := strings.Trim(b.String(), "_ ")
+
+	// Never suppress variables that also carry a stronger secret keyword.
+	for _, strong := range []string{"secret", "private", "token", "pass", "pwd", "auth", "cred", "sign", "encrypt", "decrypt", "hmac", "jwt", "api", "access", "master", "client", "service", "webhook", "salt", "nonce", "cert", "ssh", "pgp", "gpg", "rsa", "aes", "aws", "gcp", "azure", "stripe", "github", "slack"} {
+		if strings.Contains(norm, strong) {
+			return false
+		}
+	}
+
+	benignExact := map[string]bool{
+		"primary_key": true, "foreign_key": true, "composite_key": true,
+		"partition_key": true, "sort_key": true, "cluster_key": true,
+		"band_key": true, "rate_key": true, "plan_key": true,
+		"module_key": true, "module_keys": true, "period_key": true,
+		"quarter_key": true, "template_key": true, "tab_key": true,
+		"step_key": true, "route_key": true, "field_key": true,
+		"column_key": true, "row_key": true, "item_key": true,
+		"group_key": true, "category_key": true, "status_key": true,
+		"type_key": true, "event_key": true, "metric_key": true,
+		"feature_key": true, "flag_key": true, "scope_key": true,
+		"cache_key": true, "i18n_key": true, "locale_key": true,
+		"translation_key": true, "shortcut_key": true, "hotkey": true,
+		"keyboard": true, "keyboard_shortcut": true,
+		"key_name": true, "key_type": true, "key_count": true,
+		"key_length": true, "key_prefix": true, "key_id": true,
+		"key_actions": true,
+	}
+	return benignExact[norm]
+}
+
+// isStaticAssetPath identifies relative/absolute file paths (such as
+// `/assets/chunk-a1b2c3d4e5f67890.js` or `samples/feed_export_2025-08-01-2026-07-31.pdf`)
+// so content hashes or ISO date ranges in filenames do not trigger generic
+// entropy or hex heuristics. Evaluated only after vendor-token matching so
+// real tokens are never masked.
 func isStaticAssetPath(lowerData string) bool {
 	if !strings.ContainsAny(lowerData, `/\`) {
 		return false
 	}
-	for _, ext := range []string{".js", ".mjs", ".cjs", ".css", ".map", ".svg", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".woff", ".woff2", ".ico"} {
+	for _, ext := range []string{
+		".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".css", ".map",
+		".svg", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".woff", ".woff2", ".ico",
+		".pdf", ".csv", ".tsv", ".txt", ".md", ".json", ".xml", ".yaml", ".yml",
+		".html", ".htm", ".sql", ".docx", ".xlsx", ".zip", ".go", ".py", ".rb", ".java",
+	} {
 		if strings.HasSuffix(lowerData, ext) {
 			return true
 		}
@@ -361,7 +444,7 @@ func isStaticAssetPath(lowerData string) bool {
 // TODO: Decode and scan Base64 Strings
 func isEncodedSecret(data string) (description string, isEncoded bool) {
 	description = descEncodedSecret
-	if isDividerString(data) || rfc4122UUID.MatchString(data) || isNonSecretLiteralOrHash(data) || isStaticAssetPath(data) {
+	if isDividerString(data) || rfc4122UUID.MatchString(data) || isoDateOnlyOrRange.MatchString(data) || isNonSecretLiteralOrHash(data) || isStaticAssetPath(data) {
 		return description, false
 	}
 	// Sorted iteration for determinism. Every branch currently returns the
@@ -376,11 +459,17 @@ func isEncodedSecret(data string) (description string, isEncoded bool) {
 
 	for _, ind := range encodings {
 		re := encodedSecrets[ind]
-		if re.MatchString(data) {
+		if loc := re.FindStringIndex(data); loc != nil {
+			matched := data[loc[0]:loc[1]]
 			switch ind {
 			case `base64`:
 				return description, true
 			case `hex`:
+				// Ignore matched hex spans that are actually decorative dividers
+				// (e.g. "----------------") or ISO date ranges (e.g. "2025-08-01-2026-07-31").
+				if isDividerString(matched) || isoDateOnlyOrRange.MatchString(matched) {
+					continue
+				}
 				return description, true
 			default:
 				return description, true

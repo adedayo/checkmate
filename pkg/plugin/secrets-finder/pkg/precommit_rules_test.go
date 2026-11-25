@@ -64,6 +64,9 @@ export const gcSandbox = sandbox_y7VPTOdgFZtFaAS9V8HT3abcd1234567890efgh
 func TestDividersAndUUIDsExcludedFromEncodedHeuristic(t *testing.T) {
 	for _, divider := range []string{
 		"----------------",
+		"----------------\\n",
+		"================\\r\\n",
+		"\\n----------------\\n",
 		"================",
 		"________________",
 		"****************",
@@ -138,6 +141,7 @@ func TestEnvFallbackSecretRule(t *testing.T) {
 const jwtSecret = Deno.env.get("JWT_SECRET") || "Sup3rS3cr3tFallback!99";
 const apiKey = process.env.SUPABASE_SERVICE_KEY ?? "P@ssw0rdFallback123!";
 const dbPass = process.env["DB_PASSWORD"] || 'MyHardcodedDbP@ss9';
+const lowerDeno = Deno.env.get("MY_API_SECRET") || "hardcoded_prod_secret_123";
 const safeUrl = Deno.env.get("SUPABASE_URL") || "http://localhost:54321";
 const emptyFallback = Deno.env.get("API_KEY") || "";
 `
@@ -146,7 +150,7 @@ const emptyFallback = Deno.env.get("API_KEY") || "";
 	highLines := map[int64]bool{}
 	for _, d := range diags {
 		line := d.Range.Start.Line + 1
-		if line == 5 || line == 6 {
+		if line == 6 || line == 7 {
 			t.Errorf("unexpected finding on safe fallback line %d: %+v", line, d)
 		}
 		if d.Justification.Headline.Confidence >= diagnostics.High {
@@ -154,7 +158,7 @@ const emptyFallback = Deno.env.get("API_KEY") || "";
 		}
 	}
 
-	for _, wantLine := range []int64{2, 3, 4} {
+	for _, wantLine := range []int64{2, 3, 4, 5} {
 		if !highLines[wantLine] {
 			t.Errorf("expected High+ env-fallback finding on line %d, got findings on lines %v", wantLine, highLines)
 		}
@@ -356,5 +360,42 @@ const rootDir = "project-root-dir";
 	// Recall check: minified JS bundles MUST NOT be excluded by default (real API keys leak in bundles).
 	if excl.ShouldExcludePath("dist/bundle.min.js") {
 		t.Errorf("MakeCommonExclusions must NOT exclude dist/bundle.min.js by default")
+	}
+
+	// 7. v1.8.2 guards: benign domain keys (band_key, rate_key, plan_key), relative
+	// document paths with ISO date ranges, newline-terminated dividers, and no
+	// multi-line bleed across object properties into unrelated assignments.
+	v182FP := `
+const band = {
+  band_key: 'starter-25',
+  rate_key: 'ai_vision_pack_500',
+  plan_key: 'growth_practice',
+};
+const samplePdf = 'samples/feed_export_2025-08-01-2026-07-31.pdf';
+const sampleCsv = 'samples/feed_export_2025-08-01-2026-07-31.csv';
+const sep = "------------------------------------------------------------\n";
+const pricing = calc({
+  moduleKeys: sub.modules,
+  promo: sub.promo
+});
+const invNumber = ` + "`GB-INV-${year}-0007`" + `;
+`
+	for _, d := range scanInlineSnippet("pricing.ts", v182FP) {
+		if d.Justification.Headline.Confidence >= diagnostics.High {
+			t.Errorf("unexpected High+ FP in v1.8.2 guard snippet: provider=%v source=%q headline=%+v",
+				d.ProviderID, d.GetValue(), d.Justification.Headline)
+		}
+	}
+
+	// Recall check: a genuine vendor secret inside even a benign-named key MUST still be caught!
+	leakedInBenignKey := `const band_key = "` + "sk_live_" + `4eC39HqLyjWDarjtT1zdp7dc";`
+	foundReal := false
+	for _, d := range scanInlineSnippet("leak.ts", leakedInBenignKey) {
+		if d.Justification.Headline.Confidence >= diagnostics.Critical {
+			foundReal = true
+		}
+	}
+	if !foundReal {
+		t.Errorf("real Stripe secret assigned to benign domain key must still be detected as Critical")
 	}
 }
