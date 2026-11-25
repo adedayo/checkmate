@@ -64,3 +64,9 @@ This file is read by AI coding agents working in this repo (OpenSpec convention)
     history decoupled from checked-out code retention. Introduces the
     `repository-discovery` capability; deltas to `api-contract`, `data-store`,
     `sdk` and `webhooks`.
+  - `changes/012-gitignore-aware-scanning/` — drafted, ready to implement.
+    Makes working-tree directory scans Git-aware and `.gitignore`-respecting by
+    default via streaming `git ls-files -z --cached --others --exclude-standard`
+    (never skipping tracked, staged, or explicitly targeted files), and adds
+    `--no-ignore` and `--tracked-only` (for one-command `pre-push` hooks).
+    Deltas to `scan-engine` (`R15`) and `pre-commit-cli` (`R8`).
