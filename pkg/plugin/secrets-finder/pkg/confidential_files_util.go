@@ -89,10 +89,14 @@ func processCertificateWithContent(cfile confidentialFile, content []byte) diagn
 		return evidence
 	}
 
+	hasPublicOrCert := false
+	lastLabel := ""
 	for _, m := range matches {
-		evidence.Description = fmt.Sprintf("Warning! You may be sharing confidential (%s) data with your code", m[1])
-		certType := strings.ToLower(m[1])
+		label := m[1]
+		lastLabel = label
+		certType := strings.ToLower(strings.TrimSpace(label))
 		if strings.Contains(certType, "private") {
+			evidence.Description = fmt.Sprintf("Warning! You may be sharing confidential (%s) data with your code", label)
 			if cfile.isTest {
 				evidence.Confidence = diagnostics.High
 			} else {
@@ -100,9 +104,20 @@ func processCertificateWithContent(cfile confidentialFile, content []byte) diagn
 			}
 			return evidence
 		}
-		if strings.Contains(certType, "public") {
-			evidence.Confidence = diagnostics.Info
+		if strings.Contains(certType, "public") ||
+			certType == "certificate" ||
+			certType == "x509 certificate" ||
+			certType == "trusted certificate" {
+			hasPublicOrCert = true
 		}
+	}
+	if hasPublicOrCert {
+		evidence.Description = fmt.Sprintf("Warning! You may be sharing public (%s) data with your code", lastLabel)
+		evidence.Confidence = diagnostics.Info
+		return evidence
+	}
+	if lastLabel != "" {
+		evidence.Description = fmt.Sprintf("Warning! You may be sharing confidential (%s) data with your code", lastLabel)
 	}
 	return evidence
 }

@@ -27,6 +27,7 @@ var (
 	secretVarCompile   = regexp.MustCompile(secretVar)
 	//TODO capture unquoted unbroken strings too
 	secretAssignment        = regexp.MustCompile(fmt.Sprintf(`%s\s*(?::[^=]+)?\s*[+]?!?==?\s*(%s)`, secretVar, stringLikeValues))
+	envFallbackAssignment   = regexp.MustCompile(fmt.Sprintf(`(?i:(?:Deno\.env\.get\s*\(\s*["'\x60]|process\.env(?:\.|\[["'\x60])|import\.meta\.env(?:\.|\[["'\x60])))\s*%s\s*(?:["'\x60]\s*[\)\]]\s*)?(?:\|\||\?\?)\s*(%s)`, secretVar, stringLikeValues))
 	confAssignment          = regexp.MustCompile(fmt.Sprintf(`%s\s*[+]?!?=?\s*(%s)`, secretVar, stringLikeValues))
 	secretCPPAssignment     = regexp.MustCompile(fmt.Sprintf(`%s\s*[+]?!?==?\s*L?(%s)`, secretVar, stringLikeValues))
 	secretDefine            = regexp.MustCompile(fmt.Sprintf(`(?i:#define)\s+%s\s+L?(%s)`, secretVar, stringLikeValues))
@@ -57,6 +58,9 @@ var (
 	lowerCase              = regexp.MustCompile(`[a-z]`)
 	digit                  = regexp.MustCompile(`\d`)
 	numbers                = regexp.MustCompile(`^\d+$`)
+	rfc4122UUID            = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+	githubActionsExpr      = regexp.MustCompile(`^\$\{\{[\s\S]*\}\}$`)
+	pureTemplateExpr       = regexp.MustCompile(`^(?:\$\{[A-Za-z_][A-Za-z0-9_]*\}|\$[A-Za-z_][A-Za-z0-9_]*|\{\{[\s]*[A-Za-z0-9_.$| ()-]+[\s]*\}\})$`)
 	space                  = regexp.MustCompile(`\s`)
 	special                = regexp.MustCompile(`["!\#$%&'()*+,-./:;<=>?@[\]^_{|}` + "`]")
 	longStrings            = regexp.MustCompile(fmt.Sprintf(`((?:%s){%d,})`, stringLikeValues, minSecretLength))
@@ -109,6 +113,7 @@ type vendorRuleCatalog struct {
 	sortedIDs []string
 	patterns  map[string]string
 	rules     []lazyRegex
+	meta      []*gitleaksRuleMeta
 }
 
 func (c *vendorRuleCatalog) regexAt(index int) *regexp.Regexp {
@@ -118,6 +123,13 @@ func (c *vendorRuleCatalog) regexAt(index int) *regexp.Regexp {
 	return c.rules[index].get()
 }
 
+func (c *vendorRuleCatalog) metaAt(index int) *gitleaksRuleMeta {
+	if index < 0 || index >= len(c.meta) {
+		return nil
+	}
+	return c.meta[index]
+}
+
 // vendorCatalog lazily parses the embedded Gitleaks rule set and merges it
 // with CheckMate's built-in vendor rules on first scan use rather than in
 // init(). Each individual rule's *regexp.Regexp is compiled lazily on first
@@ -125,14 +137,16 @@ func (c *vendorRuleCatalog) regexAt(index int) *regexp.Regexp {
 // never pay to compile hundreds of rules that cannot match the staged diff.
 var vendorCatalog = sync.OnceValue(func() *vendorRuleCatalog {
 	patterns := make(map[string]string, len(vendorSecretPatterns)+256)
+	metaMap := make(map[string]*gitleaksRuleMeta, 256)
 	for desc, sec := range vendorSecretPatterns {
 		patterns[desc] = sec
 	}
 
-	gitleaksPatterns := loadGitleaksPatterns()
-	for desc, regexStr := range gitleaksPatterns {
+	gitleaksRules := loadGitleaksRules()
+	for desc, entry := range gitleaksRules {
 		if _, exists := patterns[desc]; !exists {
-			patterns[desc] = regexStr
+			patterns[desc] = entry.regex
+			metaMap[desc] = entry.meta
 		}
 	}
 
@@ -143,14 +157,17 @@ var vendorCatalog = sync.OnceValue(func() *vendorRuleCatalog {
 	sort.Strings(sortedIDs)
 
 	rules := make([]lazyRegex, len(sortedIDs))
+	meta := make([]*gitleaksRuleMeta, len(sortedIDs))
 	for i, id := range sortedIDs {
 		rules[i].pattern = patterns[id]
+		meta[i] = metaMap[id]
 	}
 
 	return &vendorRuleCatalog{
 		sortedIDs: sortedIDs,
 		patterns:  patterns,
 		rules:     rules,
+		meta:      meta,
 	}
 })
 
@@ -193,10 +210,11 @@ func MakeCommonExclusions() diagnostics.ExcludeDefinition {
 		PathExclusionRegExs: []string{
 			`.*[.](?i:html?|css)`, //HTML and CSS files
 			`(?:^|.*/)[.]git/.*`,  //skip git files
-			`(?:^|.*/)(?i:package-lock|npm-shrinkwrap)[.]json`, //package-lock.json and npm-shrinkwrap.json files are high false positive files
-			`(?:^|.*/)node_modules/.*`,                         //node compiled libraries
-			`.*[.]md`,                                          //Markdown files
-			`.*[.](?i:lock|xib|storyboard)`,                    //lock, xib and storyboard files
+			`(?:^|.*/)(?i:package-lock|npm-shrinkwrap|packages[.]lock)[.]json`, //JSON dependency lockfiles
+			`(?:^|.*/)(?i:pnpm-lock[.]yaml|go[.]sum|gradle[.]lockfile)`,        //integrity-hash lockfiles
+			`(?:^|.*/)node_modules/.*`,                                         //node compiled libraries
+			`.*[.]md`,                                                          //Markdown files
+			`.*[.](?i:lock|xib|storyboard|map|svg)`,                            //lock, UI, source map, and vector files
 		},
 	}
 

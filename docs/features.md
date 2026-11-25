@@ -288,4 +288,52 @@ CheckMate ships a native MCP server over both stdio (`checkmate mcp serve`) and 
 - **Unbounded finding access:** `checkmate_get_worklist` supports configurable `samplesPerGroup` (default 5, max 50), and `checkmate_list_findings` provides paginated canonical access to individual findings.
 - **Remote Git URL triage:** Pass `keepCheckout: true` on `checkmate_scan` to retain `0700` per-scan checkouts, inspect code lines with `checkmate_get_finding_context`, and delete checkouts cleanly via `checkmate_cleanup_checkout` (with automatic cleanup on `--ephemeral` exit and `CHECKMATE_CHECKOUT_TTL` expiry).
 
+---
+
+## 9. Fast Git Pre-Commit Hooks & AI-Native CLI
+
+**Capabilities:**
+Prevent accidental secret leaks before they ever enter Git history with sub-second staged-diff scanning, safe secret redaction, and machine-readable CLI discovery for AI coding agents.
+
+- **Exact Git index scanning (`--staged`):** Reads staged blobs directly from Git's object store (`git diff --cached` + batched `git cat-file --batch`) instead of the working tree, accurately handling partial staging (`git add -p`) and ignoring unstaged local edits.
+- **Diff-only focus (`--diff-only`):** Scans full staged file context for accurate line numbers and detection, then filters modified files to added/modified line ranges so untouched legacy lines do not block commits (while still blocking newly added confidential files such as private keys or `.p12` keystores).
+- **Modern config & IaC coverage:** Scans `.env`, `.env.*`, `.tfvars`, `.tf`, `.hcl`, `.toml`, `.properties`, `.ini`, `.cfg`, `.npmrc`, `.pypirc`, `.netrc`, `.tsx`, `.jsx`, `.cjs`, and modern SSH keys (`id_ed25519`, `id_ecdsa`), plus JS/TS/Deno env-fallback secrets (`Deno.env.get("JWT_SECRET") || "literal"`, `process.env.API_KEY ?? "literal"`).
+- **Shared suppressions & inline pragmas:** Auto-discovers repo-root `.checkmate.yaml`, optionally reads active `~/.checkmate/checkmate.db` exceptions in read-only mode (no DB creation or migrations), and honours inline `checkmate:ignore` (same line) and `checkmate:ignore-next-line` (preceding line) directives.
+- **Reliable exit codes:** `0` (clean), `1` (blocking findings at or above `--min-confidence`), `2` (operational, Git, or configuration error, failing closed on invalid exclusion YAML).
+- **AI-native CLI discovery:** `checkmate describe` (aliases `capabilities`, `agent-info`) emits a zero-startup-cost JSON or `--format markdown` manifest of commands, flags, exit codes, suppression rules, MCP/LSP integrations, and safety guardrails. `--format agent` (and `checkmate hook run --format json`) emits a structured, redacted JSON envelope with actionable `nextSteps`.
+
+**Usage Documentation:**
+
+```bash
+# Install CheckMate as your repository's Git pre-commit hook (honours worktrees & core.hooksPath)
+checkmate hook install
+
+# Run manually on staged Git index changes (redacted text output, default --min-confidence medium)
+checkmate hook run
+
+# Raise threshold to High for TypeScript/Supabase repos
+checkmate hook run --min-confidence high
+
+# AI-agent structured JSON output on staged changes
+checkmate hook run --staged --format json
+
+# Scan content piped via stdin before writing or staging
+git show :.env | checkmate search --stdin --filename .env --format agent --fail-on-findings
+
+# Machine-readable CLI manifest for AI coding agents
+checkmate describe
+checkmate describe --format markdown
+```
+
+**Using the `pre-commit` framework (`.pre-commit-config.yaml`):**
+
+```yaml
+repos:
+  - repo: https://github.com/adedayo/checkmate
+    rev: v1.8.1
+    hooks:
+      - id: checkmate-staged
+```
+
+
 

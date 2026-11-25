@@ -191,7 +191,7 @@ You can also integrate CheckMate via the [pre-commit](https://pre-commit.com/) f
 ```yaml
 repos:
   - repo: https://github.com/adedayo/checkmate
-    rev: v1.8.0
+    rev: v1.8.1
     hooks:
       - id: checkmate-staged
 ```

@@ -32,20 +32,24 @@ var (
 	descPythonPIToken = "Python Package Index Token"
 
 	// https://www.terraform.io/docs/cloud/users-teams-organizations/api-tokens.html
-	terraformPIRegex     = fmt.Sprintf(`(?i:(.+[.]atlasv1[.][A-Za-z0-9-=]{%d,}))`, 24)
+	terraformPIRegex     = fmt.Sprintf(`(?i:(?:^|[^A-Za-z0-9_.-])([A-Za-z0-9_-]{14,}[.]atlasv1[.][A-Za-z0-9-=]{%d,}))`, 24)
 	descTerraformPIToken = "Terraform Cloud Token"
 
 	//https://stripe.com/docs/api
 	//https://paystack.com/docs/api/#authentication
-	stripeRegex     = fmt.Sprintf(`(?i:(?:sk_(?:live|test)|whsec)_[A-Za-z0-9-]{%d,})`, 24) //examples here https://stripe.com/docs/api/authentication longer than 24 chars,
+	stripeRegex     = fmt.Sprintf(`(?i:(?:^|[^A-Za-z0-9_])((?:sk_(?:live|test)|whsec)_[A-Za-z0-9-]{%d,}))`, 24) //examples here https://stripe.com/docs/api/authentication longer than 24 chars,
 	descStripeToken = "Found a Stripe Access Token, posing a risk to payment processing services and sensitive financial data."
 
 	//https://developer.gocardless.com/api-reference/#oauth-disconnecting-a-user-from-your-app
-	goCardlessRegex     = fmt.Sprintf(`(?i:(live_[A-Za-z0-9_-]{%d,255}))`, 20) //
+	// Anchor on a non-identifier boundary so prefixed tokens like Stripe publishable
+	// keys (pk_live_...) or cpt_live_... do not false-positive as GoCardless tokens.
+	goCardlessRegex     = fmt.Sprintf(`(?i:(?:^|[^A-Za-z0-9_])((?:live|sandbox)_[A-Za-z0-9_-]{%d,255}))`, 20)
 	descGoCardlessToken = "GoCardless Token"
 
 	//https://developer.flutterwave.com/docs/api-keys
-	flutterWaveRegex     = fmt.Sprintf(`(?i:((flwseck-|ts_)[A-Za-z0-9_-]{%d,}))`, 20) //
+	// Anchor on a non-identifier boundary so snake_case identifiers like
+	// events_processing_configuration do not match the ts_ prefix.
+	flutterWaveRegex     = fmt.Sprintf(`(?i:(?:^|[^A-Za-z0-9_])((?:flwseck-|ts_)[A-Za-z0-9_-]{%d,}))`, 20)
 	descFlutterWaveToken = "FlutterWave/MoneyWave API Key"
 
 	connectors = map[string]string{
@@ -85,8 +89,10 @@ var (
 		return out
 	}()
 
-	//Connection URI with creds
-	connectionURIRegex = fmt.Sprintf(`(?i:((?:%s)[^:]*://[^:]+:[^@]+@)).*`, strings.Join(connectorKeys, "|")) //
+	//Connection URI with creds: disallow path separators, whitespace, and quotes
+	//inside the user:password authority section so URLs like
+	//https://example.com:443/users/@handle do not false-positive.
+	connectionURIRegex = fmt.Sprintf(`(?i:((?:%s)[^:/\s"'`+"`"+`]*://[^:/\s"'`+"`"+`@]+:[^/\s"'`+"`"+`@]+@))[^\s"'`+"`"+`]*`, strings.Join(connectorKeys, "|"))
 	descConnectionURI  = "Connection URI Secret"
 
 	vendorSecretPatterns = map[string]string{

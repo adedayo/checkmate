@@ -42,6 +42,9 @@ func detectSecret(secContext secretContext) diagnostics.Evidence {
 	secret = strings.TrimSpace(secret)
 	data := strings.ToLower(secret)
 	if data == "true" || data == "false" || data == "" || //the values true or false are unlikely to be secrets
+		//skip template expressions (${{ ... }}, ${VAR}, {{ ... }}), OAuth URNs, primitive/type keywords,
+		//integrity hashes (sha256-..., h1:...), media data URIs, and decorative dividers
+		isNonSecretExpressionOrURN(data) || isDividerString(data) || isNonSecretLiteralOrHash(data) ||
 		//secrets seldom start with http or urn (but exclude the connection URI scenario that contains @):
 		(strings.HasPrefix(data, "http") || strings.HasPrefix(data, "urn:")) && !strings.Contains(data, "@") ||
 		//spaces are unusual to be found in passwords/secrets, exclude values that are only numbers but not longer than 16 characters
@@ -52,7 +55,7 @@ func detectSecret(secContext secretContext) diagnostics.Evidence {
 		(strings.Contains(unusualPasswordStartCharacters, string(data[0])) && len(data) > 45) {
 		evidence.Description = descNotSecret
 		evidence.Confidence = diagnostics.High
-	} else if description, isVendor := isVendorSecret(data, secContext.gate.vendorCandidates(data)); isVendor {
+	} else if description, isVendor := isVendorSecretWithRaw(secret, data, secContext.gate.vendorCandidates(data)); isVendor {
 		evidence.Description = description
 		evidence.Confidence = diagnostics.High
 
@@ -63,15 +66,15 @@ func detectSecret(secContext secretContext) diagnostics.Evidence {
 		case descConnectionURI:
 			evidence.Description = refineConnectURIDetection(data)
 		}
-	} else if isCommonSecret(data) {
+	} else if isCommonSecretInContext(data, secContext.higherConfidenceContext) {
 		evidence.Description = descCommonSecret
 		if validateSpecial(data) {
 			evidence.Confidence = diagnostics.High
 		} else {
 			evidence.Confidence = diagnostics.Medium
 		}
-	} else if length := float64(len(secret)); length > float64(minSecretLength) && length <= 256 &&
-		getShannonEntropy(secret) > entropyCutoff*math.Log2(length) && digit.FindStringSubmatchIndex(secret) != nil {
+	} else if !isStaticAssetPath(data) && float64(len(secret)) > float64(minSecretLength) && float64(len(secret)) <= 256 &&
+		getShannonEntropy(secret) > entropyCutoff*math.Log2(float64(len(secret))) && digit.FindStringSubmatchIndex(secret) != nil {
 		//for strings up to 64 characters in length, check that the entropy is at most half the maximum entropy possible for that data
 		//also check that there is at least a number in the secret
 		evidence.Description = descHighEntropy
@@ -90,6 +93,10 @@ func detectSecret(secContext secretContext) diagnostics.Evidence {
 }
 
 func isVendorSecret(data string, candidates *prefilter.Set) (description string, isVendor bool) {
+	return isVendorSecretWithRaw(data, strings.ToLower(data), candidates)
+}
+
+func isVendorSecretWithRaw(rawSecret, lowerData string, candidates *prefilter.Set) (description string, isVendor bool) {
 	// Evaluate vendor rules in sorted description order.
 	//
 	// This is a first-match-wins loop, and it previously ranged over the
@@ -121,12 +128,49 @@ func isVendorSecret(data string, candidates *prefilter.Set) (description string,
 		if candidates != nil && !candidates.Has(ruleIndices[i]) {
 			continue
 		}
-		if re := cat.regexAt(i); re != nil && re.FindStringSubmatchIndex(data) != nil {
-			return desc, true
+		re := cat.regexAt(i)
+		if re == nil {
+			continue
 		}
+		// Match against rawSecret when case matters (e.g. Shannon entropy on
+		// Gitleaks rules); fall back to lowerData for CheckMate's (?i) rules
+		// if rawSecret was empty.
+		target := rawSecret
+		if target == "" {
+			target = lowerData
+		}
+		loc := re.FindStringSubmatchIndex(target)
+		if loc == nil {
+			continue
+		}
+		matchedVal := target[loc[0]:loc[1]]
+		if len(loc) >= 4 && loc[2] >= 0 && loc[3] >= loc[2] {
+			matchedVal = target[loc[2]:loc[3]]
+		}
+		if !vendorMatchValid(desc, i, target[loc[0]:loc[1]], matchedVal, "") {
+			continue
+		}
+		return desc, true
 	}
 
 	return
+}
+
+// vendorMatchValid applies recall-safe post-match validation for vendor rules:
+// FlutterWave ts_ digit validation and imported Gitleaks entropy/allowlist checks.
+func vendorMatchValid(desc string, ruleIndex int, fullMatch, secretVal, line string) bool {
+	if desc == descFlutterWaveToken {
+		lower := strings.ToLower(strings.TrimSpace(secretVal))
+		if strings.HasPrefix(lower, "ts_") && digit.FindStringSubmatchIndex(lower) == nil {
+			return false
+		}
+	}
+	if meta := vendorCatalog().metaAt(ruleIndex); meta != nil {
+		if meta.shouldSuppress(fullMatch, secretVal, line) {
+			return false
+		}
+	}
+	return true
 }
 
 // vendorRuleIndices maps position in vendorCatalog().sortedIDs to the rule's
@@ -164,9 +208,162 @@ func isCommonSecret(data string) bool {
 	return false
 }
 
+// isCommonSecretInContext checks common weak credentials while avoiding
+// substring false positives on routes, identifiers, and error keys when the
+// value is a bare string literal outside a secret-named assignment.
+func isCommonSecretInContext(data string, higherConfidenceContext bool) bool {
+	if !isCommonSecret(data) {
+		return false
+	}
+	if higherConfidenceContext {
+		return true
+	}
+	// Bare string literal: reject filesystem/URL paths and multi-word
+	// snake_case / kebab-case identifiers (e.g. "/admin/users",
+	// "forgot_password_email", "project-root-dir") unless the whole value is
+	// short and looks like a standalone weak credential.
+	if strings.ContainsAny(data, `/\`) {
+		return false
+	}
+	if strings.ContainsAny(data, "_-") {
+		// Allow direct credentials like "admin-123" or "password_1" (contains a
+		// digit) while skipping pure-word identifiers like "forgot_password_url".
+		if digit.FindStringSubmatchIndex(data) == nil {
+			return false
+		}
+	}
+	return true
+}
+
+// isInsideOAuthURN reports whether byte offset pos in source sits inside a
+// `urn:ietf:params:oauth:...` token (such as when a colon-based assignment rule
+// splits on `oauth:` or `token-type:` inside an OAuth URN string).
+func isInsideOAuthURN(source string, pos int) bool {
+	if pos < 0 || pos > len(source) {
+		return false
+	}
+	// Walk backward across contiguous non-whitespace, non-quote characters to
+	// find the start of the enclosing token/URN.
+	start := pos
+	for start > 0 {
+		c := source[start-1]
+		if c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '"' || c == '\'' || c == '`' {
+			break
+		}
+		start--
+	}
+	end := pos
+	for end < len(source) {
+		c := source[end]
+		if c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '"' || c == '\'' || c == '`' {
+			break
+		}
+		end++
+	}
+	return containsASCIIFold(source[start:end], "urn:ietf:params:oauth:")
+}
+
+// isNonSecretExpressionOrURN identifies template variable references
+// (${{ ... }}, ${VAR}, $VAR, {{ ... }}) and standard OAuth URNs
+// (urn:ietf:params:oauth:...) that are never hardcoded credentials.
+// Note: shell fallbacks like ${VAR:-literal} intentionally do NOT match
+// pureTemplateExpr so hardcoded fallback values are still scanned.
+func isNonSecretExpressionOrURN(lowerTrimmed string) bool {
+	if lowerTrimmed == "" {
+		return false
+	}
+	if strings.HasPrefix(lowerTrimmed, "${{") && githubActionsExpr.MatchString(lowerTrimmed) {
+		return true
+	}
+	if (strings.HasPrefix(lowerTrimmed, "$") || strings.HasPrefix(lowerTrimmed, "{{")) &&
+		pureTemplateExpr.MatchString(lowerTrimmed) {
+		return true
+	}
+	if strings.Contains(lowerTrimmed, "urn:ietf:params:oauth:") {
+		return true
+	}
+	return false
+}
+
+// isNonSecretLiteralOrHash filters primitive/type keywords, content-integrity
+// hashes (SRI / Go sumdb / Docker digest), and inline media data URIs.
+func isNonSecretLiteralOrHash(lowerTrimmed string) bool {
+	switch lowerTrimmed {
+	case "null", "undefined", "none", "nil", "string", "number", "boolean",
+		"any", "unknown", "void", "never", "bigint", "symbol":
+		return true
+	}
+	for _, prefix := range []string{
+		"sha256-", "sha256:", "sha384-", "sha384:", "sha512-", "sha512:",
+		"md5:", "h1:", "data:image/", "data:font/", "data:audio/", "data:video/",
+	} {
+		if strings.HasPrefix(lowerTrimmed, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// isTypeScriptTypeExpr identifies unquoted TypeScript type annotations such as
+// `string`, `string | null`, `string | undefined`, or `boolean;` that can be
+// matched by YAML-style `key: value` rules in `.ts`/`.tsx` files.
+func isTypeScriptTypeExpr(raw string) bool {
+	s := strings.TrimSpace(raw)
+	s = strings.TrimRight(s, ";,")
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+	parts := strings.Split(s, "|")
+	for _, p := range parts {
+		tok := strings.ToLower(strings.TrimSpace(p))
+		switch tok {
+		case "string", "number", "boolean", "null", "undefined", "void", "any", "unknown", "never", "bigint", "symbol", "object":
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// isDividerString reports whether s consists exclusively of decorative divider
+// characters (-, =, _, *, #), which would otherwise match hex/base64 heuristics.
+func isDividerString(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '-', '=', '_', '*', '#':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// isStaticAssetPath identifies relative/absolute static asset paths (such as
+// `/assets/chunk-a1b2c3d4e5f67890.js` or `./img/logo-9f86d081.png`) so content
+// hashes in asset filenames do not trigger generic entropy or hex heuristics.
+// Evaluated only after vendor-token matching so real tokens are never masked.
+func isStaticAssetPath(lowerData string) bool {
+	if !strings.ContainsAny(lowerData, `/\`) {
+		return false
+	}
+	for _, ext := range []string{".js", ".mjs", ".cjs", ".css", ".map", ".svg", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".woff", ".woff2", ".ico"} {
+		if strings.HasSuffix(lowerData, ext) {
+			return true
+		}
+	}
+	return false
+}
+
 // TODO: Decode and scan Base64 Strings
 func isEncodedSecret(data string) (description string, isEncoded bool) {
 	description = descEncodedSecret
+	if isDividerString(data) || rfc4122UUID.MatchString(data) || isNonSecretLiteralOrHash(data) || isStaticAssetPath(data) {
+		return description, false
+	}
 	// Sorted iteration for determinism. Every branch currently returns the
 	// same description, so this is defensive rather than corrective — but the
 	// switch invites divergent per-encoding descriptions, at which point map

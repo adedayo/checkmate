@@ -1,0 +1,8 @@
+# CheckMate exclusion policy for the CheckMate repository itself.
+# Keeps all production code, configs, workflows, scripts, and dotfiles guarded
+# while excluding CheckMate's own synthetic secret-detection test fixtures and
+# upstream rule definitions.
+PathExclusionRegExs:
+  - '(?:^|.*/)pkg/plugin/secrets-finder/pkg/gitleaks[.]toml$'
+  - '(?:^|.*/)pkg/plugin/secrets-finder/pkg/testdata/.*'
+  - '.*_test[.]go$'

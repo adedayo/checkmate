@@ -23,6 +23,29 @@
     "tags": []
   },
   {
+    "location": "repo-a/.env",
+    "providerID": "Found a Stripe Access Token, posing a risk to payment processing services and sensitive financial data.",
+    "repositoryIndex": 0,
+    "excluded": false,
+    "startLine": 1,
+    "startChar": 11,
+    "endLine": 1,
+    "endChar": 43,
+    "highlightStart": "1:10",
+    "highlightEnd": "1:42",
+    "rawStart": 69,
+    "rawEnd": 101,
+    "headline": "Found a Stripe Access Token, posing a risk to payment processing services and sensitive financial data.",
+    "headlineConfidence": "Critical",
+    "reasons": [
+      "Found a Stripe Access Token, posing a risk to payment processing services and sensitive financial data.|Critical",
+      "Unbroken string may be a secret|Medium"
+    ],
+    "sha256": "2cafc0970149a84f3b9e62eaf169f36f59907a3b3e31f7b82e68c69cd27f7326",
+    "source": "sk_test_4eC39HqLyjWDarjtT1zdp7dc",
+    "tags": []
+  },
+  {
     "location": "repo-a/certs/server.pem",
     "providerID": "ConfidentialFiles",
     "repositoryIndex": 0,
@@ -232,25 +255,25 @@
   },
   {
     "location": "repo-a/src/Config.java",
-    "providerID": "GoCardless Token",
+    "providerID": "Found a Stripe Access Token, posing a risk to payment processing services and sensitive financial data.",
     "repositoryIndex": 0,
     "excluded": false,
     "startLine": 4,
-    "startChar": 50,
+    "startChar": 47,
     "endLine": 4,
     "endChar": 79,
-    "highlightStart": "4:49",
+    "highlightStart": "4:46",
     "highlightEnd": "4:78",
-    "rawStart": 160,
+    "rawStart": 157,
     "rawEnd": 189,
-    "headline": "GoCardless Token",
+    "headline": "Found a Stripe Access Token, posing a risk to payment processing services and sensitive financial data.",
     "headlineConfidence": "Critical",
     "reasons": [
-      "GoCardless Token|Critical",
+      "Found a Stripe Access Token, posing a risk to payment processing services and sensitive financial data.|Critical",
       "Unbroken string may be a secret|Medium"
     ],
-    "sha256": "7c8a889d51edb32ec568ebf7814cc9b1f7c209ecc1126def14ceac4ef3cc1f5d",
-    "source": "live_4eC39HqLyjWDarjtT1zdp7dc",
+    "sha256": "78a08441f4314f0a2833cfe58c62e555a162264206982cda39f6804f5048f570",
+    "source": "sk_live_4eC39HqLyjWDarjtT1zdp7dc",
     "tags": []
   },
   {

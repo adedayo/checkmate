@@ -504,7 +504,7 @@
       Check<span>Mate</span>
     </a>
     <nav class="nav-links" aria-label="Primary">
-      <a href="#cli">CLI &amp; Platform</a>
+      <a href="#cli">CLI &amp; Hooks</a>
       <a href="#mcp">AI Agent MCP</a>
       <a href="#desktop">Desktop App</a>
       <a href="#compare">Compare</a>
@@ -520,7 +520,7 @@
     <div class="container">
       <div class="pill">
         <span class="pill-dot"></span>
-        Open-Source · Self-Hosted · CLI, Desktop App &amp; Native MCP Server
+        Open-Source · Self-Hosted · Git Pre-Commit Hooks, AI-Native CLI, MCP &amp; Desktop App
       </div>
       <h1>Prevent a breach with <span class="gradient-text">deterministic secret detection</span> and AI-assisted triage</h1>
       <p class="hero-sub">
@@ -564,24 +564,24 @@
       <div class="grid-3">
         <div class="card">
           <div class="card-icon">&gt;_</div>
-          <h3>High-Recall CLI &amp; Private Git</h3>
-          <p>Scan local directories, individual files, or public and private remote Git repositories (HTTPS &amp; SSH) using <code>checkmate search</code>.</p>
+          <h3>Git Pre-Commit Hooks &amp; AI-Native CLI</h3>
+          <p>Block leaked secrets before they enter Git history with <code>checkmate hook install</code>, staged Git index diff scanning, and self-describing agent output.</p>
           <ul>
-            <li>Parallel worker pool with literal prefiltering &amp; canonical ordering</li>
-            <li>Unified Git auth: <code>git_config</code>, <code>--git-token</code>, <code>--ssh-key</code>, <code>ssh-agent</code> &amp; env tokens</li>
-            <li>TLS verified by default, configurable <code>--git-depth</code>, structured failure reporting</li>
-            <li>Exclude test files, supply <code>.checkmate.yaml</code>, or stream live commentary</li>
+            <li><code>checkmate hook run</code>: fast staged-blob &amp; added-line scanning, redacted output, exit codes <code>0/1/2</code></li>
+            <li><code>checkmate describe</code> &amp; <code>--format agent</code>: instant JSON/Markdown capability discovery &amp; structured envelopes</li>
+            <li>Scans <code>.env*</code>, <code>.tfvars</code>, <code>.toml</code>, <code>.tsx</code>, <code>id_ed25519</code>, and JS/TS/Deno env-fallback literals</li>
+            <li>Auto-discovers <code>.checkmate.yaml</code>, inline <code>checkmate:ignore</code>, plus <code>.pre-commit-hooks.yaml</code></li>
           </ul>
         </div>
 
         <div class="card">
           <div class="card-icon green">{}</div>
-          <h3>SARIF 2.1.0, PDF, CSV &amp; JSON</h3>
-          <p>Emit developer-ready and audit-ready outputs directly from the CLI or API without middleware converters.</p>
+          <h3>Private Git, SARIF 2.1.0, PDF &amp; JSON</h3>
+          <p>Scan local paths, stdin, or authenticated HTTPS/SSH remote repos and emit developer-ready and audit-ready reports without middleware.</p>
           <ul>
-            <li>Native SARIF 2.1.0 with <code>partialFingerprints</code></li>
-            <li>Standard SARIF <code>suppressions[]</code> for triaged scans</li>
-            <li>Native PDF executive audit reports &amp; CSV exports</li>
+            <li>Unified Git auth: <code>git_config</code>, <code>--git-token</code>, <code>--ssh-key</code>, <code>ssh-agent</code> &amp; env tokens</li>
+            <li>Native SARIF 2.1.0 with <code>partialFingerprints</code> &amp; standard <code>suppressions[]</code></li>
+            <li>Native PDF executive audit reports, redacted text summaries &amp; JSON</li>
             <li>Direct GitHub Code Scanning &amp; SIEM ingestion</li>
           </ul>
         </div>
@@ -839,16 +839,16 @@ checkmate api --port 17283 --data-path ~/.checkmate
               <td><span class="badge badge-yes">Shared SQLite DB</span></td>
             </tr>
             <tr>
-              <td>Git-Diff Scoped Scanning</td>
-              <td><span class="badge badge-opt">Via paths</span></td>
+              <td>Git Pre-Commit &amp; Staged Diff</td>
+              <td><span class="badge badge-yes">hook run + --staged</span></td>
               <td><span class="badge badge-yes">gitDiffBase</span></td>
               <td><span class="badge badge-yes">Via /v1/mcp</span></td>
               <td><span class="badge badge-opt">Project scan</span></td>
             </tr>
             <tr>
-              <td>AI False-Positive Triage</td>
-              <td><span class="badge badge-opt">Via MCP/API</span></td>
-              <td><span class="badge badge-yes">Agent-driven</span></td>
+              <td>AI-Native Discovery &amp; Redaction</td>
+              <td><span class="badge badge-yes">describe + --format agent</span></td>
+              <td><span class="badge badge-yes">Agent-driven MCP</span></td>
               <td><span class="badge badge-yes">BYOK + Write-back</span></td>
               <td><span class="badge badge-yes">BYO AI + Auto-Suppress</span></td>
             </tr>
@@ -889,14 +889,42 @@ checkmate api --port 17283 --data-path ~/.checkmate
       </p>
 
       <div class="tabs" role="tablist">
-        <button class="tab-btn active" data-tab="tab-cli" role="tab" aria-selected="true">CLI</button>
+        <button class="tab-btn active" data-tab="tab-hook" role="tab" aria-selected="true">Pre-Commit Hook</button>
+        <button class="tab-btn" data-tab="tab-cli" role="tab" aria-selected="false">CLI</button>
         <button class="tab-btn" data-tab="tab-app" role="tab" aria-selected="false">Desktop App</button>
         <button class="tab-btn" data-tab="tab-mcp" role="tab" aria-selected="false">AI Agent MCP</button>
         <button class="tab-btn" data-tab="tab-lsp" role="tab" aria-selected="false">Editor LSP</button>
         <button class="tab-btn" data-tab="tab-api" role="tab" aria-selected="false">API &amp; Docker</button>
       </div>
 
-      <div id="tab-cli" class="tab-panel active">
+      <div id="tab-hook" class="tab-panel active">
+        <div class="code-box">
+          <button class="copy-btn" data-copy="qs-hook">Copy</button>
+          <pre id="qs-hook"># Install on macOS via Homebrew
+brew install adedayo/tap/checkmate
+
+# Install CheckMate as your repository's Git pre-commit hook
+checkmate hook install
+
+# Run manually on staged Git index blobs &amp; added lines (redacted, exit 1 on findings)
+checkmate hook run
+
+# Raise threshold to High for TypeScript/Supabase repos
+checkmate hook run --min-confidence high
+
+# AI-native discovery &amp; structured agent JSON output
+checkmate describe
+checkmate hook run --staged --format json
+
+# Or add to .pre-commit-config.yaml (pre-commit framework):
+# - repo: https://github.com/adedayo/checkmate
+#   rev: v1.8.1
+#   hooks:
+#     - id: checkmate-staged</pre>
+        </div>
+      </div>
+
+      <div id="tab-cli" class="tab-panel">
         <div class="code-box">
           <button class="copy-btn" data-copy="qs-cli">Copy</button>
           <pre id="qs-cli"># Install on macOS via Homebrew

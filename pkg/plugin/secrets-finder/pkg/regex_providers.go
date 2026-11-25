@@ -32,6 +32,7 @@ var (
 	unusualPasswordStartCharacters = `<>&^%?#({|/`
 
 	assignmentProviderID          = "SecretAssignment"
+	envFallbackProviderID         = "EnvFallbackSecretAssignment"
 	confAssignmentProviderID      = "ConfSecretAssignment"
 	cppAssignmentProviderID       = "CPPSecretAssignment"
 	longTagValueProviderID        = "LongOrSuspiciousSecretInXML"
@@ -79,6 +80,7 @@ func defaultFinder(options SecretSearchOptions) MatchProvider {
 		finders: append(makeVendorSecretsFinders(options),
 			[]common.ResourceToSecurityDiagnostics{
 				makeAssignmentFinder(assignmentProviderID, secretAssignment, options),
+				makeAssignmentFinder(envFallbackProviderID, envFallbackAssignment, options),
 				makeSecretStringFinder(secretStringProviderID, secretStrings, options),
 				makeSecretStringFinder(longStringProviderID, longStrings, options),
 				makeAssignmentFinder(yamlAssignmentProviderID, yamlAssignment, options),
@@ -448,6 +450,25 @@ func balancedTrim(text string, quote byte) (string, int) {
 // 	return strings.ContainsRune("`'"+`"`, q)
 // }
 
+// containingLine returns the line of source enclosing [start, end).
+func containingLine(source string, start, end int) string {
+	if start < 0 {
+		start = 0
+	}
+	if end > len(source) {
+		end = len(source)
+	}
+	lineStart := start
+	for lineStart > 0 && source[lineStart-1] != '\n' {
+		lineStart--
+	}
+	lineEnd := end
+	for lineEnd < len(source) && source[lineEnd] != '\n' {
+		lineEnd++
+	}
+	return source[lineStart:lineEnd]
+}
+
 type secretStringFinder struct {
 	secretFinder
 }
@@ -463,8 +484,34 @@ func (sf *secretStringFinder) Consume(startIndex int64, source string) {
 	for _, re := range sf.GetRegularExpressions() {
 		matches := re.FindAllStringSubmatchIndex(source, -1)
 		for _, match := range matches {
-			if len(match) == 4 && !containsWhitespace(source[match[0]:match[1]]) {
-				processString(match, sf.providerID, source, startIndex, sf.secretFinder)
+			if len(match) != 4 {
+				continue
+			}
+			// When a rule uses a leading boundary/prefix outside capture group 1
+			// and group 1 runs to the end of the match (e.g. GoCardless/FlutterWave
+			// boundary `(?:^|[^A-Za-z0-9_])(live_...)`), report group 1 so the
+			// leading delimiter is excluded from range, source, whitespace checks,
+			// and hash.
+			spanStart, spanEnd := match[0], match[1]
+			if match[2] > match[0] && match[3] == match[1] {
+				spanStart, spanEnd = match[2], match[3]
+			}
+			// Apply recall-safe vendor rule metadata (Gitleaks entropy floor &
+			// structural allowlists, plus FlutterWave ts_ digit validation).
+			if sf.vendorRuleIndex > 0 {
+				secretStart, secretEnd := spanStart, spanEnd
+				if match[2] >= 0 && match[3] >= match[2] {
+					secretStart, secretEnd = match[2], match[3]
+				}
+				secretVal, _ := trimQuotes(source[secretStart:secretEnd])
+				line := containingLine(source, match[0], match[1])
+				if !vendorMatchValid(sf.providerID, sf.vendorRuleIndex-1, source[match[0]:match[1]], secretVal, line) {
+					continue
+				}
+			}
+			if !containsWhitespace(source[spanStart:spanEnd]) {
+				tokenMatch := []int{spanStart, spanEnd, spanStart, spanEnd}
+				processString(tokenMatch, sf.providerID, source, startIndex, sf.secretFinder)
 			}
 		}
 	}
@@ -641,6 +688,25 @@ func processAssignment(match []int, providerID, source string, startIndex int64,
 		// log.Printf("(%s) Variable: %s <=> %s\n", providerID, variable, assignedVal)
 		// log.Printf("(%s) Evidence: %#v \n", providerID, evidence)
 
+		// Skip matches embedded inside standard OAuth URNs (e.g.
+		// "urn:ietf:params:oauth:token-type:access_token"), where YAML-style
+		// key:value rules otherwise split on "oauth:" or "token-type:".
+		if isInsideOAuthURN(source, int(lhsStart)) {
+			return
+		}
+
+		// Skip unquoted TypeScript/JS type annotations (e.g. `apiKey: string | null;`)
+		// matched by YAML-style colon rules.
+		if providerID == yamlAssignmentProviderID && count == 0 && isTypeScriptTypeExpr(assignedVal) {
+			return
+		}
+
+		// Skip GitHub Actions expressions (${{ ... }}), pure template refs, and
+		// OAuth URNs even when the variable name includes "passphrase".
+		if isNonSecretExpressionOrURN(strings.ToLower(strings.TrimSpace(assignedVal))) {
+			return
+		}
+
 		if strings.Contains(variable, "passphrase") {
 			//special "passphrase" case:
 			//if the assigned variable is a passphrase bypass any result of the assigned value
@@ -712,6 +778,9 @@ func processString(match []int, providerID, source string, startIndex int64,
 	sf secretFinder) {
 	start := int64(match[0])
 	end := int64(match[1])
+	if isInsideOAuthURN(source, int(start)) {
+		return
+	}
 	s := source[start:end]
 	if sf.ShouldExcludeValue(s) {
 		return
