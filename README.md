@@ -149,6 +149,7 @@ checkmate search --pdf /path/to/project
 | `--min-confidence <lvl>` | Minimum confidence to report or block on: `info`, `low`, `medium`, `high`, `critical` |
 | `--no-auto-exclusion` | Disable automatic loading of repo-root `.checkmate.yaml` |
 | `--no-db` | Disable reading shared SQLite exceptions |
+| `--no-ignore` | Disable `.gitignore` filtering on directory scans and scan all files on disk |
 | `--pdf` | Generate a native PDF audit report |
 | `-q, --quiet` | Suppress text output when no findings are detected |
 | `--redact` | Mask raw secret values in output while keeping SHA-256 checksums |
@@ -162,11 +163,12 @@ checkmate search --pdf /path/to/project
 | `--ssh-key <path>` | Path to an SSH private key file for cloning SSH git repositories |
 | `--staged` | Scan staged changes directly from the Git index (ignores unstaged working-tree edits) |
 | `--stdin` | Read content to scan from standard input |
+| `--tracked-only` | Scan only Git-tracked files (`git ls-files --cached`); exits `2` outside a Git repository |
 | `--verbose` | Enable verbose output |
 
-### Git Pre-Commit Hooks & AI-Native CLI Discovery
+### Git Pre-Commit Hooks, `.gitignore`-Aware Scans & AI-Native CLI Discovery
 
-Block accidental secret leaks before they enter Git history with sub-second staged-diff scanning:
+Block accidental secret leaks before they enter Git history with sub-second staged-diff scanning. Inside a Git repository, directory scans (`checkmate search <dir>`, `checkmate hook run <dir>`) automatically respect `.gitignore` while never skipping Git-tracked files (even if they match `.gitignore`), force-staged blobs (`--staged`), or explicitly passed file arguments:
 
 ```bash
 # Install CheckMate as your repository's Git pre-commit hook
@@ -175,7 +177,13 @@ checkmate hook install
 # Run manually on staged Git index changes (redacted terminal output, exit 1 on findings, exit 2 on error)
 checkmate hook run
 
-# Run with structured AI-agent JSON output (includes status, exitCode, redacted findings, and nextSteps)
+# Pre-push hook: scan strictly Git-tracked files (immune to local .env.local and build directories)
+checkmate hook run --tracked-only --min-confidence high
+
+# Full-filesystem audit including untracked gitignored files (.env.local, dist/, .temp/)
+checkmate search --no-ignore --format text --redact --fail-on-findings .
+
+# Run with structured AI-agent JSON output (includes status, ignoreMode, redacted findings, and nextSteps)
 checkmate hook run --staged --format json
 
 # Pipe content before writing or staging a file
@@ -186,17 +194,41 @@ checkmate describe
 checkmate describe --format markdown
 ```
 
-You can also integrate CheckMate via the [pre-commit](https://pre-commit.com/) framework using `.pre-commit-hooks.yaml`:
+You can also integrate CheckMate via the [pre-commit](https://pre-commit.com/) framework using `.pre-commit-hooks.yaml` (`checkmate-staged`, `checkmate-files`, and `checkmate-tracked` for `pre-push`):
 
 ```yaml
 repos:
   - repo: https://github.com/adedayo/checkmate
-    rev: v1.8.2
+    rev: v1.9.0
     hooks:
       - id: checkmate-staged
+      - id: checkmate-tracked
+        stages: [pre-push]
 ```
 
 To suppress a verified false positive, add its `sha256` to repo-root `.checkmate.yaml` (`PerFileExcludedHashes` or `GloballyExcludedHashes`), or append `checkmate:ignore` to the line (or `checkmate:ignore-next-line` on the line above).
+
+### Account-Wide GitHub Discovery & Scanning
+
+Point CheckMate at a GitHub user or organisation (`https://github.com/<login>` or `github:<login>`) to enumerate and scan all matching repositories in a single pass:
+
+```bash
+# Resolve public repositories with zero configuration (anonymous REST, 60 req/hr per IP)
+checkmate account resolve https://github.com/adedayo
+
+# Scan all public repositories of an account (shallow clones, deleted automatically after scan)
+checkmate account scan https://github.com/adedayo --format text --redact
+
+# Include private repositories using GITHUB_TOKEN / --git-token / --service (GraphQL, 5,000 pts/hr)
+GITHUB_TOKEN=ghp_... checkmate account scan github:acme --format agent --fail-on-findings --min-confidence high
+
+# Filter by repository name globs or override the default 500-repo safety cap
+checkmate account resolve https://github.com/acme --include "api-*" --exclude "*-legacy" --max-repos 1000
+```
+
+- **Zero-config anonymous mode:** Works out of the box for public repositories and visibly marks results as potentially incomplete so a clean public scan is never mistaken for coverage of private repositories.
+- **Safe defaults:** Forks, archived, and disabled repositories are excluded by default (`--include-forks`, `--include-archived`, `--include-disabled` to opt in); clones default to shallow depth-1 (`--full-history` to opt in) and are removed on completion unless `--retain-code` is passed.
+- **Go SDK:** Import `github.com/adedayo/checkmate/pkg/sdk` and call `sdk.ParseAccountRef`, `sdk.DefaultAccountFilter`, and `sdk.ResolveAccount` directly.
 
 ### API Server
 

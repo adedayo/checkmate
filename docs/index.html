@@ -567,7 +567,8 @@
           <h3>Git Pre-Commit Hooks &amp; AI-Native CLI</h3>
           <p>Block leaked secrets before they enter Git history with <code>checkmate hook install</code>, staged Git index diff scanning, and self-describing agent output.</p>
           <ul>
-            <li><code>checkmate hook run</code>: fast staged-blob &amp; added-line scanning, redacted output, exit codes <code>0/1/2</code></li>
+            <li><code>checkmate hook run</code>: fast staged-blob &amp; added-line scanning, plus <code>--tracked-only</code> pre-push mode</li>
+            <li><code>.gitignore</code>-aware directory scans by default (with <code>--no-ignore</code> full-disk override); never skips tracked or staged secrets</li>
             <li><code>checkmate describe</code> &amp; <code>--format agent</code>: instant JSON/Markdown capability discovery &amp; structured envelopes</li>
             <li>Scans <code>.env*</code>, <code>.tfvars</code>, <code>.toml</code>, <code>.tsx</code>, <code>id_ed25519</code>, and JS/TS/Deno env-fallback literals</li>
             <li>Auto-discovers <code>.checkmate.yaml</code>, inline <code>checkmate:ignore</code>, plus <code>.pre-commit-hooks.yaml</code></li>
@@ -580,6 +581,7 @@
           <p>Scan local paths, stdin, or authenticated HTTPS/SSH remote repos and emit developer-ready and audit-ready reports without middleware.</p>
           <ul>
             <li>Unified Git auth: <code>git_config</code>, <code>--git-token</code>, <code>--ssh-key</code>, <code>ssh-agent</code> &amp; env tokens</li>
+            <li>Account-wide GitHub discovery: <code>checkmate account resolve</code> &amp; <code>account scan</code> (REST anon + GraphQL auth)</li>
             <li>Native SARIF 2.1.0 with <code>partialFingerprints</code> &amp; standard <code>suppressions[]</code></li>
             <li>Native PDF executive audit reports, redacted text summaries &amp; JSON</li>
             <li>Direct GitHub Code Scanning &amp; SIEM ingestion</li>
@@ -912,15 +914,20 @@ checkmate hook run
 # Raise threshold to High for TypeScript/Supabase repos
 checkmate hook run --min-confidence high
 
+# Pre-push hook: scan only Git-tracked files (ignores local .env.local / dist/)
+checkmate hook run --tracked-only --min-confidence high
+
 # AI-native discovery &amp; structured agent JSON output
 checkmate describe
 checkmate hook run --staged --format json
 
 # Or add to .pre-commit-config.yaml (pre-commit framework):
 # - repo: https://github.com/adedayo/checkmate
-#   rev: v1.8.2
+#   rev: v1.9.0
 #   hooks:
-#     - id: checkmate-staged</pre>
+#     - id: checkmate-staged
+#     - id: checkmate-tracked
+#       stages: [pre-push]</pre>
         </div>
       </div>
 

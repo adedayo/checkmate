@@ -295,7 +295,8 @@ CheckMate ships a native MCP server over both stdio (`checkmate mcp serve`) and 
 **Capabilities:**
 Prevent accidental secret leaks before they ever enter Git history with sub-second staged-diff scanning, safe secret redaction, and machine-readable CLI discovery for AI coding agents.
 
-- **Exact Git index scanning (`--staged`):** Reads staged blobs directly from Git's object store (`git diff --cached` + batched `git cat-file --batch`) instead of the working tree, accurately handling partial staging (`git add -p`) and ignoring unstaged local edits.
+- **Exact Git index scanning (`--staged`):** Reads staged blobs directly from Git's object store (`git diff --cached` + batched `git cat-file --batch`) instead of the working tree, accurately handling partial staging (`git add -p`), never skipping force-staged gitignored files, and ignoring unstaged local edits.
+- **Gitignore-aware directory scans & pre-push mode (`--no-ignore`, `--tracked-only`):** Directory scans inside a Git repository respect `.gitignore`, `.git/info/exclude`, and global excludes by default via streaming `git ls-files -z --cached --others --exclude-standard`, while always scanning tracked-but-ignored files and explicit file arguments. Pass `--no-ignore` to scan all files on disk, or `--tracked-only` for single-command `pre-push` hooks and CI repository audits.
 - **Diff-only focus (`--diff-only`):** Scans full staged file context for accurate line numbers and detection, then filters modified files to added/modified line ranges so untouched legacy lines do not block commits (while still blocking newly added confidential files such as private keys or `.p12` keystores).
 - **Modern config & IaC coverage:** Scans `.env`, `.env.*`, `.tfvars`, `.tf`, `.hcl`, `.toml`, `.properties`, `.ini`, `.cfg`, `.npmrc`, `.pypirc`, `.netrc`, `.tsx`, `.jsx`, `.cjs`, and modern SSH keys (`id_ed25519`, `id_ecdsa`), plus JS/TS/Deno env-fallback secrets (`Deno.env.get("JWT_SECRET") || "literal"`, `process.env.API_KEY ?? "literal"`).
 - **Shared suppressions & inline pragmas:** Auto-discovers repo-root `.checkmate.yaml`, optionally reads active `~/.checkmate/checkmate.db` exceptions in read-only mode (no DB creation or migrations), and honours inline `checkmate:ignore` (same line) and `checkmate:ignore-next-line` (preceding line) directives.
@@ -314,6 +315,12 @@ checkmate hook run
 # Raise threshold to High for TypeScript/Supabase repos
 checkmate hook run --min-confidence high
 
+# Pre-push hook scanning Git-tracked files only (skips local .env.local and build dirs)
+checkmate hook run --tracked-only --min-confidence high
+
+# Full-filesystem audit including untracked gitignored files
+checkmate search --no-ignore --format text --redact --fail-on-findings .
+
 # AI-agent structured JSON output on staged changes
 checkmate hook run --staged --format json
 
@@ -330,9 +337,39 @@ checkmate describe --format markdown
 ```yaml
 repos:
   - repo: https://github.com/adedayo/checkmate
-    rev: v1.8.2
+    rev: v1.9.0
     hooks:
       - id: checkmate-staged
+      - id: checkmate-tracked
+        stages: [pre-push]
+```
+
+---
+
+### 16. Account-Wide GitHub Discovery & Scanning (`checkmate account`)
+
+**Capabilities:**
+Resolve any GitHub user or organisation (`https://github.com/<login>` or `github:<login>`) into a deterministically sorted, filtered list of repositories and scan them in one pass without manual per-repository setup.
+
+- **Zero-config anonymous resolution (REST):** Resolves public repositories over GitHub's REST API (60 requests/hour per IP) with no credentials required. Anonymous results are explicitly marked `potentiallyIncomplete: true` (with a visible CLI warning banner) so a clean public scan is never misread as covering private repositories.
+- **Authenticated resolution (GraphQL):** Supplying a token via `--git-token`, `--git-token-env`, `GITHUB_TOKEN`, `CHECKMATE_GIT_TOKEN`, or a configured CheckMate `--service` switches to GitHub's GraphQL API (5,000 points/hour) and includes private repositories. Explicit bad credentials fail closed (`ErrInvalidCredential`) rather than silently falling back to anonymous.
+- **Deterministic filtering & safety cap:** Excludes forks, archived, and disabled repositories by default (`--include-forks`, `--include-archived`, `--include-disabled`), supports `--include` / `--exclude` name globs (`--exclude` takes precedence), sorts canonically by clone URL, and enforces `CHECKMATE_ACCOUNT_MAX_REPOS` (default 500, overridable via `--max-repos`, failing loudly rather than truncating).
+- **Safe checkout lifecycle:** Discloses repository count and estimated size before cloning, defaults to shallow depth-1 clones (`--full-history` or `--git-depth 0` to opt in), isolates per-repository clone failures, and deletes temporary checkouts on completion unless `--retain-code` is explicitly enabled (retaining checkouts stores plaintext repository copies on disk).
+- **Provider-neutral Go SDK:** `pkg/sdk` exports `ParseAccountRef`, `DefaultAccountFilter`, `ResolveAccount`, `(*Scanner).ResolveAccount`, and typed errors (`ErrNotAnAccount`, `ErrAccountNotFound`, `ErrTooManyRepositories`, `ErrRateLimited`, `ErrAmbiguousService`, `ErrInvalidCredential`).
+
+**Usage Documentation:**
+
+```bash
+# Resolve public repositories without cloning or credentials
+checkmate account resolve https://github.com/adedayo
+checkmate account resolve github:adedayo --format json
+
+# Scan all public repositories of a GitHub account
+checkmate account scan https://github.com/adedayo --format text --redact
+
+# Scan an organisation including private repos with CI gating
+GITHUB_TOKEN=ghp_... checkmate account scan https://github.com/acme \
+  --format agent --fail-on-findings --min-confidence high
 ```
 
 

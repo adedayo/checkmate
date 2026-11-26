@@ -44,29 +44,7 @@ This file is read by AI coding agents working in this repo (OpenSpec convention)
 - `openspec/changes/<id>/` — in-flight changes: `proposal.md`, `design.md`, `tasks.md`, `specs/<capability>/spec.md`
 - On completing a change, archive it: merge spec deltas into `openspec/specs/` and move the change folder to `openspec/archive/`
 - Accepted capabilities: `agent-mcp`, `ai-triage`, `api-contract`, `authentication`, `data-store`, `exception-management`, `git-acquisition`, `lsp-server`, `pre-commit-cli`, `sarif-export`, `scan-engine`, `sdk`, `webhooks`
-- Archived changes: `001-clean-slate-platform`, `003-scan-engine-performance`, `007-agent-mcp-triage`, `008-git-checkout-auth-and-reliability`, `009-mcp-hardening-and-remote-triage`, `010-lsp-server-modernisation`, `011-pre-commit-cli`
+- Archived changes: `001-clean-slate-platform`, `003-scan-engine-performance`, `004-chunk-boundary-minimisation`, `005-sqlite-progress-reporting`, `007-agent-mcp-triage`, `008-git-checkout-auth-and-reliability`, `009-mcp-hardening-and-remote-triage`, `010-lsp-server-modernisation`, `011-pre-commit-cli`, `012-gitignore-aware-scanning`
 - Current active changes:
-  - `changes/002-app-modernisation/` — in progress
-  - `changes/004-chunk-boundary-minimisation/` — scaffolded, not started. Reduces
-    the offset-dependence exception accepted in 003 to a committed reproducing
-    fixture. **Phase 1 is time-sensitive:** the only known reproducer lives in an
-    uncommitted `node_modules` tree and does not survive `npm ci`.
-  - `changes/005-sqlite-progress-reporting/` — scaffolded, not started.
-    `sqlite.DB.RunScan` accepts `progressMonitor` and never calls it, so the
-    WebSocket scan summary reports `fileCount: 0`. Pre-existing, verified at the
-    pre-003 commit.
-  - `changes/006-account-wide-repository-discovery/` — decisions resolved, ready
-    to start. Resolve a GitHub account (`https://github.com/adedayo`) to its full
-    repository set and enrol it as a single project. Anonymous (public) by
-    default over REST; token-authenticated over GraphQL for private repositories.
-    Snapshot enrolment plus opt-in account watch for continuous attack surface
-    monitoring, with repository membership tracked as a time series and findings
-    history decoupled from checked-out code retention. Introduces the
-    `repository-discovery` capability; deltas to `api-contract`, `data-store`,
-    `sdk` and `webhooks`.
-  - `changes/012-gitignore-aware-scanning/` — drafted, ready to implement.
-    Makes working-tree directory scans Git-aware and `.gitignore`-respecting by
-    default via streaming `git ls-files -z --cached --others --exclude-standard`
-    (never skipping tracked, staged, or explicitly targeted files), and adds
-    `--no-ignore` and `--tracked-only` (for one-command `pre-push` hooks).
-    Deltas to `scan-engine` (`R15`) and `pre-commit-cli` (`R8`).
+  - `changes/002-app-modernisation/` — in progress (in sibling `checkmate-app` repository)
+  - `changes/006-account-wide-repository-discovery/` — in progress (scoped v1: GitHub account resolution over REST/GraphQL, SDK, and CLI `checkmate account resolve`/`scan`; persistent watch & membership time-series deferred).

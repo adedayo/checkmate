@@ -123,6 +123,7 @@ func buildCLIManifest() cliManifest {
 		Guardrails: []string{
 			"Always pass --redact (or use --format agent / 'checkmate hook run') so raw secret values are never echoed into agent transcripts or CI logs.",
 			"Use 'checkmate hook run --format json' or 'checkmate search --staged --format agent --fail-on-findings' before git commit to scan exact Git index blobs rather than unstaged working-tree files.",
+			"Directory scans inside a Git repository respect .gitignore by default while still scanning tracked-but-ignored files, staged blobs, and explicit file targets. Pass --no-ignore for full-filesystem audits or --tracked-only for pre-push and CI checks.",
 			"Never suppress a finding without verifying it is a false positive. Prefer SHA-256 hash suppressions in .checkmate.yaml over plaintext strings.",
 			"All CLI commands are strictly non-interactive and write machine-readable payloads exclusively to stdout and diagnostics/errors to stderr.",
 		},
@@ -130,12 +131,22 @@ func buildCLIManifest() cliManifest {
 			{
 				Goal:    "Check staged Git changes before committing (AI agent JSON envelope)",
 				Command: "checkmate hook run --staged --format json",
-				Notes:   "Reads Git index blobs directly, filters to added/modified lines, redacts secrets, exits 0 (clean), 1 (findings), or 2 (error).",
+				Notes:   "Reads Git index blobs directly (never skips force-staged gitignored files), filters to added/modified lines, redacts secrets, exits 0 (clean), 1 (findings), or 2 (error).",
+			},
+			{
+				Goal:    "Run a pre-push or CI check over Git-tracked files only",
+				Command: "checkmate hook run --tracked-only --format json",
+				Notes:   "Scans strictly Git-tracked files via git ls-files --cached (including tracked-but-ignored files) while ignoring local untracked files like .env.local; accepts optional path arguments.",
+			},
+			{
+				Goal:    "Audit an entire directory including untracked gitignored files",
+				Command: "checkmate search --no-ignore --format agent --redact --fail-on-findings .",
+				Notes:   "Disables .gitignore filtering to scan all files on disk (useful for workstation or container audits).",
 			},
 			{
 				Goal:    "Check specific files with redacted structured output and gating exit code",
 				Command: "checkmate search --format agent --redact --fail-on-findings --min-confidence medium <file1> <file2>",
-				Notes:   "Auto-discovers repo-root .checkmate.yaml and respects inline checkmate:ignore comments.",
+				Notes:   "Auto-discovers repo-root .checkmate.yaml, respects inline checkmate:ignore comments, and always scans explicitly passed file arguments even if gitignored.",
 			},
 			{
 				Goal:    "Scan content piped via stdin before writing or staging a file",
@@ -157,6 +168,11 @@ func buildCLIManifest() cliManifest {
 				Command: "checkmate search --format sarif . > results.sarif",
 				Notes:   "Writes clean SARIF 2.1.0 to stdout without mixing JSON.",
 			},
+			{
+				Goal:    "Resolve and scan all repositories owned by a GitHub account or organisation",
+				Command: "checkmate account resolve https://github.com/<login> && checkmate account scan https://github.com/<login> --format agent --fail-on-findings",
+				Notes:   "Works anonymously over REST for public repositories (visibly marked potentially incomplete) or authenticated over GraphQL with GITHUB_TOKEN / --git-token / --service.",
+			},
 		},
 		Suppression: cliSuppression{
 			InlineSameLine:  "checkmate:ignore",
@@ -170,7 +186,7 @@ func buildCLIManifest() cliManifest {
 			MCPEphemeral:    "checkmate mcp serve --ephemeral",
 			LSPServer:       "checkmate lspServe",
 			PreCommitHook:   "checkmate hook install",
-			PreCommitConfig: ".pre-commit-hooks.yaml (ids: checkmate-staged, checkmate-files)",
+			PreCommitConfig: ".pre-commit-hooks.yaml (ids: checkmate-staged, checkmate-files, checkmate-tracked)",
 		},
 		Commands: collectCommandSpecs(rootCmd),
 	}
