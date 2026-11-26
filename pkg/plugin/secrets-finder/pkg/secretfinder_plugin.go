@@ -121,7 +121,12 @@ func SearchSecretsOnPathsWithReport(ctx context.Context, paths []string, options
 		}()
 
 		files, walkStats := util.WalkRoots(ctx, roots, util.WalkOptions{
-			PruneDirs: exclusionPruneDirs(options.Exclusions),
+			PruneDirs:        exclusionPruneDirs(options.Exclusions),
+			RespectGitIgnore: options.RespectGitIgnore,
+			TrackedOnly:      options.TrackedOnly,
+			OnRootError: func(root string, err error) {
+				registry.recordFailure(root, err)
+			},
 		})
 
 		statsDone := make(chan struct{})

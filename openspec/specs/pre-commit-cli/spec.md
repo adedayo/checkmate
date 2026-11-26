@@ -63,3 +63,14 @@ CheckMate provides fast, deterministic CLI secret scanning suitable for Git `pre
 - Operational errors in JSON/agent formats MUST emit valid structured JSON to stdout (or stderr cleanly without corrupting stdout), and root CLI errors MUST write to `stderr` so `stdout` remains strictly machine-parseable.
 - All CLI subcommands MUST remain strictly non-interactive (never block on TTY prompts) and document exit codes and agent-friendly examples in `--help`.
 
+### R8 - Gitignore-Aware Directory Scanning, `--no-ignore`, and `--tracked-only` Pre-Push Mode
+
+Merged from change `012-gitignore-aware-scanning` (Accepted).
+
+- Both `checkmate search` and `checkmate hook run` provide `--no-ignore` (disable `.gitignore` filtering on directory scans) and `--tracked-only` (restrict scanning to Git-tracked files via `git ls-files --cached`).
+- Directory targets inside a Git worktree default to `RespectGitIgnore = true`; `--staged`, `--stdin`, explicit file arguments, tracked-but-ignored files, and non-Git directories are NEVER skipped by `.gitignore`.
+- `checkmate hook run --tracked-only` with no positional arguments scans all tracked files under the current Git repository root (`mode: "tracked-files"`). Invoking `--tracked-only` outside a Git repository fails closed with exit `2`.
+- Mutually exclusive flag combinations (`--no-ignore` + `--tracked-only`, or `--tracked-only` + `--staged`/`--stdin`) fail closed with exit `2`.
+- `checkmate describe` documents `--no-ignore`, `--tracked-only`, default `.gitignore` directory scanning, and a pre-push hook recipe; structured JSON/agent envelopes include `ignoreMode` (`"gitignore"`, `"tracked-only"`, `"none"`, or `"staged"`).
+
+

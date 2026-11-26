@@ -206,6 +206,7 @@ type AgentEnvelope struct {
 	Status        string         `json:"status"` // "clean" | "findings_detected" | "error"
 	ExitCode      int            `json:"exitCode"`
 	Mode          string         `json:"mode,omitempty"`
+	IgnoreMode    string         `json:"ignoreMode,omitempty"` // "gitignore" | "tracked-only" | "none" | "staged"
 	FilesScanned  int            `json:"filesScanned"`
 	DurationMs    int64          `json:"durationMs"`
 	MinConfidence string         `json:"minConfidence,omitempty"`

@@ -45,6 +45,7 @@ import (
 	common "github.com/adedayo/checkmate/pkg/core"
 	"github.com/adedayo/checkmate/pkg/core/diagnostics"
 	gitutils "github.com/adedayo/checkmate/pkg/core/git"
+	"github.com/adedayo/checkmate/pkg/core/util"
 	secrets "github.com/adedayo/checkmate/pkg/plugin/secrets-finder/pkg"
 	"github.com/adedayo/checkmate/pkg/precommit"
 	"github.com/adedayo/checkmate/pkg/report"
@@ -75,6 +76,8 @@ var (
 	searchDataPath        string
 	searchNoDB            bool
 	searchQuiet           bool
+	searchNoIgnore        bool
+	searchTrackedOnly     bool
 )
 
 // searchCmd represents the search command
@@ -84,12 +87,23 @@ var searchCmd = &cobra.Command{
 	Long: `Searches for secrets in files in local file system paths, staged Git index
 changes (--staged), standard input (--stdin), or remote Git repositories.
 
+Inside a Git repository, directory scans respect .gitignore by default while
+always scanning Git-tracked files (even if they match .gitignore) and explicit
+file arguments. Use --no-ignore to scan all files on disk, or --tracked-only
+to restrict scanning to Git-tracked files.
+
 Exit codes when --fail-on-findings is enabled:
   0  Clean (no findings at or above --min-confidence)
   1  One or more potential secrets found
   2  Operational, Git, target acquisition, or configuration error`,
-	Example: `  # Scan a local directory (JSON array output)
+	Example: `  # Scan a local directory (respects .gitignore inside a Git repo; JSON output)
   checkmate search /path/to/project
+
+  # Scan all files on disk including untracked gitignored files (.env.local, dist/)
+  checkmate search --no-ignore --format text --redact --fail-on-findings .
+
+  # Scan only Git-tracked files (ideal for pre-push and CI repository audits)
+  checkmate search --tracked-only --format text --redact --fail-on-findings .
 
   # Scan staged Git changes with redacted terminal report and non-zero exit on findings
   checkmate search --staged --format text --redact --fail-on-findings
@@ -125,6 +139,8 @@ func init() {
 	searchCmd.Flags().StringVar(&searchDataPath, "data-path", "~/.checkmate", "Location of CheckMate data directory for optional read-only SQLite exceptions")
 	searchCmd.Flags().BoolVar(&searchNoDB, "no-db", false, "Disable reading shared SQLite exceptions from --data-path")
 	searchCmd.Flags().BoolVarP(&searchQuiet, "quiet", "q", false, "Suppress text output when no findings are detected")
+	searchCmd.Flags().BoolVar(&searchNoIgnore, "no-ignore", false, "Disable .gitignore filtering on directory scans and scan all files on disk")
+	searchCmd.Flags().BoolVar(&searchTrackedOnly, "tracked-only", false, "Scan only Git-tracked files (git ls-files --cached); exits 2 outside a Git repository")
 	searchCmd.Flags().BoolVar(&sensitiveFiles, "sensitive-files", false, "List all registered sensitive files and their description")
 	searchCmd.Flags().BoolVar(&sensitiveFilesOnly, "sensitive-files-only", false, "Only search for sensitive files (e.g. certificates, key stores etc.)")
 	searchCmd.Flags().BoolVar(&runningCommentary, "running-commentary", false, "Generate a running commentary of results. Useful for analysis of large input data")
@@ -223,14 +239,29 @@ func runSearchCommandIO(cmd *cobra.Command, args []string, stdin io.Reader, stdo
 		return 0
 	}
 
-	if !searchStaged && !searchStdin && len(args) == 0 {
-		_ = cmd.Usage()
-		return 0
-	}
-
 	format, err := resolveSearchFormat(cmd)
 	if err != nil {
 		return emitSearchError(stdout, stderr, format, err.Error(), "Use --format json, text, sarif, pdf, or agent.")
+	}
+
+	if searchNoIgnore && searchTrackedOnly {
+		return emitSearchError(stdout, stderr, format,
+			"--no-ignore and --tracked-only are mutually exclusive",
+			"Use --no-ignore to scan all files on disk, or --tracked-only to scan only Git-tracked files.")
+	}
+	if searchTrackedOnly && (searchStaged || searchStdin) {
+		return emitSearchError(stdout, stderr, format,
+			"--tracked-only cannot be combined with --staged or --stdin",
+			"Use --staged for Git index blobs, --stdin for piped input, or --tracked-only for tracked working-tree files.")
+	}
+
+	if !searchStaged && !searchStdin && len(args) == 0 {
+		if searchTrackedOnly {
+			args = []string{"."}
+		} else {
+			_ = cmd.Usage()
+			return 0
+		}
 	}
 
 	minConf, err := precommit.ParseConfidence(searchMinConfidence)
@@ -247,6 +278,7 @@ func runSearchCommandIO(cmd *cobra.Command, args []string, stdin io.Reader, stdo
 	var issues []*diagnostics.SecurityDiagnostic
 	filesScanned := 0
 	mode := "paths"
+	var ignoreMode string
 	scopeLabel := "file(s)"
 
 	switch {
@@ -255,6 +287,7 @@ func runSearchCommandIO(cmd *cobra.Command, args []string, stdin io.Reader, stdo
 		if searchDiffOnly {
 			mode = "staged-diff"
 		}
+		ignoreMode = "staged"
 		scopeLabel = "staged file(s)"
 		res, err := precommit.ScanStaged(ctx, precommit.StagedScanOptions{
 			DiffOnly:              searchDiffOnly,
@@ -279,6 +312,7 @@ func runSearchCommandIO(cmd *cobra.Command, args []string, stdin io.Reader, stdo
 
 	case searchStdin:
 		mode = "stdin"
+		ignoreMode = "none"
 		scopeLabel = "input"
 		repoRoot, _ := precommit.RepoRoot(ctx, "")
 		if repoRoot == "" {
@@ -325,6 +359,19 @@ func runSearchCommandIO(cmd *cobra.Command, args []string, stdin io.Reader, stdo
 			return emitSearchError(stdout, stderr, format, err.Error(), "Check the YAML syntax and regex patterns in your exclusion file.")
 		}
 
+		respectGitIgnore := !searchNoIgnore && !searchTrackedOnly
+		if searchTrackedOnly {
+			mode = "tracked-files"
+			ignoreMode = "tracked-only"
+			scopeLabel = "tracked file(s)"
+		} else if searchNoIgnore {
+			ignoreMode = "none"
+		} else if anyLocalDirInGit(ctx, args) {
+			ignoreMode = "gitignore"
+		} else {
+			ignoreMode = "none"
+		}
+
 		aggregator := common.MakeSimpleAggregator()
 		options := secrets.SecretSearchOptions{
 			ShowSource:            showSource,
@@ -338,6 +385,8 @@ func runSearchCommandIO(cmd *cobra.Command, args []string, stdin io.Reader, stdo
 			CloneDepth:            gitDepth,
 			FullHistory:           gitDepth == 0,
 			InsecureSkipTLS:       insecureSkipTLS,
+			RespectGitIgnore:      respectGitIgnore,
+			TrackedOnly:           searchTrackedOnly,
 		}
 		issueChannel, paths, reportCh := secrets.SearchSecretsOnPathsWithReport(ctx, args, options, "", "", nil)
 
@@ -352,6 +401,15 @@ func runSearchCommandIO(cmd *cobra.Command, args []string, stdin io.Reader, stdo
 		files := <-paths
 		acqReport := <-reportCh
 
+		if searchTrackedOnly && acqReport.Failed > 0 {
+			msg := acqReport.Failures[0].Message
+			if msg == "" {
+				msg = "target is not inside a Git repository"
+			}
+			return emitSearchError(stdout, stderr, format, msg,
+				"Run --tracked-only inside a Git repository, or omit --tracked-only for non-Git directory scans.")
+		}
+
 		for _, f := range acqReport.Failures {
 			_, _ = fmt.Fprintf(stderr, "Warning: failed to acquire %s (%s): %s\n", f.Target, f.ErrorKind, f.Message)
 		}
@@ -363,13 +421,14 @@ func runSearchCommandIO(cmd *cobra.Command, args []string, stdin io.Reader, stdo
 			msg := fmt.Sprintf("all %d scan target(s) failed to acquire", acqReport.Failed)
 			if format == "agent" {
 				_ = precommit.WriteAgentEnvelope(stdout, precommit.AgentEnvelope{
-					Tool:     common.AppName,
-					Version:  appVersion,
-					Status:   "error",
-					ExitCode: errCode,
-					Mode:     mode,
-					Error:    msg,
-					Findings: []precommit.AgentFinding{},
+					Tool:       common.AppName,
+					Version:    appVersion,
+					Status:     "error",
+					ExitCode:   errCode,
+					Mode:       mode,
+					IgnoreMode: ignoreMode,
+					Error:      msg,
+					Findings:   []precommit.AgentFinding{},
 				})
 			} else {
 				_, _ = fmt.Fprintf(stderr, "Error: %s\n", msg)
@@ -397,6 +456,7 @@ func runSearchCommandIO(cmd *cobra.Command, args []string, stdin io.Reader, stdo
 	switch format {
 	case "agent":
 		env := precommit.BuildAgentEnvelope(appVersion, mode, minConf, effectiveRedact, filesScanned, duration, exitCode, issues)
+		env.IgnoreMode = ignoreMode
 		if err := precommit.WriteAgentEnvelope(stdout, env); err != nil {
 			_, _ = fmt.Fprintf(stderr, "Error encoding agent output: %v\n", err)
 			return 2
@@ -447,6 +507,19 @@ func runSearchCommandIO(cmd *cobra.Command, args []string, stdin io.Reader, stdo
 	}
 
 	return exitCode
+}
+
+func anyLocalDirInGit(ctx context.Context, paths []string) bool {
+	for _, p := range paths {
+		info, err := os.Stat(p)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+		if _, err := util.GitWorktreeRoot(ctx, p); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func emitSearchError(stdout, stderr io.Writer, format, msg, hint string) int {

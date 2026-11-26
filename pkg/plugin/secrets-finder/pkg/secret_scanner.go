@@ -84,7 +84,9 @@ func (scanner SecretScanner) Scan(ctx context.Context, projectID string, scanID 
 		//from the scan, so an excluded tree costs one predicate call rather
 		//than one rejection per file inside it. Nothing is pruned unless the
 		//exclusion provider can prove every file beneath is excluded.
-		PruneDirs: exclusionPruneDirs(scanner.options.Exclusions),
+		PruneDirs:        exclusionPruneDirs(scanner.options.Exclusions),
+		RespectGitIgnore: scanner.options.RespectGitIgnore,
+		TrackedOnly:      scanner.options.TrackedOnly,
 	})
 
 	//The total is not known until the walk finishes, so it is the running

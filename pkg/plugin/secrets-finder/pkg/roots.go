@@ -428,6 +428,12 @@ func acquirePaths(ctx context.Context, paths []string, options SecretSearchOptio
 
 	for i, p := range paths {
 		if !isRemoteLocation(p) && !gitURL.MatchString(p) {
+			if options.TrackedOnly {
+				if _, err := util.GitWorktreeRoot(ctx, p); err != nil {
+					registry.recordFailure(p, err)
+					continue
+				}
+			}
 			registry.recordSuccess(p, "")
 			registry.set(i, repoCloneAndDetail{
 				CloneDetail: gitutils.CloneDetail{Location: p, Repository: p},

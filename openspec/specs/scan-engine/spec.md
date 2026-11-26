@@ -428,3 +428,17 @@ Merged from change `011-pre-commit-cli` (Accepted).
   - Inline comments `checkmate:ignore` (same line) and `checkmate:ignore-next-line` (preceding line) suppress matching findings (case-insensitive).
   - `testdata/golden/reference-corpus.json` was deliberately re-recorded to capture `repo-a/.env`.
 
+---
+
+## Git-Aware `.gitignore` & Tracked-File Discovery
+
+Merged from change `012-gitignore-aware-scanning` (Accepted).
+
+- **R15 — Git-Aware `.gitignore` & Tracked-File Discovery (Product Decision):**
+  - `util.WalkOptions` and `secrets.SecretSearchOptions` provide additive `RespectGitIgnore` and `TrackedOnly` boolean options whose zero values remain `false` (preserving strict backwards compatibility for SDK, API, and golden-corpus equivalence tests).
+  - Inside a Git worktree, `RespectGitIgnore` streams `git -c core.quotepath=false ls-files -z --cached --others --exclude-standard` (discovering all Git-tracked files, even if matching `.gitignore`, plus untracked non-ignored files) while honouring nested `.gitignore`, `.git/info/exclude`, global `core.excludesFile`, and `!negation` patterns.
+  - `TrackedOnly` streams strictly Git-tracked files (`git ls-files -z --cached`) and fails closed with `util.ErrNotGitRepository` when invoked outside a Git worktree.
+  - Explicit regular-file targets bypass `.gitignore` under `RespectGitIgnore`; deleted working-tree entries (`ENOENT`), gitlink/submodule directories, merge-conflict duplicate index entries, non-ASCII/space paths, and `context.Context` cancellation are handled cleanly without buffering the repository file list in memory.
+  - Outside a Git worktree, `RespectGitIgnore` falls back to `util.WalkFiles` so non-Git audits never silently skip files. Policy exclusions and `WalkOptions.PruneDirs` continue to layer on top.
+
+

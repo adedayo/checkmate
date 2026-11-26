@@ -30,6 +30,8 @@ var (
 	hookExcludeTests    bool
 	hookQuiet           bool
 	hookVerbose         bool
+	hookNoIgnore        bool
+	hookTrackedOnly     bool
 	hookInstallForce    bool
 )
 
@@ -55,17 +57,28 @@ blobs and filters modified files to added/modified lines, redacts matched values
 auto-discovers repo-root .checkmate.yaml, and exits non-zero (1) on findings at
 or above --min-confidence (default: medium).
 
-When file arguments are supplied (for example via the pre-commit framework with
-pass_filenames: true), scans those files directly unless --staged is explicitly
-passed.`,
+When file or directory arguments are supplied (for example via the pre-commit
+framework with pass_filenames: true or in a pre-push script), directories inside
+a Git repository respect .gitignore by default while still scanning tracked
+files and explicit file arguments. Use --no-ignore to scan all files on disk,
+or --tracked-only to scan only Git-tracked files.`,
 	Example: `  # Standard Git pre-commit hook (scans staged Git index blobs and added lines)
   checkmate hook run
 
   # AI-agent structured JSON output on staged changes
   checkmate hook run --staged --format json
 
+  # Pre-push hook scanning all Git-tracked files in the repository
+  checkmate hook run --tracked-only
+
+  # Pre-push hook scanning tracked files in specific subdirectories
+  checkmate hook run --tracked-only --min-confidence high src scripts
+
   # Scan specific files passed by the pre-commit framework
   checkmate hook run src/config.go .env
+
+  # Scan a working-tree directory including untracked gitignored files
+  checkmate hook run --no-ignore src
 
   # Block only on High and Critical findings
   checkmate hook run --min-confidence high`,
@@ -119,6 +132,8 @@ func init() {
 	hookRunCmd.Flags().BoolVar(&hookExcludeTests, "exclude-tests", false, "Skip suspected test files during scan")
 	hookRunCmd.Flags().BoolVarP(&hookQuiet, "quiet", "q", false, "Suppress output when no blocking findings are detected")
 	hookRunCmd.Flags().BoolVar(&hookVerbose, "verbose", false, "Enable verbose logging to stderr")
+	hookRunCmd.Flags().BoolVar(&hookNoIgnore, "no-ignore", false, "Disable .gitignore filtering on directory targets and scan all files on disk")
+	hookRunCmd.Flags().BoolVar(&hookTrackedOnly, "tracked-only", false, "Scan only Git-tracked files (git ls-files --cached); suitable for pre-push hooks")
 
 	hookInstallCmd.Flags().BoolVar(&hookInstallForce, "force", false, "Overwrite an existing non-CheckMate pre-commit hook")
 }
@@ -142,11 +157,23 @@ func runHookCommand(cmd *cobra.Command, args []string, stdout, stderr io.Writer)
 			"Valid levels are info, low, medium, high, and critical.")
 	}
 
-	useStaged := hookStaged || len(args) == 0
+	if hookNoIgnore && hookTrackedOnly {
+		return emitHookError(stdout, stderr, format,
+			"--no-ignore and --tracked-only are mutually exclusive",
+			"Use --no-ignore to scan all files on disk, or --tracked-only to scan only Git-tracked files.")
+	}
+	if hookTrackedOnly && hookStaged {
+		return emitHookError(stdout, stderr, format,
+			"--tracked-only cannot be combined with --staged",
+			"Use --staged for staged Git index blobs, or --tracked-only for tracked working-tree files.")
+	}
+
+	useStaged := hookStaged || (len(args) == 0 && !hookTrackedOnly)
 	ctx := context.Background()
 
 	var result *precommit.ScanResult
 	mode := "files"
+	ignoreMode := "none"
 	scopeLabel := "file(s)"
 
 	if useStaged {
@@ -154,6 +181,7 @@ func runHookCommand(cmd *cobra.Command, args []string, stdout, stderr io.Writer)
 		if hookDiffOnly {
 			mode = "staged-diff"
 		}
+		ignoreMode = "staged"
 		scopeLabel = "staged file(s)"
 		result, err = precommit.ScanStaged(ctx, precommit.StagedScanOptions{
 			DiffOnly:          hookDiffOnly,
@@ -174,7 +202,21 @@ func runHookCommand(cmd *cobra.Command, args []string, stdout, stderr io.Writer)
 		}
 	} else {
 		start := time.Now()
-		repoRoot, _ := precommit.RepoRoot(ctx, "")
+		repoRoot, repoErr := precommit.RepoRoot(ctx, "")
+		targets := args
+		if hookTrackedOnly {
+			mode = "tracked-files"
+			ignoreMode = "tracked-only"
+			scopeLabel = "tracked file(s)"
+			if len(targets) == 0 {
+				if repoErr != nil || repoRoot == "" {
+					return emitHookError(stdout, stderr, format,
+						"not inside a Git repository",
+						"Run 'checkmate hook run --tracked-only' inside a Git repository.")
+				}
+				targets = []string{repoRoot}
+			}
+		}
 		if repoRoot == "" {
 			repoRoot, _ = os.Getwd()
 		}
@@ -184,20 +226,30 @@ func runHookCommand(cmd *cobra.Command, args []string, stdout, stderr io.Writer)
 			AutoDiscover: !hookNoAutoExclusion,
 			DataPath:     hookDataPath,
 			NoDB:         hookNoDB,
-			Repositories: args,
+			Repositories: targets,
 		})
 		if err != nil {
 			return emitHookError(stdout, stderr, format, err.Error(),
 				"Check the YAML syntax and regex patterns in your exclusion file.")
 		}
 
-		// Filter missing/excluded args cleanly and run parallel file scanner.
-		existing := make([]string, 0, len(args))
-		for _, a := range args {
+		// Filter missing args cleanly (pre-commit may pass deleted files) and run parallel file scanner.
+		existing := make([]string, 0, len(targets))
+		for _, a := range targets {
 			if _, statErr := os.Stat(a); statErr != nil {
 				continue
 			}
 			existing = append(existing, a)
+		}
+
+		if !hookTrackedOnly {
+			if hookNoIgnore {
+				ignoreMode = "none"
+			} else if anyLocalDirInGit(ctx, existing) {
+				ignoreMode = "gitignore"
+			} else {
+				ignoreMode = "none"
+			}
 		}
 
 		var issues []*diagnostics.SecurityDiagnostic
@@ -210,6 +262,8 @@ func runHookCommand(cmd *cobra.Command, args []string, stdout, stderr io.Writer)
 				Verbose:           hookVerbose,
 				Exclusions:        exclProvider,
 				ExcludeTestFiles:  hookExcludeTests,
+				RespectGitIgnore:  !hookNoIgnore && !hookTrackedOnly,
+				TrackedOnly:       hookTrackedOnly,
 			}
 			issueCh, pathsCh, reportCh := secrets.SearchSecretsOnPathsWithReport(ctx, existing, options, "", "", nil)
 			for issue := range issueCh {
@@ -217,6 +271,14 @@ func runHookCommand(cmd *cobra.Command, args []string, stdout, stderr io.Writer)
 			}
 			files := <-pathsCh
 			acqReport := <-reportCh
+			if hookTrackedOnly && acqReport.Failed > 0 {
+				msg := acqReport.Failures[0].Message
+				if msg == "" {
+					msg = "target is not inside a Git repository"
+				}
+				return emitHookError(stdout, stderr, format, msg,
+					"Run --tracked-only inside a Git repository, or omit --tracked-only for non-Git targets.")
+			}
 			if acqReport.Succeeded == 0 && acqReport.Failed > 0 {
 				return emitHookError(stdout, stderr, format,
 					fmt.Sprintf("all %d scan target(s) failed to acquire", acqReport.Failed),
@@ -260,6 +322,7 @@ func runHookCommand(cmd *cobra.Command, args []string, stdout, stderr io.Writer)
 	switch format {
 	case "json", "agent":
 		env := precommit.BuildAgentEnvelope(appVersion, mode, minConf, hookRedact, result.FilesScanned, result.Duration, exitCode, filtered)
+		env.IgnoreMode = ignoreMode
 		if err := precommit.WriteAgentEnvelope(stdout, env); err != nil {
 			_, _ = fmt.Fprintf(stderr, "Error writing JSON output: %v\n", err)
 			return 2

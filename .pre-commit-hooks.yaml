@@ -13,3 +13,11 @@
   language: system
   pass_filenames: true
   stages: [pre-commit]
+
+- id: checkmate-tracked
+  name: CheckMate secret scan (Git-tracked files)
+  description: Scan all Git-tracked files for hard-coded secrets before pushing (ignores untracked local files like .env.local)
+  entry: checkmate hook run --tracked-only
+  language: system
+  pass_filenames: false
+  stages: [pre-push]

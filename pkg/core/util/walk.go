@@ -68,6 +68,21 @@ type WalkOptions struct {
 	//GOMAXPROCS. Per-root parallelism matters for multi-repository scans: a
 	//slow network mount should not hold up a local checkout.
 	Concurrency int
+
+	//RespectGitIgnore skips untracked files matched by .gitignore (and Git's
+	//standard exclude files) when walking directory roots inside a Git
+	//worktree. Tracked files (even if matching .gitignore), explicit regular
+	//file targets, and directories outside a Git worktree are never skipped.
+	RespectGitIgnore bool
+
+	//TrackedOnly restricts walking inside a Git worktree to files tracked in
+	//the Git index (`git ls-files --cached`). Targets outside a Git worktree
+	//invoke OnRootError with ErrNotGitRepository instead of falling back.
+	TrackedOnly bool
+
+	//OnRootError, when non-nil, is invoked if a root cannot be walked under
+	//the configured mode (for example TrackedOnly outside a Git worktree).
+	OnRootError func(root string, err error)
 }
 
 // defaultPruneDirNames are the directories DefaultPruneDirs skips.
@@ -247,6 +262,10 @@ func walkRoots(ctx context.Context, roots <-chan IndexedRoot, opts WalkOptions, 
 	go func() {
 		var discovered atomic.Int64
 		var wg sync.WaitGroup
+		var gitCache *gitRootCache
+		if opts.RespectGitIgnore || opts.TrackedOnly {
+			gitCache = newGitRootCache()
+		}
 
 		defer func() {
 			//Wait before closing: on cancellation we return from the middle of
@@ -288,7 +307,8 @@ func walkRoots(ctx context.Context, roots <-chan IndexedRoot, opts WalkOptions, 
 					//as a repository, say), and each must keep its own
 					//RepositoryIndex — deduplicating across roots would drop
 					//one repository's findings entirely.
-					visited: make(map[fileKey]struct{}),
+					visited:  make(map[fileKey]struct{}),
+					gitCache: gitCache,
 				}
 				w.walkRoot(filepath.Clean(root))
 			}(root.Index, root.Path)
@@ -306,6 +326,7 @@ type walker struct {
 	stats      chan WalkStats
 	discovered *atomic.Int64
 	visited    map[fileKey]struct{}
+	gitCache   *gitRootCache
 }
 
 func (w *walker) walkRoot(root string) {
@@ -323,6 +344,11 @@ func (w *walker) walkRoot(root string) {
 		if resolved, err := os.Stat(root); err == nil {
 			info = resolved
 		}
+	}
+
+	if w.opts.RespectGitIgnore || w.opts.TrackedOnly {
+		w.walkGitAwareRoot(root, info)
+		return
 	}
 
 	if !info.IsDir() {

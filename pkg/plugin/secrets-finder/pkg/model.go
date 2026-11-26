@@ -99,4 +99,15 @@ type SecretSearchOptions struct {
 	//OnAcquisitionComplete, when non-nil, is invoked once all scan targets have
 	//been acquired with the resulting AcquisitionReport.
 	OnAcquisitionComplete func(gitutils.AcquisitionReport) `json:"-" yaml:"-"`
+
+	//RespectGitIgnore skips untracked files matched by .gitignore (and Git's
+	//standard exclude files) when scanning directory targets inside a Git
+	//worktree. Git-tracked files, explicit file targets, staged blobs, and
+	//non-Git directories are never skipped. Zero value is false.
+	RespectGitIgnore bool `json:"RespectGitIgnore,omitempty" yaml:"RespectGitIgnore,omitempty"`
+
+	//TrackedOnly restricts directory and file scans inside a Git worktree to
+	//files tracked in the Git index (`git ls-files --cached`). Targets outside
+	//a Git repository fail acquisition. Zero value is false.
+	TrackedOnly bool `json:"TrackedOnly,omitempty" yaml:"TrackedOnly,omitempty"`
 }
