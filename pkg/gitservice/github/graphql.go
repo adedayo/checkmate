@@ -40,7 +40,15 @@ func queryProjects(ctx context.Context, query string, gitService *gitutils.GitSe
 		_ = resp.Body.Close()
 	}()
 
+	if resp.StatusCode >= http.StatusBadRequest {
+		err = fmt.Errorf("github graphql request failed with HTTP %d", resp.StatusCode)
+		return
+	}
+
 	var out struct {
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
 		Data struct {
 			User struct {
 				Repositories projectsQueryResultGH
@@ -53,6 +61,10 @@ func queryProjects(ctx context.Context, query string, gitService *gitutils.GitSe
 
 	err = json.NewDecoder(resp.Body).Decode(&out)
 	if err == nil {
+		if len(out.Errors) > 0 {
+			err = fmt.Errorf("github graphql error: %s", out.Errors[0].Message)
+			return
+		}
 		if len(out.Data.Organization.Repositories.Nodes) == 0 {
 			projects = out.Data.User.Repositories
 		} else {

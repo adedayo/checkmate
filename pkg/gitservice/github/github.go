@@ -24,20 +24,20 @@ func GetRepositories(ctx context.Context, gHub *gitutils.GitService, pagedSearch
 
 	for len(projects) < pagedSearch.PageSize {
 		query := fmt.Sprintf(projectsQuery, accountType, gHub.AccountName, pagedSearch.First, formatCursor(pagedSearch.NextCursor))
-		projs, err := queryProjects(ctx, query, gHub)
+		var projs projectsQueryResultGH
+		projs, err = queryProjects(ctx, query, gHub)
 		if err != nil {
 			log.Printf("Error: %v\n", err)
-			break
-		} else {
-			loc.EndCursor = projs.PageInfo.EndCursor
-			loc.HasNextPage = projs.PageInfo.HasNextPage
-			loc.TotalCount = projs.TotalCount
-			projects = append(projects, projs.Nodes...)
-			if !loc.HasNextPage {
-				break
-			}
-			pagedSearch.NextCursor = loc.EndCursor
+			return projects, loc, err
 		}
+		loc.EndCursor = projs.PageInfo.EndCursor
+		loc.HasNextPage = projs.PageInfo.HasNextPage
+		loc.TotalCount = projs.TotalCount
+		projects = append(projects, projs.Nodes...)
+		if !loc.HasNextPage {
+			break
+		}
+		pagedSearch.NextCursor = loc.EndCursor
 	}
 
 	return
